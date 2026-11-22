@@ -93,7 +93,7 @@ class MaidStraightNav {
             return true
         }
         // 优先完成当前挖掘/搭方块
-        if (this.breaker.isActive) {
+        if (this.breaker.isActive()) {
             this.breaker.tick(maid)
             return false
         }
