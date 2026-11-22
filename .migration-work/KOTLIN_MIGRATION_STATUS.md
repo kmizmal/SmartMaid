@@ -37,7 +37,7 @@ dependency is not separately embedded in the mod jar.
 
 ## Actual migration scope
 
-Twenty-one of the original 128 `src/main/java` files were replaced by Kotlin under
+Twenty-two of the original 128 `src/main/java` files were replaced by Kotlin under
 `src/main/kotlin`, with their Java implementations removed:
 
 - `SmartMaid`: public no-argument Fabric initializer, initialization order,
@@ -74,6 +74,8 @@ Twenty-one of the original 128 `src/main/java` files were replaced by Kotlin und
 - `entity.ai.perception.sense.EnvironmentSense`, `SelfSense` and `OwnerSense`:
   environment, maid-self and owner snapshot collection behavior retained through
   Kotlin `Sense` implementations.
+- `entity.ai.perception.MaidPerception`: snapshot root sections, event replacement,
+  section copying and JSON serialization retained with a Java-visible `tick` field.
 
 The default Fabric adapter can still construct the initializer class. Entrypoint
 names and adapter are unchanged; metadata only gains the required Kotlin runtime
@@ -81,7 +83,7 @@ dependency. Resource assets and packet formats are unchanged. The baseline has
 no mod-owned Mixin classes or Mixin configuration; bundled dependency Mixins are
 unchanged.
 
-The remaining 107 common Java files, four version-specific Java compatibility
+The remaining 106 common Java files, four version-specific Java compatibility
 files and existing Java tests remain. These are unfinished scope, not claimed
 technical exceptions. The client initializer has not been migrated. Both common
 source directories remain enabled during this initial stage.
