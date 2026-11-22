@@ -93,7 +93,22 @@ def run(argv: list[str]) -> tuple[int, str]:
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
+def _has_java_sources(series: str) -> bool:
+    for d in (os.path.join(REPO, "src", "main", "java"),
+              os.path.join(REPO, "src", "mc%s" % series, "java")):
+        if os.path.isdir(d):
+            for _root, _dirs, files in os.walk(d):
+                if any(f.endswith(".java") for f in files):
+                    return True
+    return False
+
+
 def step_compile(cfg: dict, series: str) -> dict:
+    # 迁移到 Kotlin 后 src/main/java 已归零：javac 路（compile_check.py）会「0 个真实错误」
+    # 地空跑成假绿，所以这里先判断还有没有 Java 主源码；没有就走真实 Gradle 构建。
+    if not _has_java_sources(series):
+        return _step_compile_gradle(series)
+
     # ⚠️ 每次跑用**唯一**输出目录：compile_check.py 会先清空目标目录，而目标里往往有几百个
     #    .class —— 在带"删除保护"的环境里那会被拦成 "SAFE_DELETE_BULK_CONFIRM_REQUIRED"，
     #    于是编译步假失败。用唯一目录 = 根本没有东西要删。
@@ -108,6 +123,34 @@ def step_compile(cfg: dict, series: str) -> dict:
                     "--out", out_dir, "--max-errors", "40"])
     ok = rc == 0 and "0 个真实错误" in text
     return {"name": "A 编译", "ok": ok, "detail": _tail(text), "log": out_dir}
+
+
+def _step_compile_gradle(series: str) -> dict:
+    """Kotlin 主源码的编译门：用真实 Gradle 构建（Kotlin/Java 联合编译 + 测试编译）。"""
+    props_path = os.path.join(REPO, "gradle.properties")
+    cur = "?"
+    try:
+        with open(props_path, encoding="utf-8", errors="replace") as fh:
+            m = re.search(r"^\s*mc_series\s*=\s*(\S+)", fh.read(), re.M)
+        if m:
+            cur = m.group(1)
+    except OSError:
+        pass
+    if cur != series:
+        return {"name": "A 编译", "ok": False, "log": "",
+                "detail": "gradle.properties 的 mc_series=%s 与 --series %s 不一致。\n"
+                          "本工具不会自动改版本线：先手动改 mc_series/minecraft_version/"
+                          "loader_version/loom_version/fabric_api_version 再跑。" % (cur, series)}
+
+    env = dict(os.environ)
+    javac = find_jdk_tool("javac")
+    if javac:
+        env["JAVA_HOME"] = os.path.dirname(os.path.dirname(javac))
+    r = subprocess.run(["cmd.exe", "/c", "gradlew.bat", "--offline", "--no-daemon", "build"],
+                       cwd=REPO, capture_output=True, text=True, errors="replace", env=env)
+    text = (r.stdout or "") + (r.stderr or "")
+    ok = r.returncode == 0 and "BUILD SUCCESSFUL" in text
+    return {"name": "A 编译", "ok": ok, "detail": _tail(text), "log": ""}
 
 
 _RE_MIXIN_FATAL = re.compile(r"致命（会导致 Mixin 应用失败／启动崩溃）:\s*(\d+)")

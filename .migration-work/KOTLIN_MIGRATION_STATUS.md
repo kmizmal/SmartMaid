@@ -1,8 +1,11 @@
-# Kotlin migration — in progress
+# Kotlin migration — source complete (runtime acceptance pending)
 
 Checked on 2026-11-22. This is an incremental, locally committed migration.
-As of this update the **full `gradlew build` passes with JDK 25 offline**, including
-all 33 existing tests. Migration of the remaining Java sources is still in progress.
+As of this update **all 128 `src/main/java` files have been replaced by Kotlin**:
+`src/main/java` and both `src/mc<series>/java` trees are empty. The full
+`gradlew build` passes with JDK 25 offline, including all 33 existing tests.
+What is *not* yet done is runtime acceptance (client/server startup) and the
+26.3 build (see below).
 
 ## Branch and baseline
 
@@ -38,8 +41,11 @@ dependency is not separately embedded in the mod jar.
 
 ## Actual migration scope
 
-113 of the original 128 `src/main/java` files have been replaced by
-Kotlin under `src/main/kotlin`, with their Java implementations removed. The
+All 128 of the original 128 `src/main/java` files have been replaced by
+Kotlin under `src/main/kotlin`, with their Java implementations removed — plus
+the four version-specific `compat` files, which now live in
+`src/mc26.2/kotlin` / `src/mc26.3/kotlin` (`build.gradle` adds
+`src/mc${mcSeries}/kotlin` to `kotlin.srcDirs`). The
 first 30 are listed below; later batches added network payloads, perception and
 structure helpers, all 36 previously-flagged Java twins, seven small GUI/task
 files (MaidControlMenuProvider, MaidInventoryMenuProvider, ScriptQueryTask,
@@ -105,11 +111,18 @@ dependency. Resource assets and packet formats are unchanged. The baseline has
 no mod-owned Mixin classes or Mixin configuration; bundled dependency Mixins are
 unchanged.
 
-The remaining 15 common Java files (including SmartMaidEntity, CraftExecutor,
-MaidActions, bridge clients, and client GUI screens),
-four version-specific Java compatibility files and six existing Java tests
-remain. These are unfinished scope, not claimed technical exceptions. Both
-common source directories remain enabled during this stage.
+The last shared batch migrated the client GUI screens (`MaidSubScreen` plus the
+six screens built on it) and `MaidBlockBreaker`; the final batch migrated
+`SmartMaidEntity`, `MaidActions`, `CraftExecutor`, `MaidAIBridge`,
+`MaidWsClient`, `MaidAutoTest`, `MaidClientTest` and all four version-specific
+`MaidCompat`/`MaidAnimCompat` files. **No production Java source remains.**
+
+The only Java left in the repository is the six existing JUnit tests under
+`src/test/java`. This is deliberate: they are compiled by `compileTestJava`
+against the Kotlin classes on every build, so they act as a permanent
+Java-interop regression guard (Java callers must keep resolving Kotlin
+`@JvmStatic`/`@JvmField`/getter APIs). They can be migrated later without
+affecting the mod artifact.
 
 ## Validation (updated 2026-11-22)
 
@@ -133,7 +146,32 @@ common source directories remain enabled during this stage.
   removal of duplicate setter declarations in `QueuedTask`, and
   `MaidAITask.forceStop(maid: SmartMaidEntity?)` (tests pass null).
 - `gradlew.bat --offline --no-daemon build`: **BUILD SUCCESSFUL**, 33 tests passed
-  on 26.2 after batches four and five. Existing `ResumableTest` cases now also verify
+  on 26.2 after batches four and five.
+- Final batch verification (2026-11-22): `gradlew build` **BUILD SUCCESSFUL**;
+  task log shows `:compileKotlin`, `:compileJava`, `:compileTestJava`, `:test`,
+  `:jar` all executed; JUnit XML aggregate `tests=33 skipped=0 failures=0 errors=0`.
+  `node .migration-work/check-migration-bytecode.cjs` prints
+  `OK: navigation forwards nullable vanilla paths; friendly-fire guard resolves the arrow owner.`
+  `git diff --cached --check` clean, all new Kotlin files LF (CR=0).
+- Cross-file nullability: `MaidTaskManager.TaskFactory.create` declares all four
+  parameters nullable (it is a legacy Java-shaped callback), while
+  `MaidAIBridge.buildTask` keeps the original non-null contract. `MaidDataManager`
+  now guards the callback arguments and skips a task that cannot be rebuilt
+  instead of letting a null reach `buildTask`.
+- Method-set comparison against the pre-migration Java (`git show HEAD:…`,
+  regex-extracted declaration names) shows no missing methods for
+  `SmartMaidEntity` (52 vs 50 `fun`, the two gaps are Kotlin properties
+  `isAiBusy` / `recentAttacker` that still emit the original getters),
+  `MaidActions` (31/31), `MaidWsClient` (30/30), `MaidAIBridge` (20/20),
+  `MaidAutoTest` (21/21), `MaidClientTest` (17 vs 19, only added private helpers),
+  `CraftExecutor` (23 `fun` + 2 nested records `CraftResult`/`IngredientNeeds`).
+- `SmartMaid/tools/verify_all.py` no longer silently passes when the Java tree is
+  empty: `step_compile` detects the absence of `*.java` and falls back to a real
+  `gradlew.bat --offline --no-daemon build` (it refuses to run if
+  `gradle.properties`'s `mc_series` differs from `--series`). The 26.2 invocation
+  of its B/C stages still cannot run in this environment because
+  `.minecraft/mods/fabric-api-*.jar` is absent; `gradlew build` is the
+  authoritative compile gate. Existing `ResumableTest` cases now also verify
   null snapshots are no-ops and null maids fail validation without throwing.
 - Compared with Java and checked the compiled class files with `javap -c -p`:
   navigation preserves `null` from vanilla `createPath`, and the arrow's
@@ -156,11 +194,23 @@ common source directories remain enabled during this stage.
 
 ## Remaining acceptance work
 
-1. Migrate the remaining common and version compatibility Java sources. Preserve
-   record accessors/codecs, null behavior, registry fields, event callbacks,
-   persistence and Java test call sites; remove each replaced Java file.
-2. After each batch run `gradlew.bat --offline --no-daemon build` with JDK 25
-   from `SmartMaid`, including the existing tests.
-3. Verify dedicated server and client startup, entrypoints, dependency Mixins,
-   animation, networking, menus and task persistence on Minecraft 26.2.
-4. Publish the branch and mark the migration complete.
+1. **Runtime acceptance on 26.2 (not performed).** No game jar or `mods`
+   directory exists in this environment, so the mod was never started. Still to
+   verify: client and dedicated-server startup, entrypoint construction,
+   bundled-dependency Mixins, animation (`MaidAnimCompat` 26.2 swing hack),
+   networking (WebSocket bridge), the seven self-drawn GUI screens, and task
+   persistence across save/load.
+2. **26.3 build (blocked, not a code claim).** Offline resolution fails before
+   compilation because `net.fabricmc.fabric-loom:…:1.18-SNAPSHOT` is not cached,
+   and neither `versions/26.3/26.3.jar` nor a 26.3 Fabric API jar is present.
+   The 26.3 `MaidCompat`/`MaidAnimCompat` Kotlin files are a line-by-line port of
+   the previously verified Java versions but were **not compiled**. Once the
+   artifacts are available: switch the five `gradle.properties` keys to 26.3 and
+   run `verify_all.py --series 26.3`.
+3. Optional cleanup: migrate the six Java tests to Kotlin (only after deciding
+   to give up the Java-interop compile guard they currently provide), and
+   normalise the six `getXValue()` compatibility getters on `SmartMaidEntity`
+   that exist only so both `maid.settings` and `maid.getSettings()` call styles
+   keep working.
+4. Publish the branch (`feature/kotlin-migration`) and mark the migration
+   complete.
