@@ -37,7 +37,7 @@ dependency is not separately embedded in the mod jar.
 
 ## Actual migration scope
 
-Eleven of the original 128 `src/main/java` files were replaced by Kotlin under
+Thirteen of the original 128 `src/main/java` files were replaced by Kotlin under
 `src/main/kotlin`, with their Java implementations removed:
 
 - `SmartMaid`: public no-argument Fabric initializer, initialization order,
@@ -55,6 +55,11 @@ Eleven of the original 128 `src/main/java` files were replaced by Kotlin under
 - `init.ModMenus` and `init.ModEntities`: registry keys, menu feature flags,
   entity dimensions, no-save behavior and default attributes retained through
   Kotlin objects with `@JvmField` registry fields and `@JvmStatic register()`.
+- `entity.ai.slot.ItemSlot`: slot reach, acceptance, swap, peek, extract and
+  insert contracts retained as a Kotlin interface with Java-compatible method
+  names and default implementations.
+- `entity.MaidFoodData`: food, saturation, exhaustion, regeneration and hunger
+  damage rules retained for the `LivingEntity` tick path.
 
 The default Fabric adapter can still construct the initializer class. Entrypoint
 names and adapter are unchanged; metadata only gains the required Kotlin runtime
@@ -62,7 +67,7 @@ dependency. Resource assets and packet formats are unchanged. The baseline has
 no mod-owned Mixin classes or Mixin configuration; bundled dependency Mixins are
 unchanged.
 
-The remaining 117 common Java files, four version-specific Java compatibility
+The remaining 115 common Java files, four version-specific Java compatibility
 files and existing Java tests remain. These are unfinished scope, not claimed
 technical exceptions. The client initializer has not been migrated. Both common
 source directories remain enabled during this initial stage.
@@ -70,6 +75,10 @@ source directories remain enabled during this initial stage.
 ## Validation
 
 - `git diff --check`: passed.
+- Outer CodeGraph sync after this batch: 2 changed files added, then 2 Java files
+  removed; Java callers resolve through `ItemSlot` and `MaidFoodData` symbols.
+- `gradlew.bat compileKotlin --offline --no-daemon`: blocked before compilation;
+  exact error: `Plugin [id: 'net.fabricmc.fabric-loom', version: '1.17.21'] was not found`.
 - The initial two Kotlin files compiled successfully with cached Kotlin 1.9.22,
   JVM target 21, against the baseline mod jar, Minecraft 26.2 and cached Fabric
   dependencies. This checks source syntax and Java linkage only, not the
