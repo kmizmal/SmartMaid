@@ -13,10 +13,8 @@ import net.minecraft.world.inventory.MenuType
 
 /** 女仆 GUI 菜单注册：背包 + 管理。 */
 object ModMenus {
-    @JvmField
     lateinit var MAID_INVENTORY_MENU: MenuType<MaidInventoryMenu>
 
-    @JvmField
     lateinit var MAID_CONTROL_MENU: MenuType<MaidControlMenu>
 
     @JvmStatic
@@ -24,12 +22,12 @@ object ModMenus {
         MAID_INVENTORY_MENU = Registry.register(
             BuiltInRegistries.MENU,
             ResourceKey.create(Registries.MENU, Identifier.fromNamespaceAndPath(SmartMaid.MOD_ID, "maid_inventory")),
-            MenuType(MaidInventoryMenu::new, FeatureFlags.VANILLA_SET)
+            MenuType({ syncId, inventory -> MaidInventoryMenu(syncId, inventory) }, FeatureFlags.VANILLA_SET)
         )
         MAID_CONTROL_MENU = Registry.register(
             BuiltInRegistries.MENU,
             ResourceKey.create(Registries.MENU, Identifier.fromNamespaceAndPath(SmartMaid.MOD_ID, "maid_control")),
-            MenuType(MaidControlMenu::new, FeatureFlags.VANILLA_SET)
+            MenuType({ syncId, inventory -> MaidControlMenu(syncId, inventory) }, FeatureFlags.VANILLA_SET)
         )
     }
 }

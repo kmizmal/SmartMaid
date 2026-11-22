@@ -1,7 +1,8 @@
-# Kotlin migration — incomplete, not accepted
+# Kotlin migration — in progress
 
-Checked on 2026-11-22. This is a locally committed initial portion of the requested
-migration, not a completed release or a successful full build.
+Checked on 2026-11-22. This is an incremental, locally committed migration.
+As of this update the **full `gradlew build` passes with JDK 25 offline**, including
+all 33 existing tests. Migration of the remaining Java sources is still in progress.
 
 ## Branch and baseline
 
@@ -96,37 +97,39 @@ files and existing Java tests remain. These are unfinished scope, not claimed
 technical exceptions. The client initializer has not been migrated. Both common
 source directories remain enabled during this initial stage.
 
-## Validation
+## Validation (updated 2026-11-22)
 
+- Environment is fully cached and works offline: JDK 25
+  (`C:\Program Files\Java\jdk-25.0.5.1`), Gradle 9.7.1, Kotlin 2.4.21,
+  fabric-loom 1.17.21, Fabric Language Kotlin 1.14.2+kotlin.2.4.21. The earlier
+  claims that loom was uncached / Maven downloads blocked / the wrapper build was
+  blocked by DNS are **superseded**. Run gradlew.bat via cmd.exe (MSYS cannot run
+  the POSIX gradlew script with Windows Java).
+- Build root cause fixed in `build.gradle`: overriding `sourceSets.main.java.srcDirs`
+  left KotlinCompile with no Java source (`Java source files:` empty in `--info`),
+  causing 670 spurious Unresolved errors. Adding
+  `tasks.withType(KotlinCompile).configureEach { source(sourceSets.main.java.srcDirs) }`
+  reduced this to real errors.
+- Incremental compileKotlin error count: 670 → 104 → 37 → 10 → 1 → 32 → **0**.
+  Java↔Kotlin API mismatches fixed: `@JvmField` on `const val`, generic
+  `MoveControl<T>`, `MoveControl.maxUpStep()`, `AbstractArrow.setBaseDamage`,
+  `JsonArray.size()`, Kotlin `is` operator for `FluidState.is`, Gson wildcard list,
+  explicit `Registry.register<...>` generics, `@JvmRecord` for `JumpSolution`,
+  `const val` for `MaidCommandPayload.ACTION_*` (Java switch-case constants),
+  removal of duplicate setter declarations in `QueuedTask`, and
+  `MaidAITask.forceStop(maid: SmartMaidEntity?)` (tests pass null).
+- `gradlew.bat --offline --no-daemon build`: **BUILD SUCCESSFUL**, 33 tests passed.
 - `git diff --check`: passed.
-- Outer CodeGraph sync after this batch: 2 changed files added, then 2 Java files
-  removed; Java callers resolve through `ItemSlot` and `MaidFoodData` symbols.
-- `gradlew.bat compileKotlin --offline --no-daemon`: blocked before compilation;
-  exact error: `Plugin [id: 'net.fabricmc.fabric-loom', version: '1.17.21'] was not found`.
-- The initial two Kotlin files compiled successfully with cached Kotlin 1.9.22,
-  JVM target 21, against the baseline mod jar, Minecraft 26.2 and cached Fabric
-  dependencies. This checks source syntax and Java linkage only, not the
-  configured Kotlin 2.4.21 / Java 25 toolchain or the complete source tree.
-- The six newly migrated packet files are indexed and their Java call sites are
-  resolved by CodeGraph; a clean compiler run for this batch is still pending
-  because the local ad-hoc compiler classpath is incomplete and the configured
-  Maven artifacts are not cached.
-- Wrapper build: blocked by DNS failure resolving the distribution host.
-- Cached Gradle 9.7.1 offline build: blocked by inability to connect to its local
-  daemon, also with `--no-daemon` (Gradle starts a single-use daemon).
-- Maven downloads are unavailable; Kotlin 2.4.21 and Fabric Language Kotlin are
-  absent from the local dependency cache.
-- Full Gradle build, existing tests, client/server startup and runtime entrypoint
-  validation: **not completed**.
+- Actual runtime startup (client/server) and entrypoint validation on Minecraft
+  26.2: still not performed.
 
 ## Remaining acceptance work
 
-1. Use an environment with Git metadata write access, Maven/distribution network
-   access, local Gradle daemon connectivity and GitHub repository write access.
-2. Migrate the remaining common and version compatibility sources. Preserve
+1. Migrate the remaining common and version compatibility Java sources. Preserve
    record accessors/codecs, null behavior, registry fields, event callbacks,
    persistence and Java test call sites; remove each replaced Java file.
-3. Run `gradlew.bat clean build` with JDK 25 from `SmartMaid`, including existing
-   tests, then verify dedicated server and client startup on Minecraft 26.2.
-4. Verify entrypoints, dependency Mixins, animation, networking, menus and task
-   persistence, then publish the branch and mark the migration complete.
+2. After each batch run `gradlew.bat --offline --no-daemon build` with JDK 25
+   from `SmartMaid`, including the existing tests.
+3. Verify dedicated server and client startup, entrypoints, dependency Mixins,
+   animation, networking, menus and task persistence on Minecraft 26.2.
+4. Publish the branch and mark the migration complete.

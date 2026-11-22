@@ -47,6 +47,15 @@ sourceSets {
     }
 }
 
+// ---- Java/Kotlin 混合编译（迁移期必需）----
+// 覆盖 java.srcDirs 之后，KotlinCompile 默认拿不到 Java 源，Kotlin 侧对尚未迁移的
+// Java 类（SmartMaidEntity / MaidDebug / MaidActions…）全部报 Unresolved reference。
+// 这里显式把 Java 源目录（含版本专属 src/mc<series>/java）喂给 KotlinCompile，
+// 使其按 Kotlin 官方的 Java-Kotlin 联合编译路径解析 Java 符号。
+tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+    source(sourceSets.main.java.srcDirs)
+}
+
 logger.lifecycle("SmartMaid 目标: minecraft=${project.minecraft_version} series=${mcSeries} range=${mcRange} "
         + "PAL=${palVersion} mocha=${mochaDeps}")
 

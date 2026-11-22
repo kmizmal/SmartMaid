@@ -23,13 +23,9 @@ data class MaidCommandPayload(val action: Int) : CustomPacketPayload {
             ::MaidCommandPayload
         )
 
-        @JvmField
-        val ACTION_TOGGLE_SIT = 0
-        @JvmField
-        val ACTION_RECALL = 1
-        @JvmField
-        val ACTION_CLEAR_TARGET = 2
-        @JvmField
-        val ACTION_OPEN_INVENTORY = 3
+        const val ACTION_TOGGLE_SIT = 0
+        const val ACTION_RECALL = 1
+        const val ACTION_CLEAR_TARGET = 2
+        const val ACTION_OPEN_INVENTORY = 3
     }
 }

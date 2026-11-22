@@ -146,7 +146,7 @@ public class SmartMaidRenderer extends HumanoidMobRenderer<SmartMaidEntity, Smar
     @Override
     protected void submitNameDisplay(SmartMaidRenderState state, PoseStack poseStack,
                                      SubmitNodeCollector collector, CameraRenderState camera) {
-        List<Component> lines = state.bubbleLines;
+        List<? extends Component> lines = state.bubbleLines;
         if (lines.isEmpty()) {
             super.submitNameDisplay(state, poseStack, collector, camera);
             return;

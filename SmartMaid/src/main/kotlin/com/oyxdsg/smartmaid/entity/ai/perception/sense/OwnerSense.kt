@@ -39,7 +39,7 @@ class OwnerSense : Sense {
         writeEquip(equipment, "legs", owner)
         writeEquip(equipment, "feet", owner)
         ownerObj.add("equipment", equipment)
-        ownerObj.addProperty("gamemode", owner.gameMode().name)
+        ownerObj.addProperty("gamemode", owner.gameMode()?.name ?: "unknown")
         ownerObj.addProperty("on_ground", owner.onGround())
         ownerObj.addProperty("swimming", owner.isSwimming)
         ownerObj.addProperty("sleeping", owner.isSleeping)
