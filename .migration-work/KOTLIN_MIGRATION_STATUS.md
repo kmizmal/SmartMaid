@@ -132,11 +132,15 @@ affecting the mod artifact.
   claims that loom was uncached / Maven downloads blocked / the wrapper build was
   blocked by DNS are **superseded**. Run gradlew.bat via cmd.exe (MSYS cannot run
   the POSIX gradlew script with Windows Java).
-- Build root cause fixed in `build.gradle`: overriding `sourceSets.main.java.srcDirs`
+- Build root cause (historical, now removed): overriding `sourceSets.main.java.srcDirs`
   left KotlinCompile with no Java source (`Java source files:` empty in `--info`),
-  causing 670 spurious Unresolved errors. Adding
+  causing 670 spurious Unresolved errors. The migration-era workaround
   `tasks.withType(KotlinCompile).configureEach { source(sourceSets.main.java.srcDirs) }`
-  reduced this to real errors.
+  reduced this to real errors; once `src/main/java` was emptied the whole
+  `sourceSets` override and that workaround were deleted. `build.gradle` is back
+  to the standard Fabric Loom layout: default `src/main/java` + `src/main/kotlin`,
+  with only `kotlin.srcDir "src/mc<series>/kotlin"` added for the version
+  compatibility layer (`build.gradle:42-48`).
 - Incremental compileKotlin error count: 670 → 104 → 37 → 10 → 1 → 32 → **0**.
   Java↔Kotlin API mismatches fixed: `@JvmField` on `const val`, generic
   `MoveControl<T>`, `MoveControl.maxUpStep()`, `AbstractArrow.setBaseDamage`,
@@ -189,17 +193,23 @@ affecting the mod artifact.
 - `git diff --check`: passed on each committed batch. Tooling note:
   `mcp__idea__apply_patch` can flip LF to CRLF; run `sed -i 's/\r$//'` on touched
   files and `git diff --cached --check` before committing.
-- Actual runtime startup (client/server) and entrypoint validation on Minecraft
-  26.2: still not performed.
+- Actual runtime startup on Minecraft 26.2: **dedicated server verified** via the
+  standard Loom task `gradlew.bat --offline --no-daemon runServer`
+  (log `.migration-work/runserver.log`): Fabric loaded 61 mods including
+  `smartmaid 0.1.3`; `Smart Maid initialized (debug=false, verbose=false)`;
+  default `config/smartmaid/main.json` and `bridge.json` generated; world
+  prepared; `Done (3.258s)! For help, type "help"`. The only ERROR in the log is
+  the benign first-run `NoSuchFileException: server.properties`, and the
+  dedicated-server branch logs `专用服务器：跳过桌宠联动`. Client startup
+  (`runClient`) and in-game behaviour remain unverified.
 
 ## Remaining acceptance work
 
-1. **Runtime acceptance on 26.2 (not performed).** No game jar or `mods`
-   directory exists in this environment, so the mod was never started. Still to
-   verify: client and dedicated-server startup, entrypoint construction,
-   bundled-dependency Mixins, animation (`MaidAnimCompat` 26.2 swing hack),
-   networking (WebSocket bridge), the seven self-drawn GUI screens, and task
-   persistence across save/load.
+1. **Client-side runtime acceptance on 26.2 (not performed).** The dedicated
+   server now boots (see above), but `runClient` was not launched, so the seven
+   self-drawn GUI screens, 3D preview, animation (`MaidAnimCompat` 26.2 swing
+   hack), networking against the desktop-pet bridge, and task persistence across
+   save/load are still unverified in-game.
 2. **26.3 build (blocked, not a code claim).** Offline resolution fails before
    compilation because `net.fabricmc.fabric-loom:…:1.18-SNAPSHOT` is not cached,
    and neither `versions/26.3/26.3.jar` nor a 26.3 Fabric API jar is present.

@@ -13,9 +13,8 @@ base {
 
 // ============================================================
 // 多版本兼容：版本专属源码目录
-//   src/main/kotlin      已迁移的共享 Kotlin 代码
-//   src/main/java        尚待迁移的共享 Java 代码（不得出现版本敏感的 API）
-//   src/mc<series>/java  版本专属实现（差异隔离层 com.oyxdsg.smartmaid.compat.MaidCompat 等）
+//   src/main/kotlin           共享 Kotlin 代码（Kotlin 插件默认目录，无需声明）
+//   src/mc<series>/kotlin     版本专属实现（差异隔离层 com.oyxdsg.smartmaid.compat.MaidCompat 等）
 //
 // 切换目标版本（不改文件、只改参数）：
 //   ./gradlew build -Pmc_series=26.3 -Pminecraft_version=26.3 \
@@ -29,7 +28,7 @@ def fapiRange = (project.findProperty('fabric_api_range')
 
 // ---- 本地依赖（Player Animation Library + 其表达式引擎）按目标版本选择 ----
 // 为什么必须分版本：PAL 1.2.7 把内嵌表达式引擎的包名从 team.unnamed.mocha
-// 换成了 org.redlance.mocha.runtime（见 src/mc*/java/.../compat/MaidAnimCompat.java）。
+// 换成了 org.redlance.mocha.runtime（见 src/mc*/kotlin/.../compat/MaidAnimCompat.kt）。
 // 目录约定：libs/ 放共用 + 26.2 线；libs/mc<series>/ 放该版本专属。
 def palVersions = ['26.1': '1.2.6', '26.2': '1.2.6', '26.3': '1.2.7']
 def palVersion = (project.findProperty('pal_version') ?: palVersions[mcSeries] ?: '1.2.6').toString()
@@ -42,18 +41,10 @@ def mochaDeps = (mcSeries == '26.3')
 
 sourceSets {
     main {
-        kotlin.srcDirs = ['src/main/kotlin', "src/mc${mcSeries}/kotlin"]
-        java.srcDirs = ['src/main/java', "src/mc${mcSeries}/java"]
+        // 标准 Loom + Kotlin 布局：src/main/java 与 src/main/kotlin 都是插件默认目录。
+        // 这里只额外挂上「版本专属差异隔离层」的 Kotlin 目录。
+        kotlin.srcDir "src/mc${mcSeries}/kotlin"
     }
-}
-
-// ---- Java/Kotlin 混合编译（迁移期必需）----
-// 覆盖 java.srcDirs 之后，KotlinCompile 默认拿不到 Java 源，Kotlin 侧对尚未迁移的
-// Java 类（SmartMaidEntity / MaidDebug / MaidActions…）全部报 Unresolved reference。
-// 这里显式把 Java 源目录（含版本专属 src/mc<series>/java）喂给 KotlinCompile，
-// 使其按 Kotlin 官方的 Java-Kotlin 联合编译路径解析 Java 符号。
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    source(sourceSets.main.java.srcDirs)
 }
 
 logger.lifecycle("SmartMaid 目标: minecraft=${project.minecraft_version} series=${mcSeries} range=${mcRange} "
