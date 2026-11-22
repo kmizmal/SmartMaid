@@ -8,7 +8,7 @@ migration, not a completed release or a successful full build.
 - Local branch: `feature/kotlin-migration`.
 - Base: `main`, commit `c7094701bea239a2ea8eb9033ee2cec3f206b1a5`.
 - GitHub compare confirmed this commit and remote `main` were identical.
-- Original tracked files are unchanged; work is in this independent checkout.
+- Migration work is in the outer repository on the feature branch.
 - GitHub branch creation returned HTTP 403 (`Resource not accessible by
   integration`); no remote branch was created.
 
@@ -37,7 +37,7 @@ dependency is not separately embedded in the mod jar.
 
 ## Actual migration scope
 
-Twenty-five of the original 128 `src/main/java` files were replaced by Kotlin under
+Thirty of the original 128 `src/main/java` files were replaced by Kotlin under
 `src/main/kotlin`, with their Java implementations removed:
 
 - `SmartMaid`: public no-argument Fabric initializer, initialization order,
@@ -83,13 +83,15 @@ Twenty-five of the original 128 `src/main/java` files were replaced by Kotlin un
 - `entity.ai.script.ScriptRef`: recursive JSON variable resolution, `$last`, integer
   arithmetic and condition operators retained with static Java-compatible methods.
 
+Structure helpers migrated: `StructureType`, `StructureComponent`, `OreStructure`, `TreeStructure`, and `StructureRegistry`. Compiler verification pending.
+
 The default Fabric adapter can still construct the initializer class. Entrypoint
 names and adapter are unchanged; metadata only gains the required Kotlin runtime
 dependency. Resource assets and packet formats are unchanged. The baseline has
 no mod-owned Mixin classes or Mixin configuration; bundled dependency Mixins are
 unchanged.
 
-The remaining 103 common Java files, four version-specific Java compatibility
+The remaining 98 common Java files, four version-specific Java compatibility
 files and existing Java tests remain. These are unfinished scope, not claimed
 technical exceptions. The client initializer has not been migrated. Both common
 source directories remain enabled during this initial stage.
