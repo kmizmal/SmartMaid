@@ -71,7 +71,12 @@ object MaidDataManager {
             }
             val tasksTag = tag.getCompoundOrEmpty("tasks")
             if (!tasksTag.isEmpty) {
-                val restored = maid.maidTaskManager.loadFromTag(tasksTag) { m, cmd, params, err -> MaidAIBridge.buildTask(m, cmd, params, err) }
+                val restored = maid.maidTaskManager.loadFromTag(tasksTag) { m, cmd, params, err ->
+                    // TaskFactory 的参数声明为可空（历史 Java 接口无注解），而 buildTask 的契约是非空：
+                    // 缺任一必需项就无法重建任务，直接返回 null 跳过该项（与原 Java 的空指针路径相比更安全）。
+                    if (m == null || cmd == null || params == null || err == null) null
+                    else MaidAIBridge.buildTask(m, cmd, params, err)
+                }
                 if (restored > 0) SmartMaid.LOGGER.info("女仆任务队列已恢复 {} 项（自动继续）", restored)
             }
         } catch (e: Exception) { SmartMaid.LOGGER.error("读取女仆数据失败", e) }

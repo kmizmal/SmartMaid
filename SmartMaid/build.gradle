@@ -42,7 +42,7 @@ def mochaDeps = (mcSeries == '26.3')
 
 sourceSets {
     main {
-        kotlin.srcDirs = ['src/main/kotlin']
+        kotlin.srcDirs = ['src/main/kotlin', "src/mc${mcSeries}/kotlin"]
         java.srcDirs = ['src/main/java', "src/mc${mcSeries}/java"]
     }
 }

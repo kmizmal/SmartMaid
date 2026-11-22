@@ -65,7 +65,7 @@ class SelfSense : Sense {
         val current = maid.maidTaskManager.currentTask()
         self.add("status", JsonObject().apply {
             addProperty("ai_busy", maid.isAiBusy)
-            addProperty("combat", maid.isCombatActive)
+            addProperty("combat", maid.isCombatActive())
             addProperty("task_id", current?.taskId())
             addProperty("sitting", maid.isOrderedToSit)
             val target: LivingEntity? = maid.target
