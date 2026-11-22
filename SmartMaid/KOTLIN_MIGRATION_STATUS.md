@@ -37,7 +37,7 @@ dependency is not separately embedded in the mod jar.
 
 ## Actual migration scope
 
-Two of the original 128 `src/main/java` files were replaced by Kotlin under
+Eight of the original 128 `src/main/java` files were replaced by Kotlin under
 `src/main/kotlin`, with their Java implementations removed:
 
 - `SmartMaid`: public no-argument Fabric initializer, initialization order,
@@ -45,6 +45,11 @@ Two of the original 128 `src/main/java` files were replaced by Kotlin under
   remains a static constant and `LOGGER` uses `@JvmField`.
 - `entity.ai.maidtask.TaskState`: JSON position helpers retain static Java APIs
   through `@JvmStatic`; nullable input and results are explicit.
+- `network.MaidChatPayload`, `MaidCommandPayload`, `MaidMenuActionPayload`,
+  `MaidMenuStatePayload`, `MaidOpenMenuPayload` and `MaidSettingsPayload`:
+  Java record accessors, packet type/codec fields, action constants and factory
+  methods are retained for existing Java callers; Kotlin records use
+  `@JvmRecord`, `@JvmField` and `@JvmStatic` where required.
 
 The default Fabric adapter can still construct the initializer class. Entrypoint
 names and adapter are unchanged; metadata only gains the required Kotlin runtime
@@ -52,7 +57,7 @@ dependency. Resource assets and packet formats are unchanged. The baseline has
 no mod-owned Mixin classes or Mixin configuration; bundled dependency Mixins are
 unchanged.
 
-The remaining 126 common Java files, four version-specific Java compatibility
+The remaining 120 common Java files, four version-specific Java compatibility
 files and existing Java tests remain. These are unfinished scope, not claimed
 technical exceptions. The client initializer has not been migrated. Both common
 source directories remain enabled during this initial stage.
@@ -60,10 +65,14 @@ source directories remain enabled during this initial stage.
 ## Validation
 
 - `git diff --check`: passed.
-- Both Kotlin files compiled successfully with cached Kotlin 1.9.22, JVM target
-  21, against the baseline mod jar, Minecraft 26.2 and cached Fabric dependencies.
-  This checks source syntax and Java linkage only, not the configured Kotlin
-  2.4.21 / Java 25 toolchain or the complete source tree.
+- The initial two Kotlin files compiled successfully with cached Kotlin 1.9.22,
+  JVM target 21, against the baseline mod jar, Minecraft 26.2 and cached Fabric
+  dependencies. This checks source syntax and Java linkage only, not the
+  configured Kotlin 2.4.21 / Java 25 toolchain or the complete source tree.
+- The six newly migrated packet files are indexed and their Java call sites are
+  resolved by CodeGraph; a clean compiler run for this batch is still pending
+  because the local ad-hoc compiler classpath is incomplete and the configured
+  Maven artifacts are not cached.
 - Wrapper build: blocked by DNS failure resolving the distribution host.
 - Cached Gradle 9.7.1 offline build: blocked by inability to connect to its local
   daemon, also with `--no-daemon` (Gradle starts a single-use daemon).
