@@ -7,20 +7,21 @@ Minecraft **26.2 / Fabric** 模组。行为由**本地规则引擎主导**（安
 
 ## 相关仓库（下载看这里）
 
-| 仓库 | 是什么 | 谁需要 |
-|---|---|---|
-| **[Multimodal-AI-Companion](https://github.com/oyxdsg/Multimodal-AI-Companion)** | 桌面宠物 **DeskPet**（AI 对话 / 语音 / 气泡），**本模组的联动对象** | 想让女仆会聊天、会说话就**必须**装 |
-| **[Multimodal-AI-Companion-Assets](https://github.com/oyxdsg/Multimodal-AI-Companion-Assets)** | 桌宠的完整动画素材包（Release 附件，解压到 `desktop-pet/assets/`） | 想让桌宠动起来 |
-| **SmartMaid**（本仓库） | 游戏内的智能女仆（Minecraft 26.2 Fabric 模组） | 想在游戏里指挥女仆干活 |
+| 仓库                                                                                           | 是什么                                                              | 谁需要                             |
+|------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|------------------------------------|
+| **[Multimodal-AI-Companion](https://github.com/oyxdsg/Multimodal-AI-Companion)**               | 桌面宠物 **DeskPet**（AI 对话 / 语音 / 气泡），**本模组的联动对象** | 想让女仆会聊天、会说话就**必须**装 |
+| **[Multimodal-AI-Companion-Assets](https://github.com/oyxdsg/Multimodal-AI-Companion-Assets)** | 桌宠的完整动画素材包（Release 附件，解压到 `desktop-pet/assets/`）  | 想让桌宠动起来                     |
+| **SmartMaid**（本仓库）                                                                        | 游戏内的智能女仆（Minecraft 26.2 Fabric 模组）                      | 想在游戏里指挥女仆干活             |
 
 > 只想单机玩女仆、不接 AI 也可以：跟随 / 战斗 / 跳跃寻路 / 挖矿建造 / 任务 / 设置菜单**完全独立可用**，
 > 只有 `/maidchat` 聊天栏对话与语音朗读需要桌宠在线。
 
 ## 快速开始
 
+> [!TIP]
+> 非开发者请直接到 release 或 action 下载编译好的mod
+>
 ```bash
-# 1) 构建本模组（需要 JDK 25，Minecraft 26.2 要求）
-$env:JAVA_HOME="<你的 JDK 25 安装目录>"
 cd SmartMaid
 gradlew.bat build
 #  产物：SmartMaid/build/libs/smartmaid-<version>.jar
@@ -33,20 +34,19 @@ gradlew.bat build
 
 ## 目录
 
-| 路径 | 是什么 |
-|---|---|
-| `SmartMaid/` | 模组工程本体（源码 / 资源 / 工具 / 开发文档） |
-| `SmartMaid/README.md` | **完整文档** —— 功能特性、指令手册、架构、构建与工具脚本 |
-| `LICENSE` / `NOTICE.md` | 许可与第三方声明 |
+| 路径                    | 是什么                                                   |
+|-------------------------|----------------------------------------------------------|
+| `SmartMaid/`            | 模组工程本体（源码 / 资源 / 工具 / 开发文档）            |
+| `SmartMaid/README.md`   | **完整文档** —— 功能特性、指令手册、架构、构建与工具脚本 |
+| `LICENSE` / `NOTICE.md` | 许可与第三方声明                                         |
 
 ## 许可
 
 **本项目免费开源、不收取任何费用，也不用于商业用途。**
 
-| 内容 | 许可 |
-|---|---|
-| 本项目原创代码 / 文档 / 界面贴图 | **MIT**（[`LICENSE`](LICENSE)） |
-| `assets/smartmaid/emotes/*.json`（11 个表情动画） | 来自 [Emotecraft](https://github.com/KosmX/emotes)（KosmX），**GPL-3.0** |
-| 女仆皮肤（`皮肤大肥鱼.png` 等） | 基于"大肥鱼"角色立绘，**CC BY-NC-SA 4.0**（署名 / 禁商用 / 相同方式共享） |
+1. cb9dcaba7538ab018b01a339cd360e2f695b57aa 及之前部分采用原上游 `MIT`
+2. 自 `2026年11月21日` 起 [kmizmal](https://github.com/kmizmal) 维护的部分采用 `GPLv3`
+3. 鲸鱼娘素材归属 [上善无形](https://space.bilibili.com/4456176) | [ZipZipPipe](https://space.bilibili.com/4168597)｜ CC
+   BY-NC-SA 4.0
 
 > 完整来源与条款见 [`NOTICE.md`](NOTICE.md)。**皮肤与表情数据不可用于商业用途。**
