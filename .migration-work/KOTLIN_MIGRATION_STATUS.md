@@ -37,7 +37,7 @@ dependency is not separately embedded in the mod jar.
 
 ## Actual migration scope
 
-Fourteen of the original 128 `src/main/java` files were replaced by Kotlin under
+Fifteen of the original 128 `src/main/java` files were replaced by Kotlin under
 `src/main/kotlin`, with their Java implementations removed:
 
 - `SmartMaid`: public no-argument Fabric initializer, initialization order,
@@ -62,6 +62,9 @@ Fourteen of the original 128 `src/main/java` files were replaced by Kotlin under
   damage rules retained for the `LivingEntity` tick path.
 - `gui.MaidArmorSlot`: armor/offhand placement rules, binding-curse pickup guard,
   active-slot checks and synchronization to the maid's equipment slots retained.
+- `client.gui.MaidNet`: guarded client payload sending and connection checks retained
+  through a Kotlin object with static Java-compatible methods; CodeGraph found no
+  current callers for this helper.
 
 The default Fabric adapter can still construct the initializer class. Entrypoint
 names and adapter are unchanged; metadata only gains the required Kotlin runtime
@@ -69,7 +72,7 @@ dependency. Resource assets and packet formats are unchanged. The baseline has
 no mod-owned Mixin classes or Mixin configuration; bundled dependency Mixins are
 unchanged.
 
-The remaining 114 common Java files, four version-specific Java compatibility
+The remaining 113 common Java files, four version-specific Java compatibility
 files and existing Java tests remain. These are unfinished scope, not claimed
 technical exceptions. The client initializer has not been migrated. Both common
 source directories remain enabled during this initial stage.
