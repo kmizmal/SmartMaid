@@ -38,7 +38,7 @@ dependency is not separately embedded in the mod jar.
 
 ## Actual migration scope
 
-109 of the original 128 `src/main/java` files have been replaced by
+113 of the original 128 `src/main/java` files have been replaced by
 Kotlin under `src/main/kotlin`, with their Java implementations removed. The
 first 30 are listed below; later batches added network payloads, perception and
 structure helpers, all 36 previously-flagged Java twins, seven small GUI/task
@@ -51,7 +51,8 @@ MaidTelemetryWriter). Batch four migrated 16 more: `MaidControlMenu`,
 `MaidInventoryMenu`, `SmartMaidModel`, `SmartMaidRenderer`, `ScriptQueries`,
 `ScriptTask`, `StructureScan`, `HarvestTask`, `FarmTask`, `MineTask`, `SmeltTask`,
 `TransferTask`, `MaidTaskManager`, `MaidActionExecutor`, `MaidBlockPlacer`, and
-`MaidInventoryTidy`. Selected earlier migration details:
+`MaidInventoryTidy`. Batch five migrated `SmartMaidClient`, `MaidAnimManager`,
+`ModNetworking`, and `MaidErrorSink`. Selected earlier migration details:
 
 - `SmartMaid`: public no-argument Fabric initializer, initialization order,
   command registration, lifecycle/tick callbacks and logging retained. `MOD_ID`
@@ -104,12 +105,11 @@ dependency. Resource assets and packet formats are unchanged. The baseline has
 no mod-owned Mixin classes or Mixin configuration; bundled dependency Mixins are
 unchanged.
 
-The remaining 19 common Java files (including SmartMaidEntity, CraftExecutor,
+The remaining 15 common Java files (including SmartMaidEntity, CraftExecutor,
 MaidActions, bridge clients, and client GUI screens),
 four version-specific Java compatibility files and six existing Java tests
-remain. These are unfinished scope, not claimed technical exceptions. The client
-initializer has not been migrated. Both common source directories remain enabled
-during this stage.
+remain. These are unfinished scope, not claimed technical exceptions. Both
+common source directories remain enabled during this stage.
 
 ## Validation (updated 2026-11-22)
 
@@ -133,7 +133,7 @@ during this stage.
   removal of duplicate setter declarations in `QueuedTask`, and
   `MaidAITask.forceStop(maid: SmartMaidEntity?)` (tests pass null).
 - `gradlew.bat --offline --no-daemon build`: **BUILD SUCCESSFUL**, 33 tests passed
-  on 26.2 after batch four. Existing `ResumableTest` cases now also verify
+  on 26.2 after batches four and five. Existing `ResumableTest` cases now also verify
   null snapshots are no-ops and null maids fail validation without throwing.
 - Compared with Java and checked the compiled class files with `javap -c -p`:
   navigation preserves `null` from vanilla `createPath`, and the arrow's
