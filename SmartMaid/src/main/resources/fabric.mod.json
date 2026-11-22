@@ -13,6 +13,7 @@
     "client": ["com.oyxdsg.smartmaid.client.SmartMaidClient"]
   },
   "depends": {
+    "fabric-language-kotlin": "${fabric_kotlin_range}",
     "fabricloader": ">=0.18.4",
     "minecraft": "${minecraft_range}",
     "java": ">=25",

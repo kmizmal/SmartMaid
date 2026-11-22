@@ -1,5 +1,6 @@
 plugins {
     id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'org.jetbrains.kotlin.jvm' version "${kotlin_version}"
     id 'maven-publish'
 }
 
@@ -12,7 +13,8 @@ base {
 
 // ============================================================
 // 多版本兼容：版本专属源码目录
-//   src/main/java        共享代码（**不得**出现版本敏感的 API）
+//   src/main/kotlin      已迁移的共享 Kotlin 代码
+//   src/main/java        尚待迁移的共享 Java 代码（不得出现版本敏感的 API）
 //   src/mc<series>/java  版本专属实现（差异隔离层 com.oyxdsg.smartmaid.compat.MaidCompat 等）
 //
 // 切换目标版本（不改文件、只改参数）：
@@ -40,6 +42,7 @@ def mochaDeps = (mcSeries == '26.3')
 
 sourceSets {
     main {
+        kotlin.srcDirs = ['src/main/kotlin']
         java.srcDirs = ['src/main/java', "src/mc${mcSeries}/java"]
     }
 }
@@ -48,6 +51,7 @@ logger.lifecycle("SmartMaid 目标: minecraft=${project.minecraft_version} serie
         + "PAL=${palVersion} mocha=${mochaDeps}")
 
 repositories {
+    mavenCentral()
     maven { url = 'https://maven.aliyun.com/repository/public' }
     maven { url = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
     // 本地依赖：libs/（共用 + 26.2 线）与 libs/mc<series>/（版本专属，如 PAL 1.2.7）
@@ -55,6 +59,8 @@ repositories {
 }
 
 dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:${project.kotlin_version}"
+    implementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
@@ -71,6 +77,7 @@ dependencies {
 }
 
 processResources {
+    inputs.property "fabric_kotlin_range", ">=${project.fabric_kotlin_version}"
     inputs.property "version", project.version
     inputs.property "minecraft_range", mcRange
     inputs.property "fabric_api_range", fapiRange
@@ -79,7 +86,8 @@ processResources {
     filesMatching("fabric.mod.json") {
         // 每个版本产出的 jar 只声明它**真正支持**的那个版本范围（禁止宽范围通吃，
         // 理由见 DESIGN_MULTIVERSION.md §4.3）
-        expand "version": project.version,
+        expand "fabric_kotlin_range": ">=${project.fabric_kotlin_version}",
+               "version": project.version,
                "minecraft_range": mcRange,
                "fabric_api_range": fapiRange,
                "target_mc": project.minecraft_version,
@@ -103,4 +111,11 @@ java {
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
+}
+
+kotlin {
+    jvmToolchain(25)
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25
+    }
 }
