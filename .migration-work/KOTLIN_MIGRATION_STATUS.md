@@ -38,8 +38,20 @@ dependency is not separately embedded in the mod jar.
 
 ## Actual migration scope
 
-Thirty of the original 128 `src/main/java` files were replaced by Kotlin under
-`src/main/kotlin`, with their Java implementations removed:
+109 of the original 128 `src/main/java` files have been replaced by
+Kotlin under `src/main/kotlin`, with their Java implementations removed. The
+first 30 are listed below; later batches added network payloads, perception and
+structure helpers, all 36 previously-flagged Java twins, seven small GUI/task
+files (MaidControlMenuProvider, MaidInventoryMenuProvider, ScriptQueryTask,
+MoveToTask, MaidTheme, CollectTask, CraftTask), and sixteen maidtask/navigation/
+bridge classes (AttackTask, BuildTask, ChestOpenTask, ChestStoreTask, EatTask,
+FeedTask, GuardTask, MaidDebug, MaidActor, MaidMonitor, MaidStraightNav,
+MaidGroundPathNavigation, MaidWalkNodeEvaluator, BridgeConfig, ItemIndexPayload,
+MaidTelemetryWriter). Batch four migrated 16 more: `MaidControlMenu`,
+`MaidInventoryMenu`, `SmartMaidModel`, `SmartMaidRenderer`, `ScriptQueries`,
+`ScriptTask`, `StructureScan`, `HarvestTask`, `FarmTask`, `MineTask`, `SmeltTask`,
+`TransferTask`, `MaidTaskManager`, `MaidActionExecutor`, `MaidBlockPlacer`, and
+`MaidInventoryTidy`. Selected earlier migration details:
 
 - `SmartMaid`: public no-argument Fabric initializer, initialization order,
   command registration, lifecycle/tick callbacks and logging retained. `MOD_ID`
@@ -84,7 +96,7 @@ Thirty of the original 128 `src/main/java` files were replaced by Kotlin under
 - `entity.ai.script.ScriptRef`: recursive JSON variable resolution, `$last`, integer
   arithmetic and condition operators retained with static Java-compatible methods.
 
-Structure helpers migrated: `StructureType`, `StructureComponent`, `OreStructure`, `TreeStructure`, and `StructureRegistry`. Compiler verification pending.
+Structure helpers migrated: `StructureType`, `StructureComponent`, `OreStructure`, `TreeStructure`, and `StructureRegistry`. They compile as part of the verified 26.2 build.
 
 The default Fabric adapter can still construct the initializer class. Entrypoint
 names and adapter are unchanged; metadata only gains the required Kotlin runtime
@@ -92,10 +104,12 @@ dependency. Resource assets and packet formats are unchanged. The baseline has
 no mod-owned Mixin classes or Mixin configuration; bundled dependency Mixins are
 unchanged.
 
-The remaining 98 common Java files, four version-specific Java compatibility
-files and existing Java tests remain. These are unfinished scope, not claimed
-technical exceptions. The client initializer has not been migrated. Both common
-source directories remain enabled during this initial stage.
+The remaining 19 common Java files (including SmartMaidEntity, CraftExecutor,
+MaidActions, bridge clients, and client GUI screens),
+four version-specific Java compatibility files and six existing Java tests
+remain. These are unfinished scope, not claimed technical exceptions. The client
+initializer has not been migrated. Both common source directories remain enabled
+during this stage.
 
 ## Validation (updated 2026-11-22)
 
@@ -118,8 +132,25 @@ source directories remain enabled during this initial stage.
   `const val` for `MaidCommandPayload.ACTION_*` (Java switch-case constants),
   removal of duplicate setter declarations in `QueuedTask`, and
   `MaidAITask.forceStop(maid: SmartMaidEntity?)` (tests pass null).
-- `gradlew.bat --offline --no-daemon build`: **BUILD SUCCESSFUL**, 33 tests passed.
-- `git diff --check`: passed.
+- `gradlew.bat --offline --no-daemon build`: **BUILD SUCCESSFUL**, 33 tests passed
+  on 26.2 after batch four. Existing `ResumableTest` cases now also verify
+  null snapshots are no-ops and null maids fail validation without throwing.
+- Compared with Java and checked the compiled class files with `javap -c -p`:
+  navigation preserves `null` from vanilla `createPath`, and the arrow's
+  friendly-fire check calls `getOwner()` rather than reading `EntityReference`.
+  Kotlin 2.4.21 warns that the local `RETURN_TYPE_MISMATCH_ON_OVERRIDE`
+  suppression on the two navigation methods is unspecified; recheck the
+  class files if updating the compiler or Minecraft signatures.
+- IDEA MCP's direct build and converter are currently blocked by the IDE module
+  model. Its named Gradle SDK `25` points to the absent `jdk-25.0.5.0.2`;
+  the IDEA terminal works with `JAVA_HOME` set to `jdk-25.0.5.1` for that
+  command. No global SDK changes are required by the repository.
+- The documented 26.3 Gradle target stops before compilation in offline mode
+  because `net.fabricmc.fabric-loom:net.fabricmc.fabric-loom.gradle.plugin:1.18-SNAPSHOT`
+  is not cached. This is not a verified 26.3 build.
+- `git diff --check`: passed on each committed batch. Tooling note:
+  `mcp__idea__apply_patch` can flip LF to CRLF; run `sed -i 's/\r$//'` on touched
+  files and `git diff --cached --check` before committing.
 - Actual runtime startup (client/server) and entrypoint validation on Minecraft
   26.2: still not performed.
 

@@ -97,7 +97,7 @@ class MaidStraightNav {
             this.breaker.tick(maid)
             return false
         }
-        if (this.placer.isActive) {
+        if (this.placer.isActive()) {
             this.placer.tick(maid)
             return false
         }

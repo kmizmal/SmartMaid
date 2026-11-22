@@ -36,23 +36,21 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
     val straightNav = MaidStraightNav()
     private var lastStraightEval = -10000
 
-    /** JVM 层返回 null，但满足 Kotlin 非空 Path 覆盖签名（父类 createPath 被视作返回非空 Path）。 */
-    @Suppress("UNCHECKED_CAST")
-    private fun <T> jvmNull(): T = null as T
-
     override fun createPathFinder(maxVisitedNodes: Int): PathFinder {
         this.nodeEvaluator = MaidWalkNodeEvaluator()
         this.nodeEvaluator.setCanPassDoors(true)
         return PathFinder(this.nodeEvaluator, maxVisitedNodes)
     }
 
-    override fun createPath(pos: BlockPos, accuracy: Int): Path {
+    // GroundPathNavigation 26.2 的签名被视为非空，但找不到路径时实际返回 null。
+    @Suppress("RETURN_TYPE_MISMATCH_ON_OVERRIDE")
+    override fun createPath(pos: BlockPos, accuracy: Int): Path? {
         val maid = this.mob as SmartMaidEntity
-        if (maid.isOrderedToSit) return jvmNull()
+        if (maid.isOrderedToSit) return null
         if (combatDisablesStraight(maid)) return super.createPath(pos, accuracy)
         if (this.straightNav.recentlyGaveUp(maid.tickCount)) return super.createPath(pos, accuracy)
         if (this.straightNav.isActive && maid.tickCount - this.lastStraightEval < STRAIGHT_EVAL_INTERVAL) {
-            return jvmNull()
+            return null
         }
         val path: Path? = super.createPath(pos, accuracy)
         if (useStraight(maid, path, pos)) {
@@ -63,7 +61,7 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
             )
             this.straightNav.setTarget(pos)
             this.lastStraightEval = maid.tickCount
-            return jvmNull()
+            return null
         }
         if (this.straightNav.isActive) {
             MaidDebug.log(
@@ -72,29 +70,30 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
             )
         }
         this.straightNav.clear(maid)
-        return path!!
+        return path
     }
 
-    override fun createPath(entity: Entity, accuracy: Int): Path {
+    @Suppress("RETURN_TYPE_MISMATCH_ON_OVERRIDE")
+    override fun createPath(entity: Entity, accuracy: Int): Path? {
         val maid = this.mob as SmartMaidEntity
-        if (maid.isOrderedToSit) return jvmNull()
+        if (maid.isOrderedToSit) return null
         if (combatDisablesStraight(maid)) return super.createPath(entity, accuracy)
         val target = entity.blockPosition()
         if (this.straightNav.recentlyGaveUp(maid.tickCount)) return super.createPath(entity, accuracy)
         if (this.straightNav.isActive && maid.tickCount - this.lastStraightEval < STRAIGHT_EVAL_INTERVAL) {
-            return jvmNull()
+            return null
         }
         val path: Path? = super.createPath(entity, accuracy)
         if (useStraight(maid, path, target)) {
             this.straightNav.setTarget(target)
             this.lastStraightEval = maid.tickCount
-            return jvmNull()
+            return null
         }
         if (this.straightNav.isActive) {
             MaidDebug.log("StraightNav 切回原版(追实体) -> $target")
         }
         this.straightNav.clear(maid)
-        return path!!
+        return path
     }
 
     override fun tick() {

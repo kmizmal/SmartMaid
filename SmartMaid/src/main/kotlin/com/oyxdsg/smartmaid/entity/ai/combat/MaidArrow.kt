@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level
 class MaidArrow(level: Level, owner: LivingEntity, weapon: ItemStack, ammo: ItemStack) : Arrow(level, owner, weapon, ammo) {
     override fun canHitEntity(target: Entity): Boolean {
         if (target is Player) {
-            val shooter = this.owner as? SmartMaidEntity ?: return false
+            val shooter = getOwner() as? SmartMaidEntity ?: return false
             if (!shooter.settings.friendlyFire) return false
         }
         return super.canHitEntity(target)

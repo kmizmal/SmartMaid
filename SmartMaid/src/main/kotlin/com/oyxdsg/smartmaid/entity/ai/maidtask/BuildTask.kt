@@ -13,7 +13,7 @@ import net.minecraft.network.chat.Component
  * <p>放置复用 MaidBlockPlacer（自动换方块到主手、走到目标旁、选支撑面放置）。
  * 蓝图（相对坐标模板）为后续扩展。</p>
  */
-class BuildTask(private val positions: List<BlockPos>?) : MaidAITask("build"), Resumable {
+open class BuildTask(private val positions: List<BlockPos>?) : MaidAITask("build"), Resumable {
 
     private var index = 0
     private var outOfBlock = false
@@ -86,13 +86,14 @@ class BuildTask(private val positions: List<BlockPos>?) : MaidAITask("build"), R
         return o
     }
 
-    override fun restoreState(s: JsonObject) {
+    override fun restoreState(s: JsonObject?) {
+        if (s == null) return
         this.index = if (s.has("index")) s.get("index").getAsInt() else 0
         this.outOfBlock = s.has("outOfBlock") && s.get("outOfBlock").getAsBoolean()
     }
 
     override fun stateVersion(): Int = 1
 
-    override fun validateState(maid: SmartMaidEntity, s: JsonObject): Boolean =
-        !this.positions.isNullOrEmpty()
+    override fun validateState(maid: SmartMaidEntity?, s: JsonObject?): Boolean =
+        !this.positions.isNullOrEmpty() && maid != null
 }
