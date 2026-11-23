@@ -96,6 +96,7 @@ processResources {
     // 许可证与第三方声明随 jar 一起分发（jar 内含 GPL-3.0 表情数据与 CC BY-NC-SA 皮肤，
     // 声明必须与二进制同行；见仓库根 NOTICE.md）
     from(file("../LICENSE")) { into "META-INF" }
+    from(file("../GPL-3.0.txt")) { into "META-INF" }
     from(file("../NOTICE.md")) { into "META-INF" }
 }
 

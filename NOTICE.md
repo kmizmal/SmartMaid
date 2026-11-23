@@ -1,8 +1,9 @@
 # NOTICE — SmartMaid 第三方组件与素材来源声明
 
-本文件说明 SmartMaid 仓库中各部分内容的来源与适用许可。除下列特别标注的
-文件/目录外，本仓库的全部内容（Java 源码、构建脚本、文档、GUI 贴图、表情
-以外的资源）由 oyxdsg 原创编写，按仓库根目录 `LICENSE`（MIT）分发。
+本文件说明 SmartMaid 仓库各部分的来源与适用许可。`cb9dcaba7538ab018b01a339cd360e2f695b57aa`
+及之前的 oyxdsg 上游 MIT 部分保留原 [MIT 许可与版权声明](LICENSE)。自 2026 年 11 月 21 日起，
+kmizmal 维护部分按 [GNU GPL 第 3 版](GPL-3.0.txt)（`GPL-3.0-only`）分发。
+下列第三方内容继续适用原许可，不因新增 GPLv3 声明而变更。
 
 ---
 

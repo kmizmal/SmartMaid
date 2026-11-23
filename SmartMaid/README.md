@@ -408,15 +408,14 @@ python tools/run_e2e_test.py --quick-play "新的世界 (11)"
 
 ## 许可
 
-**本项目免费开源、不收取任何费用，也不用于商业用途。**
-
 | 内容 | 许可 |
 |---|---|
-| 本项目原创代码（Java 源码、构建脚本、文档、界面贴图） | **MIT**（见仓库根 [`LICENSE`](../LICENSE)） |
+| `cb9dcaba7538ab018b01a339cd360e2f695b57aa` 及之前的上游 MIT 部分 | 保留原 [MIT 许可与版权声明](../LICENSE) |
+| 2026 年 11 月 21 日起的 kmizmal 维护部分 | [GNU GPL 第 3 版](../GPL-3.0.txt)（`GPL-3.0-only`） |
 | `entity/ai/MaidMoveControl.java` 的"触发跳跃"判断条件 | 改编自 [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid)（代码部分 MIT，Copyright © 2019-2025 tartaric_acid），文件头已保留其版权声明 |
 | `assets/smartmaid/emotes/*.json`（11 个表情动画） | 来自 [Emotecraft](https://github.com/KosmX/emotes)（KosmX）内置表情的未修改副本，**GPL-3.0** |
 | 女仆皮肤图片（`textures/entity/smart_maid.png`、仓库根 `皮肤大肥鱼.png`）与模组图标（`assets/smartmaid/icon.png`） | 基于"大肥鱼"角色立绘制作，**CC BY-NC-SA 4.0**（须署名 / **禁止商用** / 衍生须相同方式共享） |
 | `libs/` 内置第三方库 | Player Animation Library（MIT）；mochafloats（PAL 传递依赖） |
 
-> 完整来源与条款见仓库根 [`NOTICE.md`](../NOTICE.md)。该声明也已随 jar 打包到 `META-INF/` 下，
-> 二进制分发时许可信息不会丢失。**皮肤与表情数据不可用于商业用途。**
+> 完整来源与条款见仓库根 [`NOTICE.md`](../NOTICE.md)。MIT、GPLv3 正文及声明随 JAR 打包到 `META-INF/`。
+> CC BY-NC-SA 4.0 的非商业限制适用于对应素材，不是 GPLv3 的附加限制。

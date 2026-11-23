@@ -5,7 +5,7 @@
   "name": "Smart Maid",
   "description": "Rule-engine driven AI maid mod for Minecraft ${target_mc}, inspired by Touhou Little Maid.",
   "authors": ["oyxdsg"],
-  "license": "MIT",
+  "license": ["GPL-3.0-only", "MIT", "CC-BY-NC-SA-4.0"],
   "icon": "assets/smartmaid/icon.png",
   "environment": "*",
   "entrypoints": {

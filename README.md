@@ -38,15 +38,12 @@ gradlew.bat build
 |-------------------------|----------------------------------------------------------|
 | `SmartMaid/`            | 模组工程本体（源码 / 资源 / 工具 / 开发文档）            |
 | `SmartMaid/README.md`   | **完整文档** —— 功能特性、指令手册、架构、构建与工具脚本 |
-| `LICENSE` / `NOTICE.md` | 许可与第三方声明                                         |
+| [`LICENSE`](LICENSE) / [`GPL-3.0.txt`](GPL-3.0.txt) / [`NOTICE.md`](NOTICE.md) | 上游 MIT、维护部分 GPLv3 及第三方声明 |
 
 ## 许可
 
-**本项目免费开源、不收取任何费用，也不用于商业用途。**
+1. `cb9dcaba7538ab018b01a339cd360e2f695b57aa` 及之前的上游 MIT 部分，继续保留原 [`LICENSE`](LICENSE) 和版权声明。
+2. 自 2026 年 11 月 21 日起，[kmizmal](https://github.com/kmizmal) 维护部分以 [GNU GPL 第 3 版](GPL-3.0.txt)（`GPL-3.0-only`）分发。
+3. 第三方素材保留原许可。鲸鱼娘皮肤等素材由 [上善无形](https://space.bilibili.com/4456176) / [ZipZipPipe](https://space.bilibili.com/4168597) 授权，按 CC BY-NC-SA 4.0 分发，不得用于商业目的；Emotecraft 表情按其 GPL-3.0 条款分发。
 
-1. cb9dcaba7538ab018b01a339cd360e2f695b57aa 及之前部分采用原上游 `MIT`
-2. 自 `2026年11月21日` 起 [kmizmal](https://github.com/kmizmal) 维护的部分采用 `GPLv3`
-3. 鲸鱼娘素材归属 [上善无形](https://space.bilibili.com/4456176) | [ZipZipPipe](https://space.bilibili.com/4168597)｜ CC
-   BY-NC-SA 4.0
-
-> 完整来源与条款见 [`NOTICE.md`](NOTICE.md)。**皮肤与表情数据不可用于商业用途。**
+> 各部分的适用许可和来源见 [`NOTICE.md`](NOTICE.md)。
