@@ -52,6 +52,7 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
         if (this.straightNav.isActive && maid.tickCount - this.lastStraightEval < STRAIGHT_EVAL_INTERVAL) {
             return null
         }
+        // 原版无路时会返回 null，保留给下面的直线回退判断。
         val path: Path? = super.createPath(pos, accuracy)
         if (useStraight(maid, path, pos)) {
             MaidDebug.log(
@@ -140,8 +141,7 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
 
     /** 路径终点是否真正接近目标。高度差大（坡/爬升）视为原版路径合理可达。 */
     private fun reachesTarget(maid: SmartMaidEntity, path: Path, target: BlockPos): Boolean {
-        val end: Node? = path.endNode
-        if (end == null) return false
+        val end: Node = path.endNode ?: return false
         val e = end.asBlockPos()
         val dx = e.x - target.x
         val dz = e.z - target.z

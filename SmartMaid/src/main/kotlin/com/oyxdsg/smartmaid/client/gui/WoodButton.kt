@@ -7,7 +7,7 @@ import net.minecraft.client.renderer.RenderPipelines
 import net.minecraft.network.chat.Component
 import net.minecraft.resources.Identifier
 
-open class WoodButton(x: Int, y: Int, w: Int, h: Int, message: Component, onPress: Button.OnPress) :
+open class WoodButton(x: Int, y: Int, w: Int, h: Int, message: Component, onPress: OnPress) :
     Button(x, y, w, h, message, onPress, DEFAULT_NARRATION) {
     companion object {
         private fun id(name: String) = Identifier.fromNamespaceAndPath(SmartMaid.MOD_ID, "textures/gui/$name")

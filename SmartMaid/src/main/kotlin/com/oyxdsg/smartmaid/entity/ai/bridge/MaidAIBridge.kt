@@ -110,13 +110,10 @@ object MaidAIBridge {
                 // 干跑查询（不消耗材料）：供桌宠在自动合成前判断材料是否齐备、
                 // 并拿到「缺什么、缺多少」的明细回报给用户/大 AI。
                 val checkErr = StringBuilder()
-                val item = resolveItem(maid, params, checkErr)
-                if (item == null) {
-                    return MaidCommandResult.fail(
-                        id,
-                        if (checkErr.length > 0) checkErr.toString() else "无效物品"
-                    )
-                }
+                val item = resolveItem(maid, params, checkErr) ?: return MaidCommandResult.fail(
+                    id,
+                    if (checkErr.length > 0) checkErr.toString() else "无效物品"
+                )
                 val report = CraftExecutor.check(maid, ItemStack(item), intParam(params, "count", 1))
                 return MaidCommandResult.ok(id, "done", "checked", report)
             }
@@ -135,7 +132,7 @@ object MaidAIBridge {
                     val groupId = if (req.has("group") && !req.get("group").isJsonNull) req.get("group").asString else null
                     val parentLabel = if (req.has("group_label") && !req.get("group_label").isJsonNull) req.get("group_label").asString else null
                     val er = manager.enqueueTask(
-                        ScriptTask(id, params), id, "script", params, kind, owner,
+                        ScriptTask(params), id, "script", params, kind, owner,
                         MaidTaskNames.display("script", params), groupId, parentLabel, priority
                     )
                     return enqueueReceipt(id, kind, er)
@@ -143,7 +140,7 @@ object MaidAIBridge {
                 if (!cancelPrevious && manager.isAiBusy()) {
                     return MaidCommandResult.fail(id, "女仆已有任务运行中（cancel_previous=false）")
                 }
-                val started = manager.setTask(ScriptTask(id, params))
+                val started = manager.setTask(ScriptTask(params))
                 if (!started) {
                     return MaidCommandResult.fail(id, "脚本前置条件不满足")
                 }
@@ -158,10 +155,10 @@ object MaidAIBridge {
 
         // 任务指令
         val err = StringBuilder()
-        val task = buildTask(maid, cmd, params, err)
-        if (task == null) {
-            return MaidCommandResult.fail(id, if (err.length > 0) err.toString() else "未知指令: $cmd")
-        }
+        val task = buildTask(maid, cmd, params, err) ?: return MaidCommandResult.fail(
+            id,
+            if (err.length > 0) err.toString() else "未知指令: $cmd"
+        )
         // 队列扩展（Q2）：仅显式 queue:true 才入队；缺省仍是即时抢占，语义不变（§三 兼容铁律）。
         if (req.has("queue") && req.get("queue").asBoolean) {
             val kind = if (req.has("long_term") && req.get("long_term").asBoolean) QueueKind.LONG else QueueKind.SHORT
@@ -443,7 +440,7 @@ object MaidAIBridge {
                 }
             }
             "store" -> OneShotTask("store", "已收纳主手物品") {
-                val hand = maid.getMainHandItem()
+                val hand = maid.mainHandItem
                 if (!hand.isEmpty) {
                     val left = MaidActions.storeToBackpack(maid, hand)
                     maid.setItemInHand(InteractionHand.MAIN_HAND, left)
@@ -451,7 +448,7 @@ object MaidAIBridge {
                 }
             }
             "drop" -> OneShotTask("drop", "已丢出") {
-                val hand = maid.getMainHandItem()
+                val hand = maid.mainHandItem
                 if (!hand.isEmpty) {
                     val drop = hand.split(minOf(intParam(params, "count", 1), hand.count))
                     // 丢到主人身边（丢在自己脚下会被立刻捡回）
@@ -482,18 +479,12 @@ object MaidAIBridge {
     }
 
     private fun craftTask(maid: SmartMaidEntity, params: JsonObject, err: StringBuilder): MaidAITask? {
-        val item = resolveItem(maid, params, err)
-        if (item == null) {
-            return null
-        }
+        val item = resolveItem(maid, params, err) ?: return null
         return CraftTask(ItemStack(item), intParam(params, "count", 1))
     }
 
     private fun smeltTask(maid: SmartMaidEntity, params: JsonObject, err: StringBuilder): MaidAITask? {
-        val item = resolveItem(maid, params, err)
-        if (item == null) {
-            return null
-        }
+        val item = resolveItem(maid, params, err) ?: return null
         return SmeltTask(ItemStack(item), intParam(params, "count", 1))
     }
 
@@ -588,16 +579,16 @@ object MaidAIBridge {
             if (rest.isEmpty()) {
                 return base
             }
-            try {
-                return base + rest.toInt()
+            return try {
+                base + rest.toInt()
             } catch (_: NumberFormatException) {
-                return null
+                null
             }
         }
-        try {
-            return s.toInt()
+        return try {
+            s.toInt()
         } catch (_: NumberFormatException) {
-            return null
+            null
         }
     }
 

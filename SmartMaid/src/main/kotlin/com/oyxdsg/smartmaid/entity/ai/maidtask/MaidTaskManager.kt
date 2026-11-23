@@ -13,6 +13,7 @@ import com.oyxdsg.smartmaid.entity.ai.maidtask.QueuedTask.State
 import net.minecraft.core.BlockPos
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
+import kotlin.math.max
 
 /**
  * AI 任务调度器（M2；Q2 接入任务队列，Q5 战斗打断改为暂停保留，Q6 去重互斥）。
@@ -108,7 +109,7 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
         if ("guard:*" == key) {
             val existing = findByMutexKey("guard:*")
             if (existing != null) {
-                val maxRange = Math.max(paramInt(existing.params(), "range", 16), paramInt(params, "range", 16))
+                val maxRange = max(paramInt(existing.params(), "range", 16), paramInt(params, "range", 16))
                 existing.params().addProperty("range", maxRange)
                 val rt = this.runtimeTasks[existing.id()]
                 if (rt is GuardTask) {
@@ -335,7 +336,7 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
         }
         // 坐下 / 死亡 → 强制终止当前（不启动新任务；保持旧行为）
         val m = this.maid
-        if (m != null && (m.isOrderedToSit() || !m.isAlive)) {
+        if (m != null && (m.isOrderedToSit || !m.isAlive)) {
             cancelCurrent()
             return
         }
@@ -446,7 +447,6 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
                 MaidDebug.log("任务开始: " + task.taskId() + " (" + next.queue() + ")")
             } else {
                 // 恢复：对象完整，直接接着 tick（挂起期间未销毁）
-                task.onResume()
                 this.ticks = 0
                 MaidDebug.log("任务恢复: " + task.taskId() + " (" + next.queue() + ")")
             }
@@ -541,7 +541,7 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
 
     private fun loadList(list: ListTag, kind: QueueKind, factory: TaskFactory): Int {
         var n = 0
-        for (i in 0 until list.size) {
+        for (i in list.indices) {
             if (addLoaded(list.getCompoundOrEmpty(i), kind, factory)) {
                 n++
             }

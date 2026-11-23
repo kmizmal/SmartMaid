@@ -41,12 +41,12 @@ class EatTask(private val itemFilter: Item?) : MaidAITask("eat") {
             maid.showBubble(Component.literal("这个吃不了"), 60)
             return
         }
-        MaidDebug.log("Eat start slot=" + slot + " item=" + MaidDebug.itemName(maid.getMainHandItem()))
+        MaidDebug.log("Eat start slot=" + slot + " item=" + MaidDebug.itemName(maid.mainHandItem))
     }
 
     override fun tick(maid: SmartMaidEntity) {
         this.ticks++
-        if (!this.failed && !maid.isUsingItem()) {
+        if (!this.failed && !maid.isUsingItem) {
             this.finished = true
         }
     }
@@ -56,7 +56,7 @@ class EatTask(private val itemFilter: Item?) : MaidAITask("eat") {
     override fun result(): String = if (this.failed) "没有食物" else "已进食"
 
     override fun forceStop(maid: SmartMaidEntity?) {
-        if (maid != null && maid.isUsingItem()) {
+        if (maid != null && maid.isUsingItem) {
             maid.stopUsingItem()
         }
     }

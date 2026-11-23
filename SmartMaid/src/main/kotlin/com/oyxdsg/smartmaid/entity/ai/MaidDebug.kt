@@ -63,5 +63,5 @@ object MaidDebug {
     /** 物品名（空物品返回 empty）。 */
     @JvmStatic
     fun itemName(stack: ItemStack): String =
-        if (stack.isEmpty) "empty" else stack.getItem().descriptionId
+        if (stack.isEmpty) "empty" else stack.item.descriptionId
 }

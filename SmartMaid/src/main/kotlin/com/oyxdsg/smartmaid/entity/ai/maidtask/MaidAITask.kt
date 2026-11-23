@@ -15,6 +15,5 @@ abstract class MaidAITask protected constructor(private val id: String) {
     open fun isBlocked(): Boolean = false
     open fun progressToken(): String? = null
     open fun onSuspend() {}
-    open fun onResume() {}
     open fun forceStop(maid: SmartMaidEntity?) {}
 }

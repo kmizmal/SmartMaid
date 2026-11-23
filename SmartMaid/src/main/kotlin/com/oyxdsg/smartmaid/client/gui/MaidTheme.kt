@@ -24,19 +24,12 @@ object MaidTheme {
     const val ACCENT_SOFT: Int = -3941178        // 0xFFC3DCC6
     const val BTN: Int = -11430560               // 0xFF519560
     const val BTN_HOVER: Int = -12155569         // 0xFF46854F
-    const val BTN_PRESSED: Int = -12946364       // 0xFF3A7444
 
     /** 世界压暗遮罩：黑 45%（0x73000000）。 */
     const val WORLD_OVERLAY: Int = 0x73000000
 
     /** 面板底：[BG] 的 94% 不透明（留一点世界透出，保持层次）。 */
     const val PANEL: Int = -252249867            // 0xF0F6F8F5
-
-    /** 面板/卡片填充（带圆角观感：角上叠一个小遮罩近似，N1 先用直角 fill）。 */
-    @JvmStatic
-    fun fill(ex: GuiGraphicsExtractor, x1: Int, y1: Int, x2: Int, y2: Int, argb: Int) {
-        ex.fill(x1, y1, x2, y2, argb)
-    }
 
     /** 面板/卡片底：正常直角填充（不描边，靠亮度差分层）。 */
     @JvmStatic

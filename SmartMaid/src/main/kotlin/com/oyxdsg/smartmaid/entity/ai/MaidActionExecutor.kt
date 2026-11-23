@@ -44,7 +44,7 @@ open class MaidActionExecutor(private val maid: SmartMaidEntity) {
         val dy = to.y - from.y
         val dz = to.z - from.z
         val hDist = sqrt((dx * dx + dz * dz).toDouble())
-        if (hDist < MIN_H_DIST || hDist > MAX_H_DIST) return false
+        if (hDist !in MIN_H_DIST..MAX_H_DIST) return false
         if (dy > 1 || dy < -3) return false
         if (!isJumpable(from, to)) return false
         val dist = hDist.roundToInt()
@@ -56,7 +56,7 @@ open class MaidActionExecutor(private val maid: SmartMaidEntity) {
 
     /** 每 tick 驱动：定位 / 起跳 / 冷却三段状态机。 */
     open fun tick() {
-        if (this.maid.isOrderedToSit()) return
+        if (this.maid.isOrderedToSit) return
         when (this.state) {
             State.POSITIONING -> tickPositioning()
             State.JUMP -> tickJump()
@@ -108,19 +108,19 @@ open class MaidActionExecutor(private val maid: SmartMaidEntity) {
     private fun doJump() {
         this.state = State.JUMP
         this.airTicks = 0
-        this.maid.setYRot(Math.toDegrees(this.yawRad).toFloat())
+        this.maid.yRot = Math.toDegrees(this.yawRad).toFloat()
         this.maid.jumpControl.jump()
         val takeoff = JumpPhysics.takeoffSpeed(
             this.maid.getAttributeValue(Attributes.MOVEMENT_SPEED), this.sprint
         )
-        val vel = this.maid.getDeltaMovement()
+        val vel = this.maid.deltaMovement
         this.maid.setDeltaMovement(-sin(this.yawRad) * takeoff, vel.y, cos(this.yawRad) * takeoff)
         this.maid.navigation.stop()
         MaidDebug.log(
             "Jump fired yaw=" + Math.toDegrees(this.yawRad).toInt() +
                 " sprint=" + this.sprint +
                 " takeoff=" + MaidDebug.fmt1(takeoff) +
-                " vel=" + this.maid.getDeltaMovement()
+                " vel=" + this.maid.deltaMovement
         )
     }
 

@@ -113,8 +113,8 @@ class MaidStraightNav {
         if (this.idleTicks > IDLE_LIMIT) return fail(maid, "无进展")
 
         val from = maid.blockPosition()
-        val dx = java.lang.Integer.signum(t.x - from.x)
-        val dz = java.lang.Integer.signum(t.z - from.z)
+        val dx = Integer.signum(t.x - from.x)
+        val dz = Integer.signum(t.z - from.z)
         val level = maid.level()
 
         // 垂直同柱（目标正上/正下，罕见）
@@ -192,7 +192,7 @@ class MaidStraightNav {
     private fun tickPillar(maid: SmartMaidEntity, from: BlockPos): Boolean {
         // 1) 未起跳 → 备块 + 起跳
         if (!this.pillarJumped) {
-            if (!MaidActions.isBridgeBlock(maid.getMainHandItem())) {
+            if (!MaidActions.isBridgeBlock(maid.mainHandItem)) {
                 if (!MaidActions.equipBridgeBlockFromBackpack(maid)) {
                     return fail(maid, "pillar 无方块")
                 }
@@ -242,13 +242,13 @@ class MaidStraightNav {
 
     /** 是否已到达目标（水平 2 格内 + 垂直 1.5 格内 + 视线不被墙隔开）。 */
     private fun isArrived(maid: SmartMaidEntity, target: BlockPos): Boolean {
-        val dx = maid.getX() - (target.x + 0.5)
-        val dy = maid.getY() - (target.y + 0.5)
-        val dz = maid.getZ() - (target.z + 0.5)
+        val dx = maid.x - (target.x + 0.5)
+        val dy = maid.y - (target.y + 0.5)
+        val dz = maid.z - (target.z + 0.5)
         if (dx * dx + dz * dz > 4.0 || dy * dy > 2.25) return false
         return maid.level().clip(
             ClipContext(
-                maid.getEyePosition(), Vec3.atCenterOf(target),
+                maid.eyePosition, Vec3.atCenterOf(target),
                 ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, maid
             )
         ).type != HitResult.Type.BLOCK

@@ -75,7 +75,7 @@ abstract class MaidSubScreen protected constructor(
     protected open fun goBack() {
         val p = this.parent
         if (this.minecraft != null && p != null) {
-            this.minecraft!!.setScreenAndShow(p)
+            this.minecraft.setScreenAndShow(p)
         }
     }
 
@@ -94,17 +94,13 @@ abstract class MaidSubScreen protected constructor(
     fun backRectForTest(): IntArray = intArrayOf(backX, backY, BACK_W, BACK_H)
 
     protected companion object {
-        @JvmField
-        protected val PANEL_W: Int = 340
+        protected const val PANEL_W: Int = 340
 
-        @JvmField
-        protected val PANEL_H: Int = 210
+        protected const val PANEL_H: Int = 210
 
-        @JvmField
-        protected val BACK_W: Int = 44
+        protected const val BACK_W: Int = 44
 
-        @JvmField
-        protected val BACK_H: Int = 18
+        protected const val BACK_H: Int = 18
 
         @JvmStatic
         protected fun inside(mx: Double, my: Double, x: Int, y: Int, w: Int, h: Int): Boolean =

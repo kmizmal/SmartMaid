@@ -28,7 +28,7 @@ object MaidMonitor {
         val level = maid.level()
         if (level.isClientSide) return
 
-        val owner = maid.getOwner()
+        val owner = maid.owner
         if (owner is Player) {
             logEntityState("PLAYER", owner)
             logTerrain(level, owner.blockPosition(), "PLAYER", PLAYER_R, owner)
@@ -40,13 +40,13 @@ object MaidMonitor {
     /** 输出实体状态：坐标 + 移动输入（按键） + 速度 */
     private fun logEntityState(tag: String, e: LivingEntity) {
         MaidDebug.log(
-            "$tag pos=(${fmt(e.getX())},${fmt(e.getY())},${fmt(e.getZ())}" +
+            "$tag pos=(${fmt(e.x)},${fmt(e.y)},${fmt(e.z)}" +
                 " onGround=${e.onGround()}" +
-                " sprint=${e.isSprinting()}" +
-                " jump=${e.isJumping()}" +
+                " sprint=${e.isSprinting}" +
+                " jump=${e.isJumping}" +
                 " zza=${fmt(e.zza.toDouble())}" +
                 " xxa=${fmt(e.xxa.toDouble())}" +
-                " yRot=${fmt(e.getYRot().toDouble())}" +
+                " yRot=${fmt(e.yRot.toDouble())}" +
                 " vel=(${fmt(e.deltaMovement.x)},${fmt(e.deltaMovement.y)},${fmt(e.deltaMovement.z)})"
         )
     }

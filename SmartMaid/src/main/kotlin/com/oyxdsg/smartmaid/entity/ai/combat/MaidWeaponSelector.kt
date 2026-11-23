@@ -4,7 +4,6 @@ import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
 import net.minecraft.core.Holder
 import net.minecraft.util.Mth
-import net.minecraft.world.SimpleContainer
 import net.minecraft.world.entity.EquipmentSlot
 import net.minecraft.world.entity.ai.attributes.Attribute
 import net.minecraft.world.entity.ai.attributes.AttributeInstance

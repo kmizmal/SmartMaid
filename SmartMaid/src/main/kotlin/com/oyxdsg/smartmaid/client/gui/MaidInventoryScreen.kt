@@ -38,12 +38,12 @@ class MaidInventoryScreen(menu: MaidInventoryMenu, inv: Inventory, title: Compon
         super.extractBackground(extractor, mouseX, mouseY, tickDelta)
         // 画标准容器背景（照搬原版 InventoryScreen.extractBackground）
         extractor.blit(
-            RenderPipelines.GUI_TEXTURED, AbstractContainerScreen.INVENTORY_LOCATION,
+            RenderPipelines.GUI_TEXTURED, INVENTORY_LOCATION,
             this.leftPos, this.topPos, 0.0f, 0.0f, this.imageWidth, this.imageHeight, 256, 256,
         )
 
         // 左上角渲染女仆缩小模型（照搬原版玩家背包的位置与跟随鼠标旋转）
-        val level = this.minecraft?.level
+        val level = this.minecraft.level
         val maid = level?.getEntity(this.menu.getMaidId())
         if (maid is SmartMaidEntity) {
             InventoryScreen.extractEntityInInventoryFollowsMouse(

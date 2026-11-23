@@ -37,6 +37,7 @@ desktop.ini
 # ---- AI 助手工作区（内部记忆/笔记，含本机路径，不入库）----
 .workbuddy/
 .claude/
+.codex/
 
 # ---- 运行时数据（autotest.json 是测试配置、保留入库；玩家存档不入库）----
 SmartMaid/config/**/*.dat
@@ -51,3 +52,4 @@ SmartMaid/tools/local_paths.json
 
 # CodeGraph local index
 .codegraph/
+/.memsearch/

@@ -47,7 +47,7 @@ class ChestOpenTask(private val hint: BlockPos?) : MaidAITask("chestopen") {
             return
         }
         if (!MaidActions.isWithinReach(maid, t, 2.5)) {
-            if (maid.getNavigation().isDone() || maid.tickCount % 20 == 0) {
+            if (maid.getNavigation().isDone || maid.tickCount % 20 == 0) {
                 MaidActions.navigateTo(maid, t, 1.0)
             }
             return

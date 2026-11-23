@@ -16,7 +16,7 @@ class MoveToTask(
 
     private var done = false
 
-    override fun canStart(maid: SmartMaidEntity): Boolean = target != null
+    override fun canStart(maid: SmartMaidEntity): Boolean = true
 
     override fun start(maid: SmartMaidEntity) {
         MaidDebug.log("Move start -> $target")

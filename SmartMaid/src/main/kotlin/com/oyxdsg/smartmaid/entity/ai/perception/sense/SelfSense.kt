@@ -6,7 +6,6 @@ import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.perception.MaidPerception
 import com.oyxdsg.smartmaid.entity.ai.perception.PerceptionUtil
 import com.oyxdsg.smartmaid.entity.ai.perception.Sense
-import net.minecraft.core.BlockPos
 import net.minecraft.world.entity.EquipmentSlot
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.ai.attributes.Attributes

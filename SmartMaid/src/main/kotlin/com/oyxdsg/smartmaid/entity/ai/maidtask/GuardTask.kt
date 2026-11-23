@@ -40,10 +40,10 @@ class GuardTask(private var range: Int, private val defensive: Boolean) : MaidAI
             this.target = findTarget(maid)
             return
         }
-        maid.getLookControl().setLookAt(t, 10.0f, maid.getMaxHeadXRot().toFloat())
+        maid.getLookControl().setLookAt(t, 10.0f, maid.maxHeadXRot.toFloat())
         val distSqr = maid.distanceToSqr(t)
         if (distSqr > 2.5 * 2.5) {
-            if (maid.getNavigation().isDone() || maid.tickCount % 20 == 0) {
+            if (maid.getNavigation().isDone || maid.tickCount % 20 == 0) {
                 maid.getNavigation().moveTo(t, 1.0)
             }
         } else {
@@ -60,7 +60,7 @@ class GuardTask(private var range: Int, private val defensive: Boolean) : MaidAI
     override fun result(): String = "护卫中"
 
     private fun findTarget(maid: SmartMaidEntity): LivingEntity? {
-        val last = maid.getLastHurtByMob()
+        val last = maid.lastHurtByMob
         if (defensive && last != null && last.isAlive) {
             return last
         }

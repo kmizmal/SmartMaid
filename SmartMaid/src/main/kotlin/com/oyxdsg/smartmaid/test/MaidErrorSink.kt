@@ -53,10 +53,6 @@ class MaidErrorSink private constructor() {
             file ?: gameDir().resolve("smartmaid").resolve("errors.jsonl").also { file = it }
         }
 
-        /** 已写入的条数（供测试/命令查询通道是否工作）。 */
-        @JvmStatic
-        fun written(): Int = synchronized(MaidErrorSink::class.java) { count }
-
         /**
          * 安装全局未捕获异常处理器（幂等）。
          *
@@ -104,11 +100,6 @@ class MaidErrorSink private constructor() {
         @JvmStatic
         fun report(tag: String?, message: String?, error: Throwable?) {
             write("ERROR", tag, message, error)
-        }
-
-        @JvmStatic
-        fun report(tag: String?, error: Throwable?) {
-            write("ERROR", tag, java.lang.String.valueOf(error), error)
         }
 
         /** 记一条警告（可疑但不算失败）。 */

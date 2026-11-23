@@ -21,10 +21,10 @@ object ModEntities {
             Registries.ENTITY_TYPE,
             id
         )
-        SMART_MAID = Registry.register<EntityType<*>, EntityType<SmartMaidEntity>>(
+        SMART_MAID = Registry.register(
             BuiltInRegistries.ENTITY_TYPE,
             key,
-            EntityType.Builder.of<SmartMaidEntity>({ type, level -> SmartMaidEntity(type, level) }, MobCategory.CREATURE)
+            EntityType.Builder.of({ type, level -> SmartMaidEntity(type, level) }, MobCategory.CREATURE)
                 .sized(0.6f, 1.8f)
                 .noSave()
                 .build(key)

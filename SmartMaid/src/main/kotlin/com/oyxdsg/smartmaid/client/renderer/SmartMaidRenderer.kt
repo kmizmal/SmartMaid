@@ -20,6 +20,7 @@ import net.minecraft.world.entity.EquipmentSlot
 import net.minecraft.world.entity.HumanoidArm
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.phys.Vec3
+import kotlin.math.min
 
 /**
  * 女仆渲染器（Java 版玩家模型 + 女仆皮肤）。
@@ -55,9 +56,9 @@ open class SmartMaidRenderer(context: EntityRendererProvider.Context) :
             ArmorModelSet.bake(
                 ModelLayers.PLAYER_ARMOR,
                 context.modelSet
-            ) { root -> HumanoidModel<SmartMaidRenderState>(root) }
+            ) { root -> HumanoidModel(root) }
         addLayer(
-            HumanoidArmorLayer<SmartMaidRenderState, SmartMaidModel, HumanoidModel<SmartMaidRenderState>>(
+            HumanoidArmorLayer(
                 this, armorSet, context.equipmentRenderer
             )
         )
@@ -74,7 +75,7 @@ open class SmartMaidRenderer(context: EntityRendererProvider.Context) :
         }
         val hand: InteractionHand =
             if (arm == entity.mainArm) InteractionHand.MAIN_HAND else InteractionHand.OFF_HAND
-        if (entity.isUsingItem && entity.getUsedItemHand() == hand) {
+        if (entity.isUsingItem && entity.usedItemHand == hand) {
             return when (held.useAnimation) {
                 net.minecraft.world.item.ItemUseAnimation.BLOCK -> HumanoidModel.ArmPose.BLOCK
                 net.minecraft.world.item.ItemUseAnimation.BOW -> HumanoidModel.ArmPose.BOW_AND_ARROW
@@ -172,7 +173,7 @@ open class SmartMaidRenderer(context: EntityRendererProvider.Context) :
         val n = lines.size
         for (i in 0 until n) {
             // 第一行显示在最上：越靠前的行 Y 偏移越大
-            val attach = if (base == null) null else base.add(0.0, (n - 1 - i) * 0.30, 0.0)
+            val attach = base?.add(0.0, (n - 1 - i) * 0.30, 0.0)
             collector.submitNameTag(poseStack, attach, 0, lines[i], true, state.lightCoords, camera)
         }
     }
@@ -186,7 +187,7 @@ open class SmartMaidRenderer(context: EntityRendererProvider.Context) :
         val len = text.length
         var i = 0
         while (i < len) {
-            lines.add(Component.literal(text.substring(i, Math.min(len, i + PER_LINE))))
+            lines.add(Component.literal(text.substring(i, min(len, i + PER_LINE))))
             i += PER_LINE
         }
         return lines

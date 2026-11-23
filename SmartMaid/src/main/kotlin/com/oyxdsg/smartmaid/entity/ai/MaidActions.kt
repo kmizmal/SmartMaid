@@ -11,7 +11,6 @@ import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.core.registries.Registries
 import net.minecraft.resources.Identifier
 import net.minecraft.server.level.ServerLevel
-import net.minecraft.server.level.ServerPlayer
 import net.minecraft.tags.TagKey
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.InteractionResult
@@ -82,33 +81,6 @@ object MaidActions {
         val dx = maid.x - (pos.x + 0.5)
         val dz = maid.z - (pos.z + 0.5)
         return dx * dx + dz * dz <= range * range
-    }
-
-    /**
-     * 是否能「直接挖到」目标方块（对齐玩家能力）：水平够得着 + 垂直够得着 + 视线不被挡。
-     *
-     * <p>三者任一不满足都不能直接挖：被墙挡 → 先挖开挡路方块；够不着（太高/太低）→
-     * 先搭高/下到可挖位置。调用方（挖掘执行器）据此决定「继续导航（让寻路降级挖墙/搭高）」
-     * 而不是直接开挖。</p>
-     */
-    @JvmStatic
-    fun canMineBlock(maid: SmartMaidEntity, pos: BlockPos): Boolean {
-        if (maid.level().isClientSide) {
-            return true
-        }
-        // 水平够得着（同 isWithinReach 3 格）
-        val dx = maid.x - (pos.x + 0.5)
-        val dz = maid.z - (pos.z + 0.5)
-        if (dx * dx + dz * dz > 9.0) {
-            return false
-        }
-        // 垂直够得着：以女仆身体中心为基准，可挖范围 [-2.0, +2.5]（脚下一格 ~ 头顶两格）
-        val dy = (pos.y + 0.5) - (maid.y + 0.9)
-        if (dy < -2.0 || dy > 2.5) {
-            return false
-        }
-        // 视线不被非目标方块挡（玩家准星被挡就点不到）
-        return canReachSurface(maid, pos)
     }
 
     // ---------- 背包操作（41 格：0-8 热键 / 9-35 背包 / 36-39 盔甲 / 40 副手） ----------
@@ -249,7 +221,7 @@ object MaidActions {
     /** 开始进食主手食物（原版 startUsingItem；LivingEntity.tick 自动推进并在完成时消费）。 */
     @JvmStatic
     fun startEating(maid: SmartMaidEntity): Boolean {
-        if (maid.getMainHandItem().get(DataComponents.FOOD) == null) {
+        if (maid.mainHandItem.get(DataComponents.FOOD) == null) {
             return false
         }
         maid.startUsingItem(InteractionHand.MAIN_HAND)
@@ -257,23 +229,6 @@ object MaidActions {
     }
 
     // ---------- 方块操作 ----------
-
-    /**
-     * 目标方块是否「表面可直达」（对齐玩家能力）：从女仆眼睛向目标方块中心做射线，
-     * 若射线被**非目标方块的碰撞体**挡住（如透过一层墙挖墙后的方块），返回 false。
-     *
-     * <p>玩家挖掘时必须点得到目标表面——前面隔一个方块就挖不到，得先挖开遮挡物。
-     * 女仆的直线降级/挖矿/收割都应遵守同一规则，避免「穿墙挖」。</p>
-     */
-    @JvmStatic
-    fun canReachSurface(maid: SmartMaidEntity, pos: BlockPos): Boolean {
-        if (maid.level().isClientSide) {
-            return true
-        }
-        val hit = lineHit(maid, pos)
-        // 射线直接命中目标方块本身（或未命中任何方块——目标已空）→ 可挖
-        return hit == null || hit == pos
-    }
 
     /**
      * 从女仆眼睛向目标方块中心做射线，返回命中的**第一个方块**（含目标自身）。
@@ -286,7 +241,7 @@ object MaidActions {
         if (maid.level().isClientSide) {
             return null
         }
-        val eye = maid.getEyePosition()
+        val eye = maid.eyePosition
         val target = Vec3.atCenterOf(pos)
         val hit: BlockHitResult = maid.level().clip(ClipContext(
             eye, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, maid
@@ -300,31 +255,17 @@ object MaidActions {
     /** 背包（含主手）是否持有可放置方块物品 */
     @JvmStatic
     fun hasBlockItem(maid: SmartMaidEntity): Boolean {
-        return maid.getMainHandItem().item is BlockItem ||
+        return maid.mainHandItem.item is BlockItem ||
             findInBackpack(maid) { s -> s.item is BlockItem } >= 0
     }
 
     /** 从背包找任意方块物品换到主手（搭路/建造前置）；找不到返回 false */
     @JvmStatic
     fun equipBlockFromBackpack(maid: SmartMaidEntity): Boolean {
-        if (maid.getMainHandItem().item is BlockItem) {
+        if (maid.mainHandItem.item is BlockItem) {
             return true
         }
         return equipFromBackpack(maid) { s -> s.item is BlockItem }
-    }
-
-    /** 统计背包区（0-35）可放置方块物品总个数（搭路余量判断用） */
-    @JvmStatic
-    fun countBlockItems(maid: SmartMaidEntity): Int {
-        val inv = maid.getMaidInventory()
-        var count = 0
-        for (i in 0 until 36) {
-            val s = inv.getItem(i)
-            if (s.item is BlockItem) {
-                count += s.count
-            }
-        }
-        return count
     }
 
     // ---------- 搭路方块选择（只用普通建材，不浪费贵重物品） ----------
@@ -378,7 +319,7 @@ object MaidActions {
     /** 背包（含主手）是否有可搭路的普通方块 */
     @JvmStatic
     fun hasBridgeBlock(maid: SmartMaidEntity): Boolean {
-        return isBridgeBlock(maid.getMainHandItem()) ||
+        return isBridgeBlock(maid.mainHandItem) ||
             findInBackpack(maid) { s -> isBridgeBlock(s) } >= 0
     }
 
@@ -389,7 +330,7 @@ object MaidActions {
      */
     @JvmStatic
     fun equipBridgeBlockFromBackpack(maid: SmartMaidEntity): Boolean {
-        if (isBridgeBlock(maid.getMainHandItem())) {
+        if (isBridgeBlock(maid.mainHandItem)) {
             return true
         }
         val inv = maid.getMaidInventory()
@@ -418,20 +359,6 @@ object MaidActions {
         maid.syncInventoryArmor()
         MaidDebug.log("equipBridgeBlock: 槽 " + bestSlot + " -> 主手 " + MaidDebug.itemName(inv.getItem(0)))
         return true
-    }
-
-    /** 统计背包区（0-35）可搭路的普通方块总个数 */
-    @JvmStatic
-    fun countBridgeBlocks(maid: SmartMaidEntity): Int {
-        val inv = maid.getMaidInventory()
-        var count = 0
-        for (i in 0 until 36) {
-            val s = inv.getItem(i)
-            if (isBridgeBlock(s)) {
-                count += s.count
-            }
-        }
-        return count
     }
 
     /**
@@ -485,7 +412,7 @@ object MaidActions {
         }
 
         MaidCompat.swing(maid, InteractionHand.MAIN_HAND)
-        val tool = maid.getMainHandItem()
+        val tool = maid.mainHandItem
         if (!tool.isEmpty) {
             tool.hurtAndBreak(1, maid, EquipmentSlot.MAINHAND)
         }
@@ -573,7 +500,7 @@ object MaidActions {
             return 1
         }
         var ticks = Math.ceil(hardness * 100.0) // 徒手基准：1 硬度 ≈ 5 秒
-        val tool = maid.getMainHandItem()
+        val tool = maid.mainHandItem
         if (!tool.isEmpty && tool.isCorrectToolForDrops(state)) {
             val speed = tool.getDestroySpeed(state)
             if (speed > 0.0f) {
@@ -604,7 +531,7 @@ object MaidActions {
      */
     @JvmStatic
     fun placeBlock(maid: SmartMaidEntity, pos: BlockPos, dir: Direction): Boolean {
-        val stack = maid.getMainHandItem()
+        val stack = maid.mainHandItem
         val blockItem = stack.item as? BlockItem ?: return false
         val actor = MaidActor.actorFor(maid) ?: return false
         val hit = BlockHitResult(
@@ -629,7 +556,7 @@ object MaidActions {
      */
     @JvmStatic
     fun useItemOn(maid: SmartMaidEntity, pos: BlockPos, dir: Direction): Boolean {
-        val stack = maid.getMainHandItem()
+        val stack = maid.mainHandItem
         if (stack.isEmpty) {
             return false
         }
@@ -660,7 +587,7 @@ object MaidActions {
         val level = maid.level() as? ServerLevel ?: return false
         MaidCompat.swing(maid, InteractionHand.MAIN_HAND)
         val ok = maid.doHurtTarget(level, target)
-        MaidDebug.log("attack " + target.getType().toShortString() + " -> " + ok)
+        MaidDebug.log("attack " + target.type.toShortString() + " -> " + ok)
         return ok
     }
 
@@ -706,11 +633,11 @@ object MaidActions {
             return
         }
         val level: Level = maid.level()
-        val eye = maid.getEyePosition()
-        val to = target.getEyePosition().subtract(eye).normalize()
+        val eye = maid.eyePosition
+        val to = target.eyePosition.subtract(eye).normalize()
         val spawn = eye.add(to.scale(0.6))
         val itemEntity = ItemEntity(level, spawn.x, spawn.y, spawn.z, stack)
-        itemEntity.setDeltaMovement(to.scale(speed))
+        itemEntity.deltaMovement = to.scale(speed)
         itemEntity.setNoPickUpDelay()
         level.addFreshEntity(itemEntity)
     }
@@ -729,10 +656,10 @@ object MaidActions {
             return
         }
         val level: Level = maid.level()
-        val owner: LivingEntity? = maid.getOwner()
-        val x = if (owner != null) owner.x else maid.x
-        val y = (if (owner != null) owner.y else maid.y) + 0.25
-        val z = if (owner != null) owner.z else maid.z
+        val owner: LivingEntity? = maid.owner
+        val x = owner?.x ?: maid.x
+        val y = (owner?.y ?: maid.y) + 0.25
+        val z = owner?.z ?: maid.z
         val item = ItemEntity(level, x, y, z, stack)
         item.setNoPickUpDelay()
         level.addFreshEntity(item)

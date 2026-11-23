@@ -51,16 +51,16 @@ object MaidDataManager {
             val tag = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap())
             val ops = RegistryOps.create(NbtOps.INSTANCE, maid.registryAccess())
             val list = tag.getListOrEmpty("equipment")
-            for (i in 0 until list.size) {
+            for (i in list.indices) {
                 val slotTag = list.getCompoundOrEmpty(i); val slot = EquipmentSlot.byName(slotTag.getStringOr("slot", "")); val itemTag = slotTag.get("item") ?: continue
                 if (slot == null) continue
                 ItemStack.OPTIONAL_CODEC.parse(ops, itemTag).result().ifPresent { maid.setItemSlot(slot, it) }
             }
             val invList = tag.getListOrEmpty("inventory")
-            for (i in 0 until invList.size) {
+            for (i in invList.indices) {
                 val slotTag = invList.getCompoundOrEmpty(i); val itemTag = slotTag.get("item") ?: continue
                 val idx = slotTag.getIntOr("slot", -1); if (idx !in 0 until maid.maidInventory.containerSize) continue
-                var stack = ItemStack.OPTIONAL_CODEC.parse(ops, itemTag).result().orElse(ItemStack.EMPTY); if (stack.isEmpty) continue
+                val stack = ItemStack.OPTIONAL_CODEC.parse(ops, itemTag).result().orElse(ItemStack.EMPTY); if (stack.isEmpty) continue
                 if (idx >= 36) {
                     val es = armorSlotForIndex(idx)
                     if (es == null || (idx != 40 && !maid.isEquippableInSlot(stack, es))) {

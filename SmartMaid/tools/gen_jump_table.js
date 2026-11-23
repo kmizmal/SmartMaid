@@ -4,8 +4,8 @@
 // Solution: {sprint, back} where sprint = walk/sprint tier, back = takeoff-point retreat from edge.
 // NOTE: takeoff speed is FIXED (no run-up needed) — capability equals vanilla player jumps.
 // Run: node tools/gen_jump_table.js
-const SPRINT_MULT = 1.3
-const BOOST = 0.2            // sprint jump horizontal impulse (not used directly; fixed takeoff below)
+
+            // sprint jump horizontal impulse (not used directly; fixed takeoff below)
 const INERTIA = 0.91
 const ACCEL = 0.02           // airborne continuous-forward acceleration
 const EDGE_INSET = 0.1       // takeoff inset from block edge
@@ -29,13 +29,6 @@ function traj (takeoff) {
 }
 
 // From takeoff point (relative 0,0), can the jump cross the far edge (needNear) with height dy?
-function canLand (needNear, dy, takeoff) {
-  const pts = traj(takeoff)
-  for (const p of pts) {
-    if (p.x >= needNear && p.y >= dy - LAND_TOL) return true
-  }
-  return false
-}
 
 // Solve: walk tier then sprint tier; retreat (back) until the landing position falls inside the target cell
 // (or, for up-jumps, the trajectory crosses the target cell at sufficient height).
@@ -120,8 +113,22 @@ lines.push('    }')
 lines.push('}')
 lines.push('')
 
-const fs = require('fs')
-const path = require('path')
+function require() {
+  return undefined;
+}
+
+const fs = require()
+
+function require() {
+  return undefined;
+}
+
+const path = require()
+
+function __dirname() {
+
+}
+
 const out = path.join(__dirname, '..', 'src', 'main', 'java', 'com', 'oyxdsg', 'smartmaid', 'entity', 'ai', 'MaidJumpTable.java')
 fs.writeFileSync(out, lines.join('\n'), 'utf8')
 console.error(`[gen] written ${out}: ${count} solutions; unsolvable: ${unsolvable.length ? unsolvable.join(', ') : 'none (all covered)'}`)

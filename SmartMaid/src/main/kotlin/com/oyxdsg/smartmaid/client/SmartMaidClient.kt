@@ -11,9 +11,6 @@ import com.oyxdsg.smartmaid.client.gui.MaidTaskScreen
 import com.oyxdsg.smartmaid.client.renderer.SmartMaidRenderer
 import com.oyxdsg.smartmaid.client.test.MaidClientTest
 import com.oyxdsg.smartmaid.compat.MaidCompat
-import com.oyxdsg.smartmaid.entity.SmartMaidEntity
-import com.oyxdsg.smartmaid.gui.MaidControlMenu
-import com.oyxdsg.smartmaid.gui.MaidInventoryMenu
 import com.oyxdsg.smartmaid.init.ModEntities
 import com.oyxdsg.smartmaid.init.ModMenus
 import com.oyxdsg.smartmaid.network.MaidChatPayload
@@ -28,12 +25,13 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry
+import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry.register
 import net.minecraft.client.KeyMapping
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.MenuScreens
 import net.minecraft.network.chat.Component
 
-open class SmartMaidClient public constructor() : ClientModInitializer {
+open class SmartMaidClient : ClientModInitializer {
     companion object {
         /**
          * Shift+E：打开女仆背包。
@@ -88,9 +86,9 @@ open class SmartMaidClient public constructor() : ClientModInitializer {
     override fun onInitializeClient() {
         // 错误接收通道：未捕获异常 + 主动上报 → <gameDir>/smartmaid/errors.jsonl
         MaidErrorSink.install("client")
-        EntityRendererRegistry.register<SmartMaidEntity>(ModEntities.SMART_MAID, ::SmartMaidRenderer)
-        MenuScreens.register<MaidInventoryMenu, MaidInventoryScreen>(ModMenus.MAID_INVENTORY_MENU, ::MaidInventoryScreen)
-        MenuScreens.register<MaidControlMenu, MaidControlScreen>(ModMenus.MAID_CONTROL_MENU, ::MaidControlScreen)
+        register(ModEntities.SMART_MAID, ::SmartMaidRenderer)
+        MenuScreens.register(ModMenus.MAID_INVENTORY_MENU, ::MaidInventoryScreen)
+        MenuScreens.register(ModMenus.MAID_CONTROL_MENU, ::MaidControlScreen)
 
         // N1：服务端让打开女仆主菜单 → 客户端开纯 Screen（不挂容器）
         ClientPlayNetworking.registerGlobalReceiver(MaidOpenMenuPayload.TYPE) { payload, _ ->

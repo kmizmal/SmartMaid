@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity;
 import com.oyxdsg.smartmaid.entity.ai.maidtask.QueuedTask.QueueKind;
 import net.minecraft.nbt.CompoundTag;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -18,16 +19,16 @@ class MaidTaskManagerPersistenceTest {
         }
 
         @Override
-        public boolean canStart(SmartMaidEntity maid) {
+        public boolean canStart(@NonNull SmartMaidEntity maid) {
             return true;
         }
 
         @Override
-        public void start(SmartMaidEntity maid) {
+        public void start(@NonNull SmartMaidEntity maid) {
         }
 
         @Override
-        public void tick(SmartMaidEntity maid) {
+        public void tick(@NonNull SmartMaidEntity maid) {
         }
 
         @Override
@@ -36,7 +37,7 @@ class MaidTaskManagerPersistenceTest {
         }
 
         @Override
-        public String result() {
+        public @NonNull String result() {
             return "fake";
         }
     }
@@ -64,8 +65,8 @@ class MaidTaskManagerPersistenceTest {
         assertEquals(3, n);
         assertEquals(2, m2.queue().shortSize());
         assertEquals(1, m2.queue().longSize());
-        assertEquals("a", m2.queue().shortItems().get(0).id());
-        assertEquals("L1", m2.queue().longItems().get(0).id());
+        assertEquals("a", m2.queue().shortItems().getFirst().id());
+        assertEquals("L1", m2.queue().longItems().getFirst().id());
     }
 
     @Test

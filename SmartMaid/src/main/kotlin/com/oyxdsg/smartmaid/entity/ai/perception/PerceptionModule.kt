@@ -6,10 +6,9 @@ import com.oyxdsg.smartmaid.entity.ai.MaidDebug
 import com.oyxdsg.smartmaid.entity.ai.maidtask.MaidAITask
 import com.oyxdsg.smartmaid.entity.ai.perception.sense.*
 import net.minecraft.world.entity.Entity
-import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.entity.projectile.Projectile
-import java.util.ArrayDeque
+import java.util.*
 import java.util.function.Consumer
 
 open class PerceptionModule(private val maid: SmartMaidEntity) {
@@ -35,7 +34,7 @@ open class PerceptionModule(private val maid: SmartMaidEntity) {
         if (maid.level().isClientSide) return current
         val data = MaidPerception(maid); senses.forEach { try { it.collect(maid, data) } catch (_: Throwable) {} }; detectEvents(data); data.setEvents(ArrayList(events)); current = data; return data
     }
-    fun pendingEvents(): List<JsonObject> = ArrayList(events)
+
     fun addEventSink(sink: Consumer<JsonObject>?) { if (sink != null && !eventSinks.contains(sink)) eventSinks.add(sink) }
     fun clearEventSinks() { eventSinks.clear() }
     fun reportEvent(type: String, payload: JsonObject?) { pushEvent(type, payload) }

@@ -81,15 +81,15 @@ open class BuildTask(private val positions: List<BlockPos>?) : MaidAITask("build
         o.addProperty("index", this.index)
         o.addProperty("outOfBlock", this.outOfBlock)
         if (this.positions != null) {
-            o.add("positions", TaskState.posList(this.positions!!))
+            o.add("positions", TaskState.posList(this.positions))
         }
         return o
     }
 
     override fun restoreState(s: JsonObject?) {
         if (s == null) return
-        this.index = if (s.has("index")) s.get("index").getAsInt() else 0
-        this.outOfBlock = s.has("outOfBlock") && s.get("outOfBlock").getAsBoolean()
+        this.index = if (s.has("index")) s.get("index").asInt else 0
+        this.outOfBlock = s.has("outOfBlock") && s.get("outOfBlock").asBoolean
     }
 
     override fun stateVersion(): Int = 1

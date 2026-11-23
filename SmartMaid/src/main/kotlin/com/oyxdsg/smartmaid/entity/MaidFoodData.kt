@@ -31,10 +31,6 @@ class MaidFoodData {
 
     fun getSaturationLevel(): Float = saturationLevel
 
-    fun needsFood(): Boolean = foodLevel < MAX_FOOD
-
-    fun hasEnoughFood(): Boolean = foodLevel > 6
-
     /** 进食：按食物营养 + 饱和度补充。 */
     fun eat(food: FoodProperties) {
         foodLevel = Mth.clamp(food.nutrition() + foodLevel, 0, MAX_FOOD)

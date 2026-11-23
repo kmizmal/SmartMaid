@@ -8,16 +8,10 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload
 object MaidNet {
     @JvmStatic
     fun send(payload: CustomPacketPayload): Boolean {
-        val mc: Minecraft? = Minecraft.getInstance()
-        if (mc == null || mc.connection == null) return false
+        val mc: Minecraft = Minecraft.getInstance()
+        if (mc?.connection == null) return false
         ClientPlayNetworking.send(payload)
         return true
     }
 
-    /** 当前是否处于有连接、能发包的状态。 */
-    @JvmStatic
-    fun canSend(): Boolean {
-        val mc: Minecraft? = Minecraft.getInstance()
-        return mc != null && mc.connection != null
-    }
 }

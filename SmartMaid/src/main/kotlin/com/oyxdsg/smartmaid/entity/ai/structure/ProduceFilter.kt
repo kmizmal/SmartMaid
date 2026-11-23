@@ -1,50 +1,46 @@
 package com.oyxdsg.smartmaid.entity.ai.structure
 
-import net.minecraft.core.Holder
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.core.registries.Registries
 import net.minecraft.resources.Identifier
 import net.minecraft.tags.TagKey
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.state.BlockState
-import java.util.Locale
+import java.util.*
 import java.util.function.Predicate
-import kotlin.jvm.JvmRecord
 
 /** 产物过滤：把 produce 参数编译成 BlockState 谓词，并推导物种。 */
 object ProduceFilter {
     @JvmRecord
-    data class Compiled(val matcher: Predicate<BlockState>?, val species: String?) {
-        fun matchesAny(): Boolean = matcher != null
-    }
+    data class Compiled(val matcher: Predicate<BlockState>?, val species: String?)
 
     private val WOOD_SUFFIXES = arrayOf("_log", "_wood")
 
     @JvmStatic
     fun compile(produce: String?): Compiled {
-        if (produce == null || produce.trim().isEmpty()) return Compiled(Predicate { true }, null)
+        if (produce == null || produce.trim().isEmpty()) return Compiled({ true }, null)
         val p = produce.trim()
 
         if (p.startsWith("#")) {
-            val tagId = Identifier.tryParse(p.substring(1)) ?: return Compiled(Predicate { false }, null)
+            val tagId = Identifier.tryParse(p.substring(1)) ?: return Compiled({ false }, null)
             val tag: TagKey<Block> = TagKey.create(Registries.BLOCK, tagId)
             val species = speciesFromPath(stripLogsSuffix(tagId.path))
-            return Compiled(Predicate { state -> state.`is`(tag) }, species)
+            return Compiled({ state -> state.`is`(tag) }, species)
         }
 
         if (!p.contains(':')) {
             val wood = p.lowercase(Locale.ROOT)
             val ids = woodFamilyIds(wood)
-            return Compiled(Predicate { state ->
+            return Compiled({ state ->
                 val bid = BuiltInRegistries.BLOCK.getKey(state.block)
                 bid != null && bid.namespace == "minecraft" && ids.contains(bid.path)
             }, wood)
         }
 
-        val id = Identifier.tryParse(p) ?: return Compiled(Predicate { false }, null)
+        val id = Identifier.tryParse(p) ?: return Compiled({ false }, null)
         val block = BuiltInRegistries.BLOCK.get(id).map { it.value() }.orElse(null)
         val species = speciesFromPath(id.path)
-        return Compiled(Predicate { state -> block != null && state.block === block }, species)
+        return Compiled({ state -> block != null && state.block === block }, species)
     }
 
     private fun woodFamilyIds(wood: String): Set<String> = buildSet {

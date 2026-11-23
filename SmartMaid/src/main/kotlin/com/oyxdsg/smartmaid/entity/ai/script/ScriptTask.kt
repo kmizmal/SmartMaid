@@ -20,6 +20,7 @@ import java.util.ArrayList
 import java.util.Collections
 import java.util.Deque
 import java.util.function.Predicate
+import kotlin.math.max
 
 /**
  * 脚本任务（Atomic Command Protocol §3）：AI 一次性规划的指令流执行器。
@@ -32,11 +33,15 @@ import java.util.function.Predicate
  * <p>护栏：max_steps（实际执行步，含分支/循环展开）、每步由 MaidTaskManager 的 60s
  * 超时兜底、禁止嵌套 script、战斗/坐下/取消由 MaidTaskManager 统一打断。</p>
  */
-open class ScriptTask(private val reqId: String, script: JsonObject) : MaidAITask("script") {
+open class ScriptTask(script: JsonObject) : MaidAITask("script") {
 
     private val ctx = ScriptContext()
     private val steps: List<JsonObject>
-    private val failPolicy: Int
+    private val failPolicy: Int = if (script.has("fail") && "continue" == script.get("fail").asString) {
+        FAIL_CONTINUE
+    } else {
+        FAIL_ABORT
+    }
     private val maxSteps: Int
     private val reportEach: Boolean
 
@@ -53,13 +58,8 @@ open class ScriptTask(private val reqId: String, script: JsonObject) : MaidAITas
     private var stepStartTick = 0
 
     init {
-        this.failPolicy = if (script.has("fail") && "continue" == script.get("fail").asString) {
-            FAIL_CONTINUE
-        } else {
-            FAIL_ABORT
-        }
         this.maxSteps = if (script.has("max_steps")) {
-            Math.max(1, script.get("max_steps").asInt)
+            max(1, script.get("max_steps").asInt)
         } else {
             64
         }

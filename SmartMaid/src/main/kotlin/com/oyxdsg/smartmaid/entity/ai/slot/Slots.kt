@@ -12,7 +12,6 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.phys.BlockHitResult
 import net.minecraft.world.phys.Vec3
-import net.minecraft.world.SimpleContainer
 
 object Slots {
     /** 主手槽（背包热键第 0 格） */

@@ -13,8 +13,6 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.CropBlock
-import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity
-import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.BlockState
 
 object PerceptionBlockUtil {
@@ -38,10 +36,7 @@ object PerceptionBlockUtil {
         }
         return nearest
     }
-    @JvmStatic fun findNearestFurnace(level: Level, center: BlockPos, range: Int): BlockPos? =
-        BlockPos.betweenClosedStream(center.offset(-range, -range, -range), center.offset(range, range, range))
-            .filter { level.getBlockEntity(it) is AbstractFurnaceBlockEntity }
-            .map { it.immutable() }.min(Comparator.comparingDouble { it.distSqr(center) }).orElse(null)
+
     @JvmStatic fun findNearestHostile(maid: SmartMaidEntity, range: Int): LivingEntity? =
         com.oyxdsg.smartmaid.entity.ai.MaidActions.findEntities(maid, LivingEntity::class.java, range.toDouble()) { e -> MaidTargetFilter.isHostile(maid, e) }
             .minWithOrNull(compareBy { maid.distanceToSqr(it) })

@@ -7,28 +7,19 @@ import com.oyxdsg.smartmaid.data.SmartMaidConfig
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidActions
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
-import it.unimi.dsi.fastutil.ints.IntList
+import com.oyxdsg.smartmaid.entity.ai.craft.CraftExecutor.Companion.resolveMissing
 import net.minecraft.core.Holder
 import net.minecraft.core.component.DataComponents
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.core.registries.Registries
 import net.minecraft.resources.Identifier
-import net.minecraft.resources.ResourceKey
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.tags.TagKey
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.SimpleContainer
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.crafting.CraftingInput
-import net.minecraft.world.item.crafting.CraftingRecipe
-import net.minecraft.world.item.crafting.Ingredient
-import net.minecraft.world.item.crafting.PlacementInfo
-import net.minecraft.world.item.crafting.Recipe
-import net.minecraft.world.item.crafting.RecipeHolder
-import net.minecraft.world.item.crafting.RecipeManager
-import net.minecraft.world.item.crafting.RecipeType
-import net.minecraft.world.item.crafting.ShapedRecipe
+import net.minecraft.world.item.crafting.*
 import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
@@ -50,7 +41,7 @@ import kotlin.math.min
 class CraftExecutor private constructor() {
 
     /** 一次合成的构建结果：CraftingInput + 每背包槽消耗量 + 产物 */
-    private class CraftResult(val input: CraftingInput, val consume: IntArray, val out: ItemStack)
+    private class CraftResult(val consume: IntArray, val out: ItemStack)
 
     /** 配方材料需求：去重后的 ingredient 列表 + 每种在 3x3 布局中出现次数。 */
     private class IngredientNeeds(val ingredients: List<Ingredient>, val need: IntArray)
@@ -99,7 +90,7 @@ class CraftExecutor private constructor() {
             val cache = allCraftingCache
             if (cache == null) {
                 val list = ArrayList<RecipeHolder<CraftingRecipe>>()
-                for (holder in rm.getRecipes()) {
+                for (holder in rm.recipes) {
                     if (holder.value().getType() == RecipeType.CRAFTING
                         && holder.value() is CraftingRecipe
                     ) {
@@ -124,7 +115,7 @@ class CraftExecutor private constructor() {
          */
         private fun craftAllowed(holder: RecipeHolder<CraftingRecipe>, target: ItemStack): Boolean {
             return when (SmartMaidConfig.craftWhitelistMode()) {
-                "vanilla-only" -> "minecraft" == holder.id().identifier().getNamespace()
+                "vanilla-only" -> "minecraft" == holder.id().identifier().namespace
                 "tag" -> target.`is`(CRAFTABLE)
                 else -> true
             }
@@ -145,8 +136,8 @@ class CraftExecutor private constructor() {
             if (maid.level().isClientSide || maid.level() !is ServerLevel) {
                 return ItemStack.EMPTY
             }
-            if (!ensureMaterials(maid, target, 1, 0, HashSet<Item>())) {
-                MaidDebug.log("craft 缺材料(含递归合成): " + target.getItem().getDescriptionId())
+            if (!ensureMaterials(maid, target, 1, 0, HashSet())) {
+                MaidDebug.log("craft 缺材料(含递归合成): " + target.item.getDescriptionId())
                 return ItemStack.EMPTY
             }
             return craftDirect(maid, target)
@@ -161,9 +152,9 @@ class CraftExecutor private constructor() {
             val rm = level.recipeAccess()
 
             // 1. 候选配方（优先 RECIPES component，兜底全量遍历）
-            val candidates = collectCandidates(maid, rm, target)
+            val candidates = collectCandidates(rm, target)
             if (candidates.isEmpty()) {
-                MaidDebug.log("craft 无候选配方: " + target.getItem().getDescriptionId())
+                MaidDebug.log("craft 无候选配方: " + target.item.getDescriptionId())
                 return ItemStack.EMPTY
             }
 
@@ -188,12 +179,12 @@ class CraftExecutor private constructor() {
                     maid.spawnAtLocation(level, left) // 背包满则掉地上
                 }
                 MaidDebug.log(
-                    "craft 成功: " + result.out.getItem().getDescriptionId()
-                        + " x" + result.out.getCount()
+                    "craft 成功: " + result.out.item.getDescriptionId()
+                        + " x" + result.out.count
                 )
                 return result.out
             }
-            MaidDebug.log("craft 缺材料: " + target.getItem().getDescriptionId())
+            MaidDebug.log("craft 缺材料: " + target.item.getDescriptionId())
             return ItemStack.EMPTY
         }
 
@@ -220,11 +211,11 @@ class CraftExecutor private constructor() {
                 return false
             }
             val level = maid.level() as? ServerLevel ?: return false
-            val tItem = target.getItem()
+            val tItem = target.item
             if (visited.contains(tItem)) {
                 return false // 配方循环（如铁块→铁锭→铁块）
             }
-            val candidates = collectCandidates(maid, level.recipeAccess(), target)
+            val candidates = collectCandidates(level.recipeAccess(), target)
             if (candidates.isEmpty()) {
                 return false
             }
@@ -365,7 +356,6 @@ class CraftExecutor private constructor() {
 
         /** 收集候选配方（产物可能是 target 的 crafting 配方） */
         private fun collectCandidates(
-            maid: SmartMaidEntity,
             rm: RecipeManager,
             target: ItemStack
         ): List<RecipeHolder<CraftingRecipe>> {
@@ -413,7 +403,7 @@ class CraftExecutor private constructor() {
             val width = recipeWidth(recipe)
             val height = recipeHeight(recipe)
             val grid = Array(width * height) { ItemStack.EMPTY }
-            val consume = IntArray(inv.getContainerSize())
+            val consume = IntArray(inv.containerSize)
 
             val size = min(slotToIng.size, width * height)
             for (i in 0 until size) {
@@ -430,7 +420,7 @@ class CraftExecutor private constructor() {
                     return null // 缺材料
                 }
                 grid[i] = inv.getItem(slot).copy()
-                grid[i].setCount(1)
+                grid[i].count = 1
                 consume[slot]++
             }
 
@@ -438,14 +428,14 @@ class CraftExecutor private constructor() {
             if (!recipe.matches(input, maid.level())) {
                 return null
             }
-            return CraftResult(input, consume, recipe.assemble(input))
+            return CraftResult(consume, recipe.assemble(input))
         }
 
         /** 找匹配 ingredient 且还有剩余量的背包槽（0-40） */
         private fun findMatchingSlot(inv: SimpleContainer, ingredient: Ingredient, consume: IntArray): Int {
-            for (s in 0 until inv.getContainerSize()) {
+            for (s in 0 until inv.containerSize) {
                 val stack = inv.getItem(s)
-                if (!stack.isEmpty && ingredient.test(stack) && stack.getCount() > consume[s]) {
+                if (!stack.isEmpty && ingredient.test(stack) && stack.count > consume[s]) {
                     return s
                 }
             }
@@ -577,7 +567,7 @@ class CraftExecutor private constructor() {
                 var ok = have >= need
                 if (!ok) {
                     // 递归干跑：背包缺的直接材料能否由合成补足（含循环防护）
-                    val plan = resolveMissing(maid, ing, need - have, 0, HashSet<Item>())
+                    val plan = resolveMissing(maid, ing, need - have, 0, HashSet())
                     if (plan != null) {
                         ok = true
                         item.addProperty("via_craft", true)
@@ -648,7 +638,7 @@ class CraftExecutor private constructor() {
             }
             val level = maid.level() as? ServerLevel ?: return null
             val rm = level.recipeAccess()
-            val candidates = collectCandidates(maid, rm, ItemStack(item))
+            val candidates = collectCandidates(rm, ItemStack(item))
             if (candidates.isEmpty()) {
                 return null
             }
@@ -701,7 +691,7 @@ class CraftExecutor private constructor() {
             var n = 0
             for (i in 0 until desc.size()) {
                 val o = desc.get(i).getAsJsonObject()
-                if (!o.has("ok") || !o.get("ok").getAsBoolean()) {
+                if (!o.has("ok") || !o.get("ok").asBoolean) {
                     n++
                 }
             }
@@ -711,10 +701,10 @@ class CraftExecutor private constructor() {
         /** 背包里匹配该 ingredient 的物品总数。 */
         private fun countMatching(inv: SimpleContainer, ing: Ingredient): Int {
             var total = 0
-            for (s in 0 until inv.getContainerSize()) {
+            for (s in 0 until inv.containerSize) {
                 val stack = inv.getItem(s)
                 if (!stack.isEmpty && ing.test(stack)) {
-                    total += stack.getCount()
+                    total += stack.count
                 }
             }
             return total
@@ -724,7 +714,7 @@ class CraftExecutor private constructor() {
         private fun outputCount(recipe: CraftingRecipe): Int {
             val input = filledInput(recipe) ?: return 1
             return try {
-                max(1, recipe.assemble(input).getCount())
+                max(1, recipe.assemble(input).count)
             } catch (_: Throwable) {
                 1
             }
@@ -742,7 +732,7 @@ class CraftExecutor private constructor() {
         }
 
         /** 用每个 ingredient 的第一个候选项搭一个假网格（按配方真实宽高，只看形状，不看数量）。 */
-        private fun filledInput(recipe: CraftingRecipe): CraftingInput? {
+        private fun filledInput(recipe: CraftingRecipe): CraftingInput {
             val info = recipe.placementInfo()
             val slotToIng = info.slotsToIngredientIndex()
             val ingredients = info.ingredients()
@@ -773,7 +763,7 @@ class CraftExecutor private constructor() {
         /** 配方行宽。ShapedRecipe 有明确宽高；ShapelessRecipe 位置无关，按 3 兜底。 */
         private fun recipeWidth(recipe: CraftingRecipe): Int {
             if (recipe is ShapedRecipe) {
-                return max(1, recipe.getWidth())
+                return max(1, recipe.width)
             }
             return 3
         }
@@ -781,7 +771,7 @@ class CraftExecutor private constructor() {
         /** 配方行高。ShapedRecipe 有明确宽高；ShapelessRecipe 位置无关，按 3 兜底。 */
         private fun recipeHeight(recipe: CraftingRecipe): Int {
             if (recipe is ShapedRecipe) {
-                return max(1, recipe.getHeight())
+                return max(1, recipe.height)
             }
             return 3
         }

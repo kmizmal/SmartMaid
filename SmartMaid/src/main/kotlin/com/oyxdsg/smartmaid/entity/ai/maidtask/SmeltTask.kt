@@ -84,7 +84,7 @@ open class SmeltTask(targetParam: ItemStack, countParam: Int) : MaidAITask("smel
         // 2. 走到熔炉旁
         val pos = this.furnacePos ?: return
         if (!MaidActions.isWithinReach(maid, pos, 3.0)) {
-            if (maid.getNavigation().isDone() || maid.tickCount % 20 == 0) {
+            if (maid.getNavigation().isDone || maid.tickCount % 20 == 0) {
                 MaidActions.navigateTo(maid, pos, 1.0)
             }
             return
@@ -97,13 +97,12 @@ open class SmeltTask(targetParam: ItemStack, countParam: Int) : MaidAITask("smel
             this.furnacePos = null
             return
         }
-        val furnace = be
 
         // 3. 轮询成品槽（2）
-        val result = furnace.getItem(2)
+        val result = be.getItem(2)
         if (!result.isEmpty) {
             val taken = result.copy()
-            furnace.setItem(2, ItemStack.EMPTY)
+            be.setItem(2, ItemStack.EMPTY)
             val left = MaidActions.storeToBackpack(maid, taken)
             if (!left.isEmpty) {
                 Block.popResource(maid.level(), pos, left) // 背包满则掉在熔炉旁
@@ -114,7 +113,7 @@ open class SmeltTask(targetParam: ItemStack, countParam: Int) : MaidAITask("smel
         }
 
         // 4. 补料：input(0) 空 → 放能烧成 target 的原矿
-        if (furnace.getItem(0).isEmpty) {
+        if (be.getItem(0).isEmpty) {
             val input = findSmeltableInput(maid)
             if (input.isEmpty) {
                 this.missing = true
@@ -124,19 +123,19 @@ open class SmeltTask(targetParam: ItemStack, countParam: Int) : MaidAITask("smel
                 )
                 return
             }
-            furnace.setItem(0, input.copy())
+            be.setItem(0, input.copy())
             input.shrink(1)
             maid.getMaidInventory().setChanged()
         }
         // fuel(1) 空 → 放燃料
-        if (furnace.getItem(1).isEmpty) {
+        if (be.getItem(1).isEmpty) {
             val fuel = findFuel(maid)
             if (fuel.isEmpty) {
                 this.missing = true
                 maid.showBubble(Component.literal("背包里没有燃料"), 60)
                 return
             }
-            furnace.setItem(1, fuel.copy())
+            be.setItem(1, fuel.copy())
             fuel.shrink(1)
             maid.getMaidInventory().setChanged()
         }
@@ -180,8 +179,8 @@ open class SmeltTask(targetParam: ItemStack, countParam: Int) : MaidAITask("smel
 
     override fun restoreState(state: JsonObject?) {
         if (state == null) return
-        this.completed = if (state.has("completed")) state.get("completed").getAsInt() else 0
-        this.missing = state.has("missing") && state.get("missing").getAsBoolean()
+        this.completed = if (state.has("completed")) state.get("completed").asInt else 0
+        this.missing = state.has("missing") && state.get("missing").asBoolean
         // 熔炉位置不回溯（熔炉可能已被占用/移除）→ 恢复时重新 acquire（§8.8b）
         this.furnacePos = null
         this.blocked = false

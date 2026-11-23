@@ -7,7 +7,6 @@ import com.oyxdsg.smartmaid.entity.ai.slot.ItemSlot
 import com.oyxdsg.smartmaid.entity.ai.slot.Slots
 import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
-import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.block.Block
 
 /**
@@ -44,7 +43,7 @@ open class TransferTask(private val from: ItemSlot?, private val to: ItemSlot?, 
         // 靠近 from/to 所需的位置（world/container 槽需走过去操作）
         val need = nearestReachPos(maid)
         if (need != null && !MaidActions.isWithinReach(maid, need, 2.5)) {
-            if (maid.getNavigation().isDone() || maid.tickCount % 20 == 0) {
+            if (maid.getNavigation().isDone || maid.tickCount % 20 == 0) {
                 MaidActions.navigateTo(maid, need, 1.0)
             }
             return

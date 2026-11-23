@@ -3,7 +3,6 @@ package com.oyxdsg.smartmaid.entity.ai.combat
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import net.minecraft.core.component.DataComponents
 import net.minecraft.world.InteractionHand
-import net.minecraft.world.SimpleContainer
 import net.minecraft.world.item.ItemStack
 
 object MaidShieldSkill {

@@ -26,7 +26,31 @@ class MaidControlScreen(menu: MaidControlMenu, inv: Inventory, title: Component)
         val label: String,
         val values: Array<String>,
         val button: WoodButton,
-    )
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as SettingRow
+
+            if (dataIndex != other.dataIndex) return false
+            if (field != other.field) return false
+            if (label != other.label) return false
+            if (!values.contentEquals(other.values)) return false
+            if (button != other.button) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = dataIndex
+            result = 31 * result + field.hashCode()
+            result = 31 * result + label.hashCode()
+            result = 31 * result + values.contentHashCode()
+            result = 31 * result + button.hashCode()
+            return result
+        }
+    }
 
     private val settingRows = ArrayList<SettingRow>()
     private var stateWidget: StringWidget? = null
@@ -122,13 +146,12 @@ class MaidControlScreen(menu: MaidControlMenu, inv: Inventory, title: Component)
 
     override fun containerTick() {
         super.containerTick()
-        for (row in this.settingRows) {
-            var idx = this.menu.getSetting(row.dataIndex)
-            val values = row.values
+        for ((_, dataIndex, label, values, button) in this.settingRows) {
+            var idx = this.menu.getSetting(dataIndex)
             if (idx < 0 || idx >= values.size) {
                 idx = 0
             }
-            row.button.message = Component.literal(row.label + "：" + values[idx])
+            button.message = Component.literal(label + "：" + values[idx])
         }
         val sw = this.stateWidget
         if (sw != null) {

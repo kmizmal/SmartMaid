@@ -2,9 +2,9 @@ package com.oyxdsg.smartmaid.entity.ai.structure
 import net.minecraft.core.registries.Registries
 import net.minecraft.resources.Identifier
 import net.minecraft.tags.TagKey
-import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.state.BlockState
 import java.util.function.Predicate
+
 class OreStructure : StructureType {
     companion object { const val ID = "ore"; private val ORE_TAGS = arrayOf("coal_ores","copper_ores","iron_ores","gold_ores","redstone_ores","lapis_ores","diamond_ores","emerald_ores","quartz_ores")
         @JvmStatic fun isOreProduce(produce: String?) = produce?.contains("_ores") == true }

@@ -1,29 +1,21 @@
 package com.oyxdsg.smartmaid.client.test
 
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.JsonArray
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
+import com.google.gson.*
 import com.oyxdsg.smartmaid.client.SmartMaidClient
 import com.oyxdsg.smartmaid.client.gui.MaidMenuScreen
 import com.oyxdsg.smartmaid.client.gui.MaidSubScreen
 import com.oyxdsg.smartmaid.compat.MaidCompat
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.test.MaidErrorSink
+import net.minecraft.client.Minecraft
+import net.minecraft.client.input.MouseButtonEvent
+import net.minecraft.client.input.MouseButtonInfo
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
-import java.util.Arrays
-import kotlin.jvm.Transient
-import net.minecraft.client.KeyMapping
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.input.MouseButtonEvent
-import net.minecraft.client.input.MouseButtonInfo
-import net.minecraft.world.entity.Entity
+import java.util.*
 
 /**
  * 客户端自动化测试运行器 —— **文件驱动，全程不碰真实鼠标/键盘**。
@@ -135,7 +127,7 @@ object MaidClientTest {
     /** 是否已经在世界里（有连接 + 有客户端关卡）。测试只在此条件下运行。 */
     @JvmStatic
     fun inGame(mc: Minecraft?): Boolean {
-        return mc != null && mc.level != null && mc.connection != null
+        return mc?.level != null && mc.connection != null
     }
 
     private fun noteWaitingOnce() {
@@ -341,10 +333,10 @@ object MaidClientTest {
 
     private fun assertKeyMapping(mc: Minecraft, c: JsonObject, r: Result) {
         val km = SmartMaidClient.OPEN_INVENTORY
-        val key = km.getDefaultKey()
-        val actualName = key.getName()
-        val actualValue = key.getValue()
-        val actualType = key.getType().toString()
+        val key = km.defaultKey
+        val actualName = key.name
+        val actualValue = key.value
+        val actualType = key.type.toString()
         val expect = str(c, "expect", null)
         r.detail = String.format("name=%s value=%d type=%s", actualName, actualValue, actualType)
         if (expect != null && expect != actualName) {
@@ -356,10 +348,7 @@ object MaidClientTest {
         if (rect == null) {
             return null
         }
-        val sc = mc.gui.screen()
-        if (sc == null) {
-            return "（无 Screen）"
-        }
+        val sc = mc.gui.screen() ?: return "（无 Screen）"
         val cx = rect[0] + rect[2] / 2.0
         val cy = rect[1] + rect[3] / 2.0
         sc.mouseMoved(cx, cy)
@@ -368,7 +357,7 @@ object MaidClientTest {
         )
         val detail = String.format(
             "点 %s#%d @(%.0f,%.0f) rect=%s handled=%s → Screen=%s",
-            what, idx, cx, cy, Arrays.toString(rect), handled, screenName(mc)
+            what, idx, cx, cy, rect.contentToString(), handled, screenName(mc)
         )
         if (!handled) {
             throw IllegalStateException("点击未被 Screen 处理：" + detail)
@@ -393,7 +382,7 @@ object MaidClientTest {
         pollSeen[leftKey] = (pollSeen[leftKey] ?: false) || MaidCompat.isKeyDown(shifts[0])
         pollSeen[rightKey] = (pollSeen[rightKey] ?: false) || MaidCompat.isKeyDown(shifts[1])
         pollSeen["KeyMapping.isDown"] =
-            (pollSeen["KeyMapping.isDown"] ?: false) || SmartMaidClient.OPEN_INVENTORY.isDown()
+            (pollSeen["KeyMapping.isDown"] ?: false) || SmartMaidClient.OPEN_INVENTORY.isDown
         if (pollTicks > 0) {
             return
         }
@@ -437,7 +426,7 @@ object MaidClientTest {
                 val d = e.distanceToSqr(player)
                 if (d < best) {
                     best = d
-                    id = e.getId()
+                    id = e.id
                 }
             }
         }
@@ -453,9 +442,9 @@ object MaidClientTest {
         o.addProperty("screen", screenName(mc))
         o.addProperty("nearestMaidId", nearestMaidId(mc))
         val km = SmartMaidClient.OPEN_INVENTORY
-        o.addProperty("openInventoryKey", km.getDefaultKey().getName())
-        o.addProperty("openInventoryKeyValue", km.getDefaultKey().getValue())
-        o.addProperty("openInventoryKeyType", km.getDefaultKey().getType().toString())
+        o.addProperty("openInventoryKey", km.defaultKey.name)
+        o.addProperty("openInventoryKeyValue", km.defaultKey.value)
+        o.addProperty("openInventoryKeyType", km.defaultKey.type.toString())
         val sh = JsonArray()
         for (k in SmartMaidClient.shiftKeyCodes()) {
             sh.add(k)

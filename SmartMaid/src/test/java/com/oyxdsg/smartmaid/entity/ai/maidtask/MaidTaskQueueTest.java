@@ -59,7 +59,7 @@ class MaidTaskQueueTest {
         q.finishCurrent(State.DONE, "ok");
 
         // 短期清空：轮到长期
-        assertTrue(q.shortSize() == 0);
+        assertEquals(0, q.shortSize());
         assertEquals("L1", q.peekNext().id());
         q.startNext(1);
         assertSame(QueueKind.LONG, q.current().queue());
@@ -155,7 +155,7 @@ class MaidTaskQueueTest {
         q.promote("L1");
         q.finishCurrent(State.DONE, "ok");
         assertEquals(List.of("L1"), ids(q.longItems()));
-        assertEquals(State.QUEUED, q.longItems().get(0).state());
+        assertEquals(State.QUEUED, q.longItems().getFirst().state());
     }
 
     @Test

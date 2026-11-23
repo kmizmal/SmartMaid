@@ -89,4 +89,5 @@ check('热键/盔甲/副手全部掉落', drops.length === 3 && drops.includes('
 check('空槽不掉落', deathDropAll(invEmpty).length === 0)
 
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`)
-if (fail > 0) process.exit(1)
+if (fail > 0)
+process.exit(1)

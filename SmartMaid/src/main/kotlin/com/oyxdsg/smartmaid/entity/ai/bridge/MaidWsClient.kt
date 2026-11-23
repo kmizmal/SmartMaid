@@ -7,23 +7,22 @@ import com.google.gson.JsonParser
 import com.oyxdsg.smartmaid.SmartMaid
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
+import com.oyxdsg.smartmaid.entity.ai.bridge.MaidWsClient.OUTBOX
 import com.oyxdsg.smartmaid.entity.ai.perception.MaidPerception
 import com.oyxdsg.smartmaid.entity.ai.perception.PerceptionDiff
 import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
-import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.Entity
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.WebSocket
 import java.time.Duration
-import java.util.Queue
-import java.util.UUID
-import java.util.WeakHashMap
+import java.util.*
 import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.function.Consumer
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * 桌宠联动上行/下行通道（M5-b）：模组作为 WebSocket Client 连接桌宠侧 Server
@@ -74,10 +73,10 @@ object MaidWsClient {
     private val HTTP: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(3))
         .build()
-    private val OUTBOX: Queue<String> = ConcurrentLinkedQueue<String>()
+    private val OUTBOX: Queue<String> = ConcurrentLinkedQueue()
 
     /** 每女仆的通道状态（增量 diff 基线 + 上报节流） */
-    private val CHANNELS: MutableMap<SmartMaidEntity, Channel> = WeakHashMap<SmartMaidEntity, Channel>()
+    private val CHANNELS: MutableMap<SmartMaidEntity, Channel> = WeakHashMap()
 
     @Volatile
     private var socket: WebSocket? = null
@@ -140,11 +139,6 @@ object MaidWsClient {
         SmartMaid.LOGGER.info("女仆 WebSocket 已停止")
     }
 
-    @JvmStatic
-    fun isConnected(): Boolean {
-        return open
-    }
-
     // ---------- 每 tick 驱动（服务端线程） ----------
 
     @JvmStatic
@@ -166,13 +160,12 @@ object MaidWsClient {
             enqueue(ping)
         }
         // 感知上报
-        for (entry in ArrayList(CHANNELS.entries)) {
-            val maid = entry.key
+        for ((maid, value) in ArrayList(CHANNELS.entries)) {
             if (!maid.isAlive || maid.isRemoved) {
                 CHANNELS.remove(maid)
                 continue
             }
-            sendPerception(maid, entry.value, now)
+            sendPerception(maid, value, now)
         }
         drainOutbox()
     }
@@ -188,7 +181,7 @@ object MaidWsClient {
         if (channel == null) {
             channel = Channel()
             CHANNELS[maid] = channel
-            maid.perceptionModule.addEventSink(Consumer { ev -> onMaidEvent(maid, ev) })
+            maid.perceptionModule.addEventSink { ev -> onMaidEvent(maid, ev) }
         }
         if (first) {
             // 女仆生成：立即推送一次**全量**感知（含完整背包），桌宠一出现就有状态，
@@ -205,10 +198,7 @@ object MaidWsClient {
         try {
             channel.diff.reset()
             channel.lastPerceptionAt = 0
-            val perception = maid.perceptionModule.snapshotNow()
-            if (perception == null) {
-                return
-            }
+            val perception = maid.perceptionModule.snapshotNow() ?: return
             sendPerception(maid, channel, perception)
             MaidDebug.log("女仆生成全量感知已推送: " + maid.baseName())
         } catch (t: Throwable) {
@@ -267,10 +257,7 @@ object MaidWsClient {
         if (now - channel.lastPerceptionAt < interval) {
             return
         }
-        val perception = maid.perceptionModule.current()
-        if (perception == null) {
-            return
-        }
+        val perception = maid.perceptionModule.current() ?: return
         channel.lastPerceptionAt = now
         sendPerception(maid, channel, perception)
     }
@@ -395,16 +382,14 @@ object MaidWsClient {
             socket = null
             connecting = false
             nextAttemptAt = System.currentTimeMillis() + backoffMs
-            backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS)
+            backoffMs = min(backoffMs * 2, MAX_BACKOFF_MS)
         }
         if (wasOpen) {
             MaidDebug.log("桌宠 WebSocket 断开（" + reason + "），稍后重连")
         }
         // 重连后接收方状态已丢失：下次感知必须发全量
         val srv = server
-        if (srv != null) {
-            srv.execute { CHANNELS.values.forEach { c -> c.diff.reset() } }
-        }
+        srv?.execute { CHANNELS.values.forEach { c -> c.diff.reset() } }
     }
 
     // ---------- 下行分发（服务端线程） ----------
@@ -426,7 +411,7 @@ object MaidWsClient {
                 val index = ItemIndexPayload.build()
                 if (index != null) {
                     enqueue(index)
-                    MaidDebug.log("已下发物品索引 " + index.get("count").getAsInt() + " 条")
+                    MaidDebug.log("已下发物品索引 " + index.get("count").asInt + " 条")
                 }
             }
             "ping" -> {
@@ -439,7 +424,7 @@ object MaidWsClient {
                 // 心跳应答：首次记录一次往返延迟，之后静默（避免每 5s 刷日志）
                 val sentAt = if (msg.has("t") && msg.get("t").isJsonPrimitive &&
                     msg.get("t").getAsJsonPrimitive().isNumber
-                ) msg.get("t").getAsLong() else 0L
+                ) msg.get("t").asLong else 0L
                 if (sentAt > 0 && !pongLogged) {
                     pongLogged = true
                     MaidDebug.log("心跳往返 " + (System.currentTimeMillis() - sentAt) + "ms")
@@ -478,7 +463,7 @@ object MaidWsClient {
     /** 把桌宠消息转成 [MaidAIBridge] 认的标准指令 JSON（支持 json 字段直接透传） */
     private fun toCommandJson(msg: JsonObject): String {
         if (msg.has("json") && msg.get("json").isJsonPrimitive) {
-            return msg.get("json").getAsString()
+            return msg.get("json").asString
         }
         val req = JsonObject()
         req.addProperty("id", str(msg, "id", "ws-" + System.currentTimeMillis()))
@@ -486,26 +471,26 @@ object MaidWsClient {
         req.add("params", if (msg.has("params") && msg.get("params").isJsonObject)
             msg.getAsJsonObject("params") else JsonObject())
         if (msg.has("cancel_previous") && msg.get("cancel_previous").isJsonPrimitive) {
-            req.addProperty("cancel_previous", msg.get("cancel_previous").getAsBoolean())
+            req.addProperty("cancel_previous", msg.get("cancel_previous").asBoolean)
         }
         if (msg.has("persist") && msg.get("persist").isJsonPrimitive) {
-            req.addProperty("persist", msg.get("persist").getAsBoolean())
+            req.addProperty("persist", msg.get("persist").asBoolean)
         }
         // N1/Q4/Q6：转发队列相关字段（桌宠语音线带 priority:"owner" → 主人 P2；展开多项带 group）
         if (msg.has("queue") && msg.get("queue").isJsonPrimitive) {
-            req.addProperty("queue", msg.get("queue").getAsBoolean())
+            req.addProperty("queue", msg.get("queue").asBoolean)
         }
         if (msg.has("priority") && msg.get("priority").isJsonPrimitive) {
-            req.addProperty("priority", msg.get("priority").getAsString())
+            req.addProperty("priority", msg.get("priority").asString)
         }
         if (msg.has("long_term") && msg.get("long_term").isJsonPrimitive) {
-            req.addProperty("long_term", msg.get("long_term").getAsBoolean())
+            req.addProperty("long_term", msg.get("long_term").asBoolean)
         }
         if (msg.has("group") && !msg.get("group").isJsonNull) {
-            req.addProperty("group", msg.get("group").getAsString())
+            req.addProperty("group", msg.get("group").asString)
         }
         if (msg.has("group_label") && !msg.get("group_label").isJsonNull) {
-            req.addProperty("group_label", msg.get("group_label").getAsString())
+            req.addProperty("group_label", msg.get("group_label").asString)
         }
         return req.toString()
     }
@@ -517,7 +502,7 @@ object MaidWsClient {
             return
         }
         val ticks = if (msg.has("ticks") && msg.get("ticks").isJsonPrimitive)
-            msg.get("ticks").getAsInt() else 80
+            msg.get("ticks").asInt else 80
         maid.showBubble(Component.literal(text), ticks)
         MaidDebug.log("桌宠气泡: " + text)
     }
@@ -530,7 +515,7 @@ object MaidWsClient {
             return
         }
         if (maid != null) {
-            val ticks = Math.max(60, Math.min(200, text.length * 10))
+            val ticks = max(60, min(200, text.length * 10))
             maid.showBubble(Component.literal(text), ticks)
             val owner = maid.owner
             if (owner is ServerPlayer) {
@@ -541,13 +526,10 @@ object MaidWsClient {
     }
 
     private fun handleAnimation(msg: JsonObject) {
-        val maid = resolveMaid(str(msg, "maid", ""))
-        if (maid == null) {
-            return
-        }
+        val maid = resolveMaid(str(msg, "maid", "")) ?: return
         val id: Int
         if (msg.has("id") && msg.get("id").isJsonPrimitive) {
-            id = msg.get("id").getAsInt()
+            id = msg.get("id").asInt
         } else {
             val resolved = animId(str(msg, "name", ""))
             if (resolved == null) {
@@ -570,7 +552,7 @@ object MaidWsClient {
                 val uuid = UUID.fromString(uuidText)
                 val srv = server
                 if (srv != null) {
-                    for (level in srv.getAllLevels()) {
+                    for (level in srv.allLevels) {
                         val entity: Entity? = level.getEntity(uuid)
                         if (entity is SmartMaidEntity) {
                             return entity
@@ -630,11 +612,11 @@ object MaidWsClient {
     }
 
     private fun str(o: JsonObject, key: String, def: String): String {
-        return if (o.has(key) && !o.get(key).isJsonNull) o.get(key).getAsString() else def
+        return if (o.has(key) && !o.get(key).isJsonNull) o.get(key).asString else def
     }
 
     private fun ok(o: JsonObject): Boolean {
-        return !o.has("ok") || o.get("ok").getAsBoolean()
+        return !o.has("ok") || o.get("ok").asBoolean
     }
 
     /** 每女仆的通道状态 */
@@ -658,10 +640,7 @@ object MaidWsClient {
                 val text = this.buffer.toString()
                 this.buffer.setLength(0)
                 val srv = server
-                if (srv != null) {
-                    // 关键：切回服务端线程，避免 WebSocket 线程触碰世界状态
-                    srv.execute { dispatch(text) }
-                }
+                srv?.execute { dispatch(text) }
             }
             ws.request(1)
             return null

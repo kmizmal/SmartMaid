@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -52,12 +51,12 @@ class MaidTaskManagerQueueTest {
         return p;
     }
 
-    private static JsonObject pos(int x, int y, int z) {
+    private static JsonObject pos() {
         JsonObject p = new JsonObject();
         JsonArray a = new JsonArray();
-        a.add(x);
-        a.add(y);
-        a.add(z);
+        a.add(10);
+        a.add(64);
+        a.add(10);
         p.add("pos", a);
         return p;
     }
@@ -128,7 +127,7 @@ class MaidTaskManagerQueueTest {
     @Test
     void generalVsExactGivesSoftOverlap() {
         MaidTaskManager m = new MaidTaskManager(null);
-        m.enqueueTask(new FakeTask("mine"), "a", "mine", pos(10, 64, 10), QueueKind.SHORT, false, "挖矿");
+        m.enqueueTask(new FakeTask("mine"), "a", "mine", pos(), QueueKind.SHORT, false, "挖矿");
         MaidTaskManager.EnqueueResult r = m.enqueueTask(new FakeTask("mine"), "b", "mine",
                 new JsonObject(), QueueKind.SHORT, false, "挖矿");
         assertTrue(r.ok, "泛化请求不该被精确项挡住");
@@ -158,7 +157,7 @@ class MaidTaskManagerQueueTest {
                 null, null, MaidTaskManager.PRIORITY_OWNER);
         assertTrue(r.ok, "主人 P2 应压过桌宠 P3");
         assertEquals(1, m.queue().shortSize());
-        assertEquals(MaidTaskManager.PRIORITY_OWNER, m.queue().shortItems().get(0).priority());
+        assertEquals(MaidTaskManager.PRIORITY_OWNER, m.queue().shortItems().getFirst().priority());
     }
 
     @Test
@@ -173,7 +172,7 @@ class MaidTaskManagerQueueTest {
                 QueueKind.LONG, false, "护卫");
         assertTrue(r.ok && r.merged, "已有 guard 时应合并");
         assertEquals(1, m.queue().longSize(), "不新增任务");
-        assertEquals(12, m.queue().longItems().get(0).params().get("range").getAsInt(), "range 取最大");
+        assertEquals(12, m.queue().longItems().getFirst().params().get("range").getAsInt(), "range 取最大");
     }
 
     @Test

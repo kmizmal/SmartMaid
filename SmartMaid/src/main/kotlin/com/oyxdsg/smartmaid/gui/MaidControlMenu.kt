@@ -16,7 +16,6 @@ import net.minecraft.world.item.ItemStack
 open class MaidControlMenu private constructor(
     syncId: Int,
     inv: Inventory,
-    private val maid: SmartMaidEntity?,
     private val maidData: ContainerData
 ) : AbstractContainerMenu(ModMenus.MAID_CONTROL_MENU, syncId) {
 
@@ -25,16 +24,16 @@ open class MaidControlMenu private constructor(
     }
 
     /** 客户端构造：实体引用为 null */
-    constructor(syncId: Int, inv: Inventory) : this(syncId, inv, null, SimpleContainerData(DATA_COUNT))
+    constructor(syncId: Int, inv: Inventory) : this(syncId, inv, SimpleContainerData(DATA_COUNT))
 
     /** 服务端构造：实体引用有效，数据实时读取 */
     constructor(syncId: Int, inv: Inventory, maid: SmartMaidEntity) : this(
-        syncId, inv, maid,
+        syncId, inv,
         object : ContainerData {
             override fun get(index: Int): Int = when (index) {
-                DATA_SIT -> if (maid.isOrderedToSit()) 1 else 0
-                DATA_HEALTH -> maid.getHealth().toInt()
-                DATA_HAS_TARGET -> if (maid.getTarget() != null) 1 else 0
+                DATA_SIT -> if (maid.isOrderedToSit) 1 else 0
+                DATA_HEALTH -> maid.health.toInt()
+                DATA_HAS_TARGET -> if (maid.target != null) 1 else 0
                 DATA_FRIENDLY_FIRE -> if (maid.getSettings().isFriendlyFire()) 1 else 0
                 DATA_FOLLOW_ENABLED -> if (maid.getSettings().isFollowEnabled()) 1 else 0
                 DATA_FOLLOW_START -> maid.getSettings().followStartIndex
@@ -71,13 +70,9 @@ open class MaidControlMenu private constructor(
         const val DATA_COUNT = 12
     }
 
-    open fun getMaid(): SmartMaidEntity? = this.maid
-
     open fun getSitState(): Int = this.maidData.get(DATA_SIT)
 
     open fun getHealthInt(): Int = this.maidData.get(DATA_HEALTH)
-
-    open fun getHasTarget(): Int = this.maidData.get(DATA_HAS_TARGET)
 
     /** 通用设置读取：客户端 UI 按 dataIndex 取当前档位索引 */
     open fun getSetting(dataIndex: Int): Int = this.maidData.get(dataIndex)

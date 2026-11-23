@@ -15,8 +15,8 @@ import java.nio.file.Path
 import java.nio.file.StandardOpenOption
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.WeakHashMap
-import java.util.function.Consumer
+import java.util.*
+import kotlin.math.min
 
 /**
  * 女仆遥测下行（M5-a）：把女仆的感知事件按桌面宠物的既有格式落盘，
@@ -76,12 +76,12 @@ object MaidTelemetryWriter {
         val buf: WindowBuffer = BUFFERS[maid] ?: WindowBuffer().also { newBuf ->
             BUFFERS[maid] = newBuf
             // 事件订阅挂到感知模块：事件产生即入缓冲，不等快照
-            maid.perceptionModule.addEventSink(Consumer { ev -> onEvent(newBuf, ev) })
+            maid.perceptionModule.addEventSink { ev -> onEvent(newBuf, ev) }
         }
         buf.ticksInWindow++
         // 首窗口提前落盘（5s），之后按配置周期（默认 20s）
         val limit = if (buf.seq == 0) {
-            Math.min(BridgeConfig.windowTicks(), FIRST_WINDOW_TICKS)
+            min(BridgeConfig.windowTicks(), FIRST_WINDOW_TICKS)
         } else {
             BridgeConfig.windowTicks()
         }
@@ -237,7 +237,7 @@ object MaidTelemetryWriter {
         val cutoff = System.currentTimeMillis() - RETENTION_MS
         try {
             val paths = Files.list(dir)
-            try {
+            paths.use { paths ->
                 paths.filter { p -> p.toString().endsWith(".jsonl") }
                     .filter { p ->
                         try {
@@ -253,8 +253,6 @@ object MaidTelemetryWriter {
                             // 文件被桌宠占用时跳过，下个窗口再清
                         }
                     }
-            } finally {
-                paths.close()
             }
         } catch (_: IOException) {
             // 目录尚不存在等情况：忽略

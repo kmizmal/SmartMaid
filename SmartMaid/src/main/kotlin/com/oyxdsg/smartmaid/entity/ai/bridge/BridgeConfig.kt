@@ -10,6 +10,7 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import kotlin.math.max
 
 /**
  * 桌宠桥接配置：{@code config/smartmaid/bridge.json}（首次运行自动生成默认配置）。
@@ -68,11 +69,11 @@ object BridgeConfig {
                 parsed = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8))
                     .asJsonObject
             } catch (e: IOException) {
-                SmartMaid.LOGGER.warn("bridge.json 解析失败，使用默认配置: {}", e.toString())
+                SmartMaid.LOGGER.warn("bridge.json 解析失败:IOException，使用默认配置: {}", e.toString())
             } catch (e: JsonSyntaxException) {
-                SmartMaid.LOGGER.warn("bridge.json 解析失败，使用默认配置: {}", e.toString())
+                SmartMaid.LOGGER.warn("bridge.json 解析失败:JsonSyntaxException，使用默认配置: {}", e.toString())
             } catch (e: IllegalStateException) {
-                SmartMaid.LOGGER.warn("bridge.json 解析失败，使用默认配置: {}", e.toString())
+                SmartMaid.LOGGER.warn("bridge.json 解析失败:IllegalStateException，使用默认配置: {}", e.toString())
             }
             cfg = parsed ?: defaults()
         } else {
@@ -112,7 +113,7 @@ object BridgeConfig {
     private fun apply(cfg: JsonObject) {
         enabled = !cfg.has("enabled") || cfg.get("enabled").asBoolean
         if (cfg.has("windowTicks") && cfg.get("windowTicks").isJsonPrimitive) {
-            windowTicks = Math.max(20, cfg.get("windowTicks").asInt)
+            windowTicks = max(20, cfg.get("windowTicks").asInt)
         }
         // 遥测目录：留空则用 <游戏目录>/deskpet/maid（桌宠按 <mc>/.minecraft/deskpet 推导，天然对齐）
         val custom: String? = if (cfg.has("deskpetDir")) cfg.get("deskpetDir").asString else ""
@@ -132,10 +133,10 @@ object BridgeConfig {
                 wsToken = ws.get("token").asString
             }
             if (ws.has("heartbeatSec") && ws.get("heartbeatSec").isJsonPrimitive) {
-                heartbeatSec = Math.max(1, ws.get("heartbeatSec").asInt)
+                heartbeatSec = max(1, ws.get("heartbeatSec").asInt)
             }
             if (ws.has("perceptionIntervalMs") && ws.get("perceptionIntervalMs").isJsonPrimitive) {
-                perceptionIntervalMs = Math.max(100, ws.get("perceptionIntervalMs").asInt)
+                perceptionIntervalMs = max(100, ws.get("perceptionIntervalMs").asInt)
             }
         }
     }

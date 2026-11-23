@@ -61,7 +61,7 @@ open class FarmTask(private val center: BlockPos?, private val range: Int) : Mai
 
     override fun restoreState(state: JsonObject?) {
         if (state == null) return
-        this.done = state.has("done") && state.get("done").getAsBoolean()
+        this.done = state.has("done") && state.get("done").asBoolean
     }
 
     override fun stateVersion(): Int = 1
@@ -72,14 +72,14 @@ open class FarmTask(private val center: BlockPos?, private val range: Int) : Mai
     private fun handlePosition(maid: SmartMaidEntity, pos: BlockPos) {
         if (MaidActions.isWithinReach(maid, pos, 3.0)) {
             MaidActions.breakBlock(maid, pos) // 收获：破坏作物，掉落进背包
-        } else if (maid.getNavigation().isDone() || maid.tickCount % 20 == 0) {
+        } else if (maid.getNavigation().isDone || maid.tickCount % 20 == 0) {
             MaidActions.navigateTo(maid, pos, 1.0)
         }
     }
 
     private fun handlePlant(maid: SmartMaidEntity, pos: BlockPos) {
         // 主手不是可播种方块（种子是 BlockItem）→ 从背包换
-        if (maid.getMainHandItem().item !is BlockItem) {
+        if (maid.mainHandItem.item !is BlockItem) {
             val equipped = MaidActions.equipFromBackpack(maid) { stack -> stack.item is BlockItem }
             if (!equipped) {
                 // 没有种子可播 → 视为处理完（无法继续）
@@ -89,7 +89,7 @@ open class FarmTask(private val center: BlockPos?, private val range: Int) : Mai
         }
         if (MaidActions.isWithinReach(maid, pos, 3.0)) {
             MaidActions.useItemOn(maid, pos.below(), Direction.UP) // 右键耕地播种
-        } else if (maid.getNavigation().isDone() || maid.tickCount % 20 == 0) {
+        } else if (maid.getNavigation().isDone || maid.tickCount % 20 == 0) {
             MaidActions.navigateTo(maid, pos, 1.0)
         }
     }

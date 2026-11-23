@@ -20,8 +20,8 @@ import net.minecraft.world.item.ItemStack
 open class MaidInventoryMenu private constructor(
     syncId: Int,
     inv: Inventory,
-    private val maid: SmartMaidEntity?,
-    private val maidInventory: SimpleContainer,
+    maid: SmartMaidEntity?,
+    maidInventory: SimpleContainer,
     private val maidData: ContainerData
 ) : AbstractContainerMenu(ModMenus.MAID_INVENTORY_MENU, syncId) {
 
@@ -58,10 +58,10 @@ open class MaidInventoryMenu private constructor(
         syncId, inv, maid, maid.getMaidInventory(),
         object : ContainerData {
             override fun get(index: Int): Int = when (index) {
-                DATA_SIT -> if (maid.isOrderedToSit()) 1 else 0
-                DATA_HEALTH -> maid.getHealth().toInt()
-                DATA_HAS_TARGET -> if (maid.getTarget() != null) 1 else 0
-                DATA_MAID_ID -> maid.getId()
+                DATA_SIT -> if (maid.isOrderedToSit) 1 else 0
+                DATA_HEALTH -> maid.health.toInt()
+                DATA_HAS_TARGET -> if (maid.target != null) 1 else 0
+                DATA_MAID_ID -> maid.id
                 else -> 0
             }
 
@@ -80,29 +80,18 @@ open class MaidInventoryMenu private constructor(
         const val DATA_MAID_ID = 3
         const val DATA_COUNT = 4
 
-        /** 槽位编号：0-3 盔甲 / 4 副手 / 5-31 女仆背包(27) / 32-40 女仆热键(9) */
-        const val ARMOR_START = 0
         const val ARMOR_COUNT = 4
-        const val OFFHAND_INDEX = 4
         const val INVENTORY_START = 5
     }
-
-    open fun getMaid(): SmartMaidEntity? = this.maid
-
-    open fun getSitState(): Int = this.maidData.get(DATA_SIT)
-
-    open fun getHealthInt(): Int = this.maidData.get(DATA_HEALTH)
-
-    open fun getHasTarget(): Int = this.maidData.get(DATA_HAS_TARGET)
 
     open fun getMaidId(): Int = this.maidData.get(DATA_MAID_ID)
 
     override fun quickMoveStack(player: Player, index: Int): ItemStack {
-        val slot: Slot = this.slots.get(index) ?: return ItemStack.EMPTY
+        val slot: Slot = this.slots[index]
         if (!slot.hasItem()) {
             return ItemStack.EMPTY
         }
-        val stack: ItemStack = slot.getItem()
+        val stack: ItemStack = slot.item
         val original: ItemStack = stack.copy()
         if (index < INVENTORY_START) {
             // 盔甲/副手 → 女仆背包
@@ -113,7 +102,7 @@ open class MaidInventoryMenu private constructor(
             // 女仆背包/热键 → 盔甲（若可装备）
             var moved = false
             for (i in 0 until ARMOR_COUNT) {
-                if (this.slots.get(i).mayPlace(stack)) {
+                if (this.slots[i].mayPlace(stack)) {
                     if (this.moveItemStackTo(stack, i, i + 1, false)) {
                         moved = true
                         break
@@ -129,12 +118,12 @@ open class MaidInventoryMenu private constructor(
                 }
             }
         }
-        if (stack.isEmpty()) {
+        if (stack.isEmpty) {
             slot.setByPlayer(ItemStack.EMPTY, original)
         } else {
             slot.setChanged()
         }
-        if (stack.getCount() == original.getCount()) {
+        if (stack.count == original.count) {
             return ItemStack.EMPTY
         }
         slot.onTake(player, stack)

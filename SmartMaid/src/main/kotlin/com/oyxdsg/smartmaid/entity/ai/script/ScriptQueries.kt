@@ -132,11 +132,10 @@ object ScriptQueries {
         val nearest: LivingEntity? = MaidActions.findEntities(
             maid,
             LivingEntity::class.java,
-            range.toDouble(),
-            Predicate { e: LivingEntity ->
-                e.isAlive && e !== maid && e !== maid.getOwner() && (type == null || e.type === type)
-            }
-        ).stream()
+            range.toDouble()
+        ) { e: LivingEntity ->
+            e.isAlive && e !== maid && e !== maid.getOwner() && (type == null || e.type === type)
+        }.stream()
             .min(Comparator.comparingDouble { e: LivingEntity -> maid.distanceToSqr(e) })
             .orElse(null)
 

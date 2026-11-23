@@ -9,8 +9,6 @@ import com.oyxdsg.smartmaid.entity.ai.bridge.MaidAIBridge
 import net.minecraft.commands.CommandSourceStack
 import net.minecraft.commands.Commands
 import net.minecraft.network.chat.Component
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.server.level.ServerPlayer
 import net.minecraft.server.permissions.PermissionCheck
 import net.minecraft.world.entity.Entity
 
@@ -25,7 +23,7 @@ object MaidAICommand {
     private fun exec(source: CommandSourceStack, json: String): Int {
         return try {
             val player = source.playerOrException
-            val level = player.level() as? ServerLevel ?: return 0
+            val level = player.level()
             for (entity: Entity in level.allEntities) {
                 if (entity is SmartMaidEntity && entity.isOwnedBy(player)) {
                     val result = MaidAIBridge.execute(entity, json)

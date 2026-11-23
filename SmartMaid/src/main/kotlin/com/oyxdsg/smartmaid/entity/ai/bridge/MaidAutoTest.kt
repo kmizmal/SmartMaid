@@ -1,10 +1,6 @@
 package com.oyxdsg.smartmaid.entity.ai.bridge
 
-import com.google.gson.JsonArray
-import com.google.gson.JsonElement
-import com.google.gson.JsonObject
-import com.google.gson.JsonParser
-import com.google.gson.JsonPrimitive
+import com.google.gson.*
 import com.oyxdsg.smartmaid.SmartMaid
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidActions
@@ -16,10 +12,8 @@ import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.core.registries.Registries
 import net.minecraft.resources.Identifier
 import net.minecraft.server.MinecraftServer
-import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.tags.TagKey
-import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
@@ -131,10 +125,7 @@ object MaidAutoTest {
         if (!Files.exists(CONFIG)) {
             return
         }
-        val player = server.playerList.players.firstOrNull()
-        if (player == null) {
-            return // 无玩家在线，等待
-        }
+        val player = server.playerList.players.firstOrNull() ?: return // 无玩家在线，等待
         val maid = findMaid(player)
         if (maid == null) {
             // 无女仆：尝试召唤，下次 tick 再检测
@@ -591,7 +582,7 @@ object MaidAutoTest {
     }
 
     private fun findMaid(player: ServerPlayer): SmartMaidEntity? {
-        val level = player.level() as? ServerLevel ?: return null
+        val level = player.level()
         for (entity in level.allEntities) {
             if (entity is SmartMaidEntity && entity.isOwnedBy(player)) {
                 return entity

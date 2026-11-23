@@ -5,6 +5,7 @@ import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.world.InteractionHand
+import kotlin.math.min
 
 /**
  * 挖掘执行器：接近目标（导航/挖挡路块/搭高）→ 走到旁 → 挥动 + 裂纹 → 耗时至破坏。
@@ -102,7 +103,7 @@ class MaidBlockBreaker {
         if (this.digTicks > 0) {
             // 该方块已被挖掉：结束当前方块的破坏流程；如果它是挡路方块，则切回原目标
             if (maid.level().getBlockState(target).isAir) {
-                if (!this.goal!!.equals(target)) {
+                if (this.goal!! != target) {
                     if (maid.level().getBlockState(this.goal!!).isAir) {
                         this.clear()
                         return true
@@ -129,21 +130,21 @@ class MaidBlockBreaker {
                 MaidActions.showMiningProgress(maid, target, -1)
                 val ok = MaidActions.breakBlock(maid, target)
                 // 若刚挖的是挡路块 → 保持已挖空状态，下一 tick 切回真正目标
-                if (!this.goal!!.equals(target)) {
+                if (this.goal!! != target) {
                     return false
                 }
                 this.clear()
                 return ok
             }
             val stage = this.digTicks * 10 / this.digTotal
-            MaidActions.showMiningProgress(maid, target, Math.min(9, stage))
+            MaidActions.showMiningProgress(maid, target, min(9, stage))
             return false
         }
 
         // 1) 当前目标（可能是挡路块）已被挖掉
         if (maid.level().getBlockState(target).isAir) {
             // 若挖的是挡路块 → 切回真正目标
-            if (!this.goal!!.equals(target)) {
+            if (this.goal!! != target) {
                 if (maid.level().getBlockState(this.goal!!).isAir) {
                     this.clear()
                     return true
@@ -202,7 +203,7 @@ class MaidBlockBreaker {
 
         // 4) 视线被非目标方块挡住 → 临时挖挡路块（对齐玩家：准星命中哪个挖哪个）
         val hit = MaidActions.lineHit(maid, target)
-        if (hit != null && !hit.equals(target)) {
+        if (hit != null && hit != target) {
             if (beginDig(maid, hit)) {
                 MaidDebug.log("Breaker 挖挡路块 " + hit + " (目标 " + target + ")")
                 return false
@@ -226,14 +227,14 @@ class MaidBlockBreaker {
             MaidActions.showMiningProgress(maid, target, -1)
             val ok = MaidActions.breakBlock(maid, target)
             // 若刚挖的是挡路块 → 不清空 target：保持"已挖空"状态，下一 tick 第 1 步检测 isAir 自动切回
-            if (!this.goal!!.equals(target)) {
+            if (this.goal!! != target) {
                 return false
             }
             this.clear()
             return ok
         }
         val stage = this.digTicks * 10 / this.digTotal
-        MaidActions.showMiningProgress(maid, target, Math.min(9, stage))
+        MaidActions.showMiningProgress(maid, target, min(9, stage))
         return false
     }
 

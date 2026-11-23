@@ -7,7 +7,6 @@ import com.oyxdsg.smartmaid.entity.ai.MaidDebug
 import net.minecraft.commands.CommandSourceStack
 import net.minecraft.commands.Commands
 import net.minecraft.network.chat.Component
-import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.permissions.PermissionCheck
 import net.minecraft.world.entity.Entity
 
@@ -21,7 +20,7 @@ object MaidPerceptionCommand {
     private fun dump(source: CommandSourceStack): Int {
         return try {
             val player = source.playerOrException
-            val level = player.level() as? ServerLevel ?: return 0
+            val level = player.level()
             for (entity: Entity in level.allEntities) {
                 if (entity is SmartMaidEntity && entity.isOwnedBy(player)) {
                     val module = entity.perceptionModule

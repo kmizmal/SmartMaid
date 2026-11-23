@@ -339,10 +339,10 @@ prompt 模板把产物写死 `#minecraft:oak_logs`，且 `prompt.txt`/`prompt2.t
 
 **P0 战斗系统真机回归收尾**：全流程（近战/走位/背对跳/远程/盾/进食/任务抢占）；日志抓 `SmartMaid-Debug` 的 `Combat` 段（`MaidDebug.VERBOSE` 可开深排查）。
 > 2026-09-19 已推进：盾牌格挡真机验证通过（去前摇后 14 支箭全挡下），近战死区修正为 2.7~3.2。剩余：走位/背对跳/远程/进食/任务抢占的完整流程回归 + 盾牌"真漏箭"精确区分（可打印 `amount - applyItemBlocking(...)`，挡下为 0）。
-**P0 鱼竿**：原版对女仆不可用（spike 结论见上），是否自研 `MaidFishingHook` 待定。
-**P3 跳跃系统完整实测标定**：跨 3 沟、跨沟上 1 格、下跳 1~3 格、对角跨沟；日志 `Jump start/fired/landed` 取真实落点。
-**P4 发布前收尾**：`/summonmaid` `/maidtasks` `/maidai` 加权限检查；`MaidDebug.ENABLED=false`（周期性高频日志已收进 `verbose()`，见开发规范）。
-**P5 基岩版 Q 版模型**：参考 TouhouLittleMaid 的 `simplebedrockmodel`，需 `tlm_custom_pack` 资源（不入库，从 zip 解压），**单独立项**。
+> **P0 鱼竿**：原版对女仆不可用（spike 结论见上），是否自研 `MaidFishingHook` 待定。
+> **P3 跳跃系统完整实测标定**：跨 3 沟、跨沟上 1 格、下跳 1~3 格、对角跨沟；日志 `Jump start/fired/landed` 取真实落点。
+> **P4 发布前收尾**：`/summonmaid` `/maidtasks` `/maidai` 加权限检查；`MaidDebug.ENABLED=false`（周期性高频日志已收进 `verbose()`，见开发规范）。
+> **P5 基岩版 Q 版模型**：参考 TouhouLittleMaid 的 `simplebedrockmodel`，需 `tlm_custom_pack` 资源（不入库，从 zip 解压），**单独立项**。
 
 ### 已知 bug（已修复 ✅）
 

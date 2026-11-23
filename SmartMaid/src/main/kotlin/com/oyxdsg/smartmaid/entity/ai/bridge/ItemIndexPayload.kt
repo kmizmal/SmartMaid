@@ -50,14 +50,14 @@ object ItemIndexPayload {
                     continue
                 }
                 val desc = item.descriptionId
-                val name: String?
+                val name: String
                 try {
                     name = net.minecraft.client.resources.language.I18n.get(desc)
                 } catch (_: Throwable) {
                     // 专用服务端：没有客户端语言资源，无法提供中文名
                     return null
                 }
-                if (name == null || name.isEmpty()) {
+                if (name.isEmpty()) {
                     continue
                 }
                 if (name == desc) {
@@ -90,9 +90,4 @@ object ItemIndexPayload {
         return msg
     }
 
-    /** 语言/资源包切换后调用（当前未用，留作扩展点） */
-    @JvmStatic
-    fun invalidate() {
-        cached = null
-    }
 }

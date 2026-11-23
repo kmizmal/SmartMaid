@@ -5,7 +5,7 @@ import com.google.gson.JsonObject
 class QueuedTask(val id: String, var queue: QueueKind, val cmd: String, val params: JsonObject = JsonObject()) {
     enum class QueueKind { LONG, SHORT }
     enum class State { QUEUED, RUNNING, PAUSED, DONE, FAILED, SKIPPED, CANCELLED }
-    enum class PauseReason { COMBAT, PREEMPTED, LONGTERM_SUSPEND, USER, BLOCKED }
+    enum class PauseReason { COMBAT, PREEMPTED, USER, BLOCKED }
     var mutexKey: String? = null
     var groupId: String? = null
     var parentLabel: String? = null
@@ -37,9 +37,6 @@ class QueuedTask(val id: String, var queue: QueueKind, val cmd: String, val para
     fun interruptCount() = interruptCount
     fun runAttempts() = runAttempts
     fun progress() = progress
-    fun enqueuedAtTick() = enqueuedAtTick
-    fun startedAtTick() = startedAtTick
-    fun lastActiveTick() = lastActiveTick
     fun result() = result
     override fun toString() = "QueuedTask{$id $queue $cmd $state${pauseReason?.let { "/$it" } ?: ""}}"
 }

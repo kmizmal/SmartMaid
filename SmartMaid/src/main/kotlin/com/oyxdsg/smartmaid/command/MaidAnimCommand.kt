@@ -9,7 +9,6 @@ import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import net.minecraft.commands.CommandSourceStack
 import net.minecraft.commands.Commands
 import net.minecraft.network.chat.Component
-import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.permissions.PermissionCheck
 import net.minecraft.world.entity.Entity
 
@@ -39,7 +38,7 @@ object MaidAnimCommand {
     private fun setAnimInt(source: CommandSourceStack, id: Int): Int {
         return try {
             val player = source.playerOrException
-            val level = player.level() as? ServerLevel ?: return 0
+            val level = player.level()
             for (entity: Entity in level.allEntities) {
                 if (entity is SmartMaidEntity && entity.isOwnedBy(player)) {
                     entity.setDebugAnim(id)

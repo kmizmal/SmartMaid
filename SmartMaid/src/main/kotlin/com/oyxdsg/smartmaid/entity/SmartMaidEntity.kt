@@ -2,13 +2,8 @@ package com.oyxdsg.smartmaid.entity
 
 import com.oyxdsg.smartmaid.data.MaidDataManager
 import com.oyxdsg.smartmaid.data.MaidSettings
-import com.oyxdsg.smartmaid.entity.ai.MaidActionExecutor
-import com.oyxdsg.smartmaid.entity.ai.MaidDebug
-import com.oyxdsg.smartmaid.entity.ai.MaidFollowGoal
-import com.oyxdsg.smartmaid.entity.ai.MaidGroundPathNavigation
-import com.oyxdsg.smartmaid.entity.ai.MaidInventoryTidy
-import com.oyxdsg.smartmaid.entity.ai.MaidMonitor
-import com.oyxdsg.smartmaid.entity.ai.MaidMoveControl
+import com.oyxdsg.smartmaid.entity.SmartMaidEntity.Companion.TELEPORT_FALLBACK_DISTANCE_SQR
+import com.oyxdsg.smartmaid.entity.ai.*
 import com.oyxdsg.smartmaid.entity.ai.bridge.MaidTelemetryWriter
 import com.oyxdsg.smartmaid.entity.ai.bridge.MaidWsClient
 import com.oyxdsg.smartmaid.entity.ai.combat.MaidCombatGoal
@@ -32,15 +27,7 @@ import net.minecraft.world.InteractionHand
 import net.minecraft.world.InteractionResult
 import net.minecraft.world.SimpleContainer
 import net.minecraft.world.damagesource.DamageSource
-import net.minecraft.world.entity.AgeableMob
-import net.minecraft.world.entity.ContainerUser
-import net.minecraft.world.entity.Entity
-import net.minecraft.world.entity.EntityType
-import net.minecraft.world.entity.EquipmentSlot
-import net.minecraft.world.entity.LivingEntity
-import net.minecraft.world.entity.Mob
-import net.minecraft.world.entity.Pose
-import net.minecraft.world.entity.TamableAnimal
+import net.minecraft.world.entity.*
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier
 import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.ai.goal.FloatGoal
@@ -62,9 +49,11 @@ import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.entity.ContainerOpenersCounter
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.Vec3
-import net.minecraft.world.phys.shapes.VoxelShape
-import java.util.UUID
+import java.util.*
 import java.util.function.Predicate
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * 智能女仆实体（MVP，Minecraft 26.2 Fabric）。
@@ -164,8 +153,8 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         if (this.level().isClientSide) {
             return this.settingsStorage
         }
-        val ownerRef = this.getOwnerReference()
-        val owner = if (ownerRef == null) null else ownerRef.getUUID()
+        val ownerRef = this.ownerReference
+        val owner = ownerRef?.uuid
         if (owner != null && owner != this.settingsOwner) {
             this.settingsStorage = MaidSettings.get(owner)
             this.settingsOwner = owner
@@ -211,8 +200,8 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         this.perceptionModuleStorage = PerceptionModule(this)
         // 拾取地上的掉落物（进女仆背包）
         this.setCanPickUpLoot(true)
-        this.setCustomName(DISPLAY_NAME)
-        this.setCustomNameVisible(true)
+        this.customName = DISPLAY_NAME
+        this.isCustomNameVisible = true
     }
 
     // ---------------------------------------------------------------------
@@ -262,10 +251,10 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
             return
         }
         // 服务端：坐姿姿态 + 落到支撑面 + 锁死移动（所有入口——右键 / GUI / 指令 / AI 桥接——统一走这里）
-        this.setPose(if (sit) Pose.SITTING else Pose.STANDING)
+        this.pose = if (sit) Pose.SITTING else Pose.STANDING
         if (sit) {
             this.snapToSupportForSit()
-            this.setTarget(null)
+            this.target = null
             this.applySitLock()
         }
     }
@@ -279,7 +268,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
      */
     private fun snapToSupportForSit() {
         val level = this.level() as? ServerLevel ?: return
-        val feetY = this.getY()
+        val feetY = this.y
         for (dy in 0 downTo -3) {
             val pos = this.blockPosition().offset(0, dy, 0)
             val state = level.getBlockState(pos)
@@ -290,13 +279,13 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
             if (shape.isEmpty) {
                 continue
             }
-            val top = pos.getY() + shape.max(Direction.Axis.Y)
+            val top = pos.y + shape.max(Direction.Axis.Y)
             if (top > feetY + 0.02) {
                 // 支撑面高于脚下（不该发生）：继续往下找，避免把女仆顶上去
                 continue
             }
-            if (Math.abs(top - feetY) > 0.001) {
-                this.setPos(this.getX(), top, this.getZ())
+            if (abs(top - feetY) > 0.001) {
+                this.setPos(this.x, top, this.z)
                 this.setDeltaMovement(0.0, 0.0, 0.0)
                 MaidDebug.log(
                     "Maid sit 落地: y " + MaidDebug.fmt1(feetY) + " -> " + MaidDebug.fmt1(top) +
@@ -317,20 +306,20 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
      * 保留 y 速度让重力把她正常压在地面/半砖上。
      */
     private fun applySitLock() {
-        if (!this.isOrderedToSit()) {
+        if (!this.isOrderedToSit) {
             return
         }
-        if (this.getTarget() != null) {
-            this.setTarget(null)
+        if (this.target != null) {
+            this.target = null
         }
         this.getNavigation().stop()
         this.getMoveControl().setWait()
         this.setXxa(0.0F)
         this.setZza(0.0F)
-        val dx = this.getDeltaMovement().x
-        val dz = this.getDeltaMovement().z
+        val dx = this.deltaMovement.x
+        val dz = this.deltaMovement.z
         if (dx * dx + dz * dz > 1.0E-6) {
-            this.setDeltaMovement(0.0, this.getDeltaMovement().y, 0.0)
+            this.setDeltaMovement(0.0, this.deltaMovement.y, 0.0)
         }
     }
 
@@ -345,7 +334,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
      * [net.minecraft.world.entity.ai.goal.MeleeAttackGoal.canPerformAttack] 经此方法判断能否出手。
      */
     override fun isWithinMeleeAttackRange(target: LivingEntity): Boolean {
-        return this.getAttackBoundingBox(MAID_ATTACK_REACH).intersects(target.getBoundingBox())
+        return this.getAttackBoundingBox(MAID_ATTACK_REACH).intersects(target.boundingBox)
     }
 
     /**
@@ -356,7 +345,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
      * 女仆是 PVE 高手、反应极快，命中前检测到威胁即可当场举盾挡下，不受该前摇限制。
      */
     override fun getItemBlockingWith(): ItemStack? {
-        if (!this.isUsingItem()) {
+        if (!this.isUsingItem) {
             return null
         }
         val item = this.getUseItem()
@@ -384,10 +373,10 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
      * 默认返回空，只有玩家会从背包找箭。女仆在此从自己背包找武器支持的弹药（箭）。
      */
     override fun getProjectile(weapon: ItemStack): ItemStack {
-        if (weapon.getItem() is ProjectileWeaponItem) {
-            val weaponItem = weapon.getItem() as ProjectileWeaponItem
-            val supported: Predicate<ItemStack> = weaponItem.getAllSupportedProjectiles()
-            for (i in 0 until this.maidInventory.getContainerSize()) {
+        if (weapon.item is ProjectileWeaponItem) {
+            val weaponItem = weapon.item as ProjectileWeaponItem
+            val supported: Predicate<ItemStack> = weaponItem.allSupportedProjectiles
+            for (i in 0 until this.maidInventory.containerSize) {
                 val stack = this.maidInventory.getItem(i)
                 if (supported.test(stack)) {
                     return stack
@@ -408,7 +397,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         if (food != null) {
             this.maidFood.eat(food)
             MaidDebug.log(
-                "Maid eat " + used.getItem().getDescriptionId() +
+                "Maid eat " + used.item.getDescriptionId() +
                     " food=" + this.maidFood.getFoodLevel() +
                     " sat=" + MaidDebug.fmt1(this.maidFood.getSaturationLevel().toDouble())
             )
@@ -431,45 +420,44 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
      */
     override fun hurtServer(level: ServerLevel, source: DamageSource, amount: Float): Boolean {
         this.captureAttacker(source)
-        val wasBlocking = this.isBlocking()
+        val wasBlocking = this.isBlocking
         val result = super.hurtServer(level, source, amount)
         // 中箭诊断：打印箭矢实体 / 女仆举盾状态（朝向 + 时间）/ 格挡情况，排查"打骷髅总是中箭"
-        val direct = source.getDirectEntity()
+        val direct = source.directEntity
         if (direct is AbstractArrow) {
-            val arrow = direct
-            val ap: Vec3 = arrow.position()
-            val av: Vec3 = arrow.getDeltaMovement()
-            val owner: Entity? = arrow.getOwner()
+            val ap: Vec3 = direct.position()
+            val av: Vec3 = direct.deltaMovement
+            val owner: Entity? = direct.getOwner()
             // 箭矢来向 vs 女仆朝向的水平夹角（0=正对，盾牌格挡在 ~100° 内有效）
-            val dx = ap.x - this.getX()
-            val dz = ap.z - this.getZ()
+            val dx = ap.x - this.x
+            val dz = ap.z - this.z
             val arrowYawDeg = Math.toDegrees(Mth.atan2(-dx, dz))
             val facingErr = Mth.wrapDegrees(this.getYHeadRot() - arrowYawDeg.toFloat())
-            val shieldSlot = this.getOffhandItem()
+            val shieldSlot = this.offhandItem
             MaidDebug.log(
-                "Combat hit-by-arrow arrow=" + arrow.getType().toShortString() +
-                    " owner=" + (if (owner == null) "?" else owner.getType().toShortString()) +
+                "Combat hit-by-arrow arrow=" + direct.type.toShortString() +
+                    " owner=" + (owner?.getType()?.toShortString() ?: "?") +
                     " pos=(" + ap.x + "," + ap.y + "," + ap.z + ") vel=(" +
                     String.format("%.1f", av.x) + "," + String.format("%.1f", av.y) + "," +
                     String.format("%.1f", av.z) + ")" +
                     " dmg=" + String.format("%.1f", amount) +
                     " blockingBefore=" + wasBlocking +
-                    " isBlocking=" + this.isBlocking() +
-                    " yaw=" + String.format("%.1f", this.getYRot()) +
+                    " isBlocking=" + this.isBlocking +
+                    " yaw=" + String.format("%.1f", this.yRot) +
                     " headRot=" + String.format("%.1f", this.getYHeadRot()) +
                     " arrowYaw=" + String.format("%.1f", arrowYawDeg) +
                     " facingErr=" + String.format("%.1f", facingErr) +
                     " offhand=" + MaidDebug.itemName(shieldSlot) +
-                    " usingTicks=" + (if (this.isUsingItem()) this.getTicksUsingItem() else -1)
+                    " usingTicks=" + (if (this.isUsingItem) this.ticksUsingItem else -1)
             )
         }
         return result
     }
 
     private fun captureAttacker(source: DamageSource) {
-        var attacker = source.getEntity()
+        var attacker = source.entity
         if (attacker == null) {
-            attacker = source.getDirectEntity()
+            attacker = source.directEntity
         }
         this.lastAttacker = attacker
         this.lastAttackerTick = this.tickCount
@@ -501,7 +489,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         // 主手/副手与玩家逻辑一致，任意物品均可持有，不做校验
         if (!stored.isEmpty && requireEquippable && !this.isEquippableInSlot(stored, slot)) {
             MaidDebug.log(
-                "盔甲槽校验失败移除: slot=" + slot.getName() + " item=" + stored.getItem().getDescriptionId()
+                "盔甲槽校验失败移除: slot=" + slot.getName() + " item=" + stored.item.getDescriptionId()
             )
             // 放错槽位时气泡提示主人
             this.showBubble(Component.literal("放错位置啦：这不是" + slot.getName() + "槽"), 60)
@@ -601,8 +589,8 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
                 MaidDebug.log(
                     "Maid food level=" + this.maidFood.getFoodLevel() +
                         " sat=" + MaidDebug.fmt1(this.maidFood.getSaturationLevel().toDouble()) +
-                        " hp=" + MaidDebug.fmt1(this.getHealth().toDouble()) + "/" +
-                        MaidDebug.fmt1(this.getMaxHealth().toDouble())
+                        " hp=" + MaidDebug.fmt1(this.health.toDouble()) + "/" +
+                        MaidDebug.fmt1(this.maxHealth.toDouble())
                 )
             }
             // L1 移动兜底：距离主人过远时直接传送回主人身边
@@ -617,10 +605,10 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
             // 坐下 = 待命：锁死移动（不跟随 / 不散步 / 不跳跃 / 不被击退推走）+ 清空攻击目标
             this.applySitLock()
             // 坐下状态低频观测（verbose 门控）：确认坐下期间坐标不变（排查"坐着走"）
-            if (MaidDebug.verbose() && this.isOrderedToSit() && this.tickCount % 40 == 0) {
+            if (MaidDebug.verbose() && this.isOrderedToSit && this.tickCount % 40 == 0) {
                 MaidDebug.log(
-                    "Maid sit 保持 pos=" + MaidDebug.fmt1(this.getX()) + "," +
-                        MaidDebug.fmt1(this.getY()) + "," + MaidDebug.fmt1(this.getZ()) +
+                    "Maid sit 保持 pos=" + MaidDebug.fmt1(this.x) + "," +
+                        MaidDebug.fmt1(this.y) + "," + MaidDebug.fmt1(this.z) +
                         " onGround=" + this.onGround()
                 )
             }
@@ -640,7 +628,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
                 )
             }
             // 动作执行器：跨沟/跳越精确执行（坐下时不执行跳跃）
-            if (!this.isOrderedToSit()) {
+            if (!this.isOrderedToSit) {
                 this.actionExecutor.tick()
             }
             // AI 任务调度器：驱动当前 AI 任务（攻击/挖矿/耕作/建造/制作）
@@ -666,19 +654,17 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
     private fun applySafetyRules() {
         val underPos = this.blockPosition().below()
         val below: BlockState = this.level().getBlockState(underPos)
-        val inLavaLike = below.getBlock() == Blocks.LAVA ||
-            below.getBlock() == Blocks.FIRE ||
-            below.getBlock() == Blocks.MAGMA_BLOCK
-        if (inLavaLike && !this.isInWater() && !this.isInLava()) {
+        val inLavaLike = below.block == Blocks.LAVA ||
+            below.block == Blocks.FIRE ||
+            below.block == Blocks.MAGMA_BLOCK
+        if (inLavaLike && !this.isInWater && !this.isInLava) {
             this.jumpFromGround()
-            this.setDeltaMovement(
-                this.getDeltaMovement().add(
-                    this.random.nextGaussian() * 0.3, 0.3, this.random.nextGaussian() * 0.3
-                )
+            this.deltaMovement = this.deltaMovement.add(
+                this.random.nextGaussian() * 0.3, 0.3, this.random.nextGaussian() * 0.3
             )
         }
         // 生命值过低且处于危险液体中：强制脱离
-        if (this.getHealth() <= 3.0F && (this.isInWater() || inLavaLike)) {
+        if (this.health <= 3.0F && (this.isInWater || inLavaLike)) {
             this.jumpFromGround()
         }
     }
@@ -693,14 +679,14 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
      */
     private fun applyTeleportFallback() {
         // 坐下 = 原地待命：不追主人、也不传送（主子走远了就留在原地等她回来）
-        if (this.isOrderedToSit()) {
+        if (this.isOrderedToSit) {
             return
         }
         if (this.teleportFallbackCooldown > 0) {
             this.teleportFallbackCooldown--
             return
         }
-        val owner = this.getOwner()
+        val owner = this.owner
         if (owner == null || this.unableToMoveToOwner()) {
             return
         }
@@ -710,7 +696,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         this.tryToTeleportToOwner()
         // 原版找点可能失败（如主人周围全是悬崖/水）：硬传送到主人脚下兜底
         if (this.distanceToSqr(owner) >= TELEPORT_FALLBACK_DISTANCE_SQR) {
-            this.snapTo(owner.getX(), owner.getY() + 1.0, owner.getZ(), owner.getYRot(), owner.getXRot())
+            this.snapTo(owner.x, owner.y + 1.0, owner.z, owner.yRot, owner.xRot)
         }
         this.teleportFallbackCooldown = 100
     }
@@ -727,11 +713,11 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         }
         if (this.bubbleTicksLeft <= 0) {
             // 记下气泡期间的名字，供感知/遥测上报使用（避免上报气泡文案）
-            this.nameBeforeBubble = this.getName().getString()
+            this.nameBeforeBubble = this.getName().string
         }
         // 气泡走独立同步字段（客户端渲染器拆成多行），不再顶替 customName
-        this.entityData.set(DATA_BUBBLE, text.getString())
-        this.bubbleTicksLeft = Math.max(ticks, 1)
+        this.entityData.set(DATA_BUBBLE, text.string)
+        this.bubbleTicksLeft = max(ticks, 1)
     }
 
     /**
@@ -744,7 +730,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         return if (this.bubbleTicksLeft > 0 && this.nameBeforeBubble != null) {
             this.nameBeforeBubble!!
         } else {
-            this.getName().getString()
+            this.getName().string
         }
     }
 
@@ -753,13 +739,13 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
      * 先尝试原版安全找点，未贴近则硬传送到主人脚下。
      */
     fun teleportToOwner() {
-        val owner = this.getOwner()
+        val owner = this.owner
         if (owner == null || this.level().isClientSide) {
             return
         }
         this.tryToTeleportToOwner()
         if (this.distanceToSqr(owner) > 9.0) {
-            this.snapTo(owner.getX(), owner.getY() + 1.0, owner.getZ(), owner.getYRot(), owner.getXRot())
+            this.snapTo(owner.x, owner.y + 1.0, owner.z, owner.yRot, owner.xRot)
         }
         this.teleportFallbackCooldown = 100
     }
@@ -779,23 +765,23 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
 
     /** 让女仆在接下来 ticks tick 内不拾取任何掉落物（丢给主人后调用，防捡回）。 */
     fun suppressPickup(ticks: Int) {
-        this.pickupSuppressUntil = Math.max(this.pickupSuppressUntil, this.tickCount + Math.max(0, ticks))
+        this.pickupSuppressUntil = max(this.pickupSuppressUntil, this.tickCount + max(0, ticks))
     }
 
     override fun equipItemIfPossible(level: ServerLevel, stack: ItemStack): ItemStack {
         // 照抄原版语义：返回「成功取走的量」（非空 = 取走这么多），剩余留在掉落物里。
         // 只放入背包/热键区（0-35），绝不进入盔甲/副手槽（避免"穿上任何物品"）。
         var remaining = this.addToMaidStorage(stack)
-        if (remaining.getCount() == stack.getCount() && MaidInventoryTidy.tidyIfStuck(this)) {
+        if (remaining.count == stack.count && MaidInventoryTidy.tidyIfStuck(this)) {
             // 一件都没放进（背包满/碎片化）→ 整理后重试一次，避免掉落物一直捡不起来
             remaining = this.addToMaidStorage(stack)
         }
-        val taken = stack.getCount() - remaining.getCount()
+        val taken = stack.count - remaining.count
         if (taken <= 0) {
             return ItemStack.EMPTY
         }
         val result = stack.copy()
-        result.setCount(taken)
+        result.count = taken
         return result
     }
 
@@ -807,9 +793,9 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         while (i < 36 && !remaining.isEmpty) {
             val existing = this.maidInventory.getItem(i)
             if (!existing.isEmpty && ItemStack.isSameItemSameComponents(existing, remaining) &&
-                existing.getCount() < existing.getMaxStackSize()
+                existing.count < existing.maxStackSize
             ) {
-                val room = Math.min(remaining.getCount(), existing.getMaxStackSize() - existing.getCount())
+                val room = min(remaining.count, existing.maxStackSize - existing.count)
                 existing.grow(room)
                 remaining.shrink(room)
             }
@@ -847,7 +833,7 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         // 按设置决定掉落范围：全部 41 格（热键0-8/背包9-35/盔甲36-39/副手40）/ 只掉背包0-35 / 全保留
         val mode = this.getSettings().deathDropMode
         val dropUpTo = when (mode) {
-            MaidSettings.DeathDropMode.ALL -> this.maidInventory.getContainerSize()
+            MaidSettings.DeathDropMode.ALL -> this.maidInventory.containerSize
             MaidSettings.DeathDropMode.KEEP_EQUIPMENT -> 36
             MaidSettings.DeathDropMode.NONE -> 0
         }
@@ -868,28 +854,27 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         if (this.isOwnedBy(player) && player.getItemInHand(hand).isEmpty) {
             if (player.isShiftKeyDown) {
                 if (!player.level().isClientSide && player is ServerPlayer) {
-                    val sp = player
                     // N1：Shift+右键 改开客户端纯 Screen 主菜单（不挂容器）
                     ServerPlayNetworking.send(
-                        sp,
-                        MaidOpenMenuPayload(this.getId(), this.getMaidFood().getFoodLevel())
+                        player,
+                        MaidOpenMenuPayload(this.id, this.getMaidFood().getFoodLevel())
                     )
-                    ModNetworking.sendMenuState(sp, this)
+                    ModNetworking.sendMenuState(player, this)
                 }
                 return InteractionResult.SUCCESS
             }
             if (!player.level().isClientSide) {
                 // 坐/站统一切换：setOrderedToSit 内部处理姿摆、落地吸附、移动锁定
-                this.setOrderedToSit(!this.isOrderedToSit())
+                this.setOrderedToSit(!this.isOrderedToSit)
             }
             return InteractionResult.SUCCESS
         }
         return super.mobInteract(player, hand)
     }
 
-    override fun remove(reason: Entity.RemovalReason) {
+    override fun remove(reason: RemovalReason) {
         // 世界卸载/退出时也保存一次（含任务队列），保证 Q8 持久化不丢最后操作
-        if (!this.level().isClientSide && reason != Entity.RemovalReason.KILLED) {
+        if (!this.level().isClientSide && reason != RemovalReason.KILLED) {
             MaidDataManager.save(this)
         }
         super.remove(reason)
@@ -909,13 +894,13 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
     private inner class AiAwareRandomStrollGoal : RandomStrollGoal(this@SmartMaidEntity, 0.6) {
         override fun canUse(): Boolean {
             return !this@SmartMaidEntity.isAiBusy &&
-                !this@SmartMaidEntity.isOrderedToSit() &&
+                !this@SmartMaidEntity.isOrderedToSit &&
                 super.canUse()
         }
 
         override fun canContinueToUse(): Boolean {
             // 坐下瞬间若正在散步：立即停（否则会"坐着走"）
-            return !this@SmartMaidEntity.isOrderedToSit() && super.canContinueToUse()
+            return !this@SmartMaidEntity.isOrderedToSit && super.canContinueToUse()
         }
     }
 
@@ -935,13 +920,12 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         private const val TELEPORT_FALLBACK_DISTANCE_SQR: Double = 32.0 * 32.0
 
         /** 女仆近战实际可攻击距离（格）：判定边界为 3.0，留 0.2 缓冲避免"判定到了够不着" */
-        @JvmField
-        val MAID_ATTACK_REACH: Double = 3.2
+        const val MAID_ATTACK_REACH: Double = 3.2
 
         /** 实体属性注册（对应 Java `public static AttributeSupplier.Builder createAttributes()`）。 */
         @JvmStatic
         fun createAttributes(): AttributeSupplier.Builder {
-            return Mob.createMobAttributes()
+            return createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 24.0)
                 // 速度：0.16 是能覆盖全部跳跃场景（跨3格沟+上1格）的最小值（离线解表标定）
                 .add(Attributes.MOVEMENT_SPEED, 0.16)

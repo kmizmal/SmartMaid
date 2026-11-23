@@ -14,7 +14,9 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 import java.util.WeakHashMap
+import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.sin
 
 /**
  * 女仆背包整理：背包塞不下时，合并同类堆叠 + 丢弃垃圾物品。
@@ -118,11 +120,11 @@ object MaidInventoryTidy {
     fun dropBehind(maid: SmartMaidEntity, stack: ItemStack) {
         if (stack.isEmpty) return
         val level: Level = maid.level()
-        val yaw = Math.toRadians(maid.getYRot().toDouble())
+        val yaw = Math.toRadians(maid.yRot.toDouble())
         // 身后 = 前方向 (-sin, cos) 取反
-        val x = maid.getX() + Math.sin(yaw)
-        val z = maid.getZ() - Math.cos(yaw)
-        val item = ItemEntity(level, x, maid.getY() + 0.25, z, stack)
+        val x = maid.x + sin(yaw)
+        val z = maid.z - cos(yaw)
+        val item = ItemEntity(level, x, maid.y + 0.25, z, stack)
         item.setPickUpDelay(40)
         level.addFreshEntity(item)
         maid.suppressPickup(200)
@@ -149,7 +151,7 @@ object MaidInventoryTidy {
             if (stack.isEmpty) continue
             val entry = JsonObject()
             entry.addProperty("slot", i)
-            entry.addProperty("item", BuiltInRegistries.ITEM.getKey(stack.getItem()).toString())
+            entry.addProperty("item", BuiltInRegistries.ITEM.getKey(stack.item).toString())
             entry.addProperty("count", stack.count)
             items.add(entry)
         }

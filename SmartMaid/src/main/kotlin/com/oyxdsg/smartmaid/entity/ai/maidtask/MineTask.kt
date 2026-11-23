@@ -121,8 +121,8 @@ open class MineTask(private val center: BlockPos?, private val range: Int, count
 
     override fun restoreState(state: JsonObject?) {
         if (state == null) return
-        this.mined = if (state.has("mined")) state.get("mined").getAsInt() else 0
-        this.noOre = state.has("noOre") && state.get("noOre").getAsBoolean()
+        this.mined = if (state.has("mined")) state.get("mined").asInt else 0
+        this.noOre = state.has("noOre") && state.get("noOre").asBoolean
         this.current = TaskState.readPos(state.get("current"))
         this.skipped.clear()
         this.skipped.addAll(TaskState.readPosList(state.get("skipped")))

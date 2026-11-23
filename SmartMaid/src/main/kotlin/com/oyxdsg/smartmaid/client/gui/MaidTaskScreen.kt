@@ -9,6 +9,7 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import java.util.ArrayList
+import kotlin.math.min
 
 /**
  * 二级「任务」页（N1 步骤 4）：长期/短期两个队列的前端。
@@ -77,7 +78,7 @@ class MaidTaskScreen(parent: Screen?, initialState: JsonObject?) : MaidSubScreen
         if (longs.isEmpty) {
             ex.text(this.font, Component.literal("（空）"), this.left + 22, yLong + 13, MaidTheme.TEXT_3)
         } else {
-            for (i in 0 until Math.min(longs.size(), 2)) {
+            for (i in 0 until min(longs.size(), 2)) {
                 drawRow(ex, yLong + 12 + i * ROW_H, longs.get(i).asJsonObject, true, false)
             }
         }
@@ -102,7 +103,7 @@ class MaidTaskScreen(parent: Screen?, initialState: JsonObject?) : MaidSubScreen
             MaidNet.send(MaidMenuActionPayload.op("clear", "", "LONG"))
         }
         button(ex, this.left + PANEL_W - 16 - bw, by, bw, "＋ 添加任务") {
-            this.minecraft?.setScreenAndShow(MaidAddTaskScreen(this, this.state))
+            this.minecraft.setScreenAndShow(MaidAddTaskScreen(this, this.state))
         }
 
         if (this.toast.isNotEmpty() && System.currentTimeMillis() < this.toastUntil) {
@@ -121,7 +122,7 @@ class MaidTaskScreen(parent: Screen?, initialState: JsonObject?) : MaidSubScreen
         val st = str(item, "state")
         val interrupts = if (item.has("interrupts")) item.get("interrupts").asInt else 0
         MaidTheme.roundRect(ex, this.left + 16, y, this.left + PANEL_W - 16, y + ROW_H - 2, MaidTheme.CARD, 0)
-        val label = if (name.isEmpty()) id else name
+        val label = name.ifEmpty { id }
         val status = when {
             "RUNNING" == st -> "进行中"
             "PAUSED" == st -> "暂停中" + (if (interrupts > 0) "·打断$interrupts" else "")
@@ -220,9 +221,9 @@ class MaidTaskScreen(parent: Screen?, initialState: JsonObject?) : MaidSubScreen
 
     override fun mouseClicked(event: MouseButtonEvent, focused: Boolean): Boolean {
         if (com.oyxdsg.smartmaid.compat.MaidCompat.isPrimaryMouseButton(event.button())) {
-            for (h in this.hots) {
-                if (inside(event.x(), event.y(), h.x, h.y, h.w, h.h)) {
-                    h.action.run()
+            for ((x, y, w, h1, action) in this.hots) {
+                if (inside(event.x(), event.y(), x, y, w, h1)) {
+                    action.run()
                     return true
                 }
             }

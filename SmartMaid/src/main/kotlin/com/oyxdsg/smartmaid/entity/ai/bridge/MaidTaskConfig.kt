@@ -35,12 +35,6 @@ object MaidTaskConfig {
     }
 
     @JvmStatic
-    fun all(maid: SmartMaidEntity): Map<String, JsonObject> {
-        val owner = ownerOf(maid) ?: return LinkedHashMap()
-        return readAll(maid, owner)
-    }
-
-    @JvmStatic
     fun clear(maid: SmartMaidEntity) {
         val owner = ownerOf(maid) ?: return
         try {

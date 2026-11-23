@@ -140,7 +140,7 @@ class MaidMenuScreen(private val maidId: Int, food: Int) : Screen(Component.lite
         for (i in 0 until 10) {
             drawFood(ex, this.left + 130 + i * 8, sy + 6, foodHalf - i * 2)
         }
-        val stateStr = if (maid == null) "未加载" else (if (maid.isOrderedToSit()) "坐下待命" else "跟随中")
+        val stateStr = if (maid == null) "未加载" else (if (maid.isOrderedToSit) "坐下待命" else "跟随中")
         ex.text(this.font, Component.literal(stateStr),
             this.left + PANEL_W - 16 - this.font.width(stateStr) - 8, sy + 7, MaidTheme.TEXT_2)
 
@@ -189,7 +189,7 @@ class MaidMenuScreen(private val maidId: Int, food: Int) : Screen(Component.lite
 
     private fun getMaid(): SmartMaidEntity? {
         val mc = this.minecraft
-        if (mc == null || mc.level == null) {
+        if (mc?.level == null) {
             return null
         }
         val level = mc.level ?: return null
@@ -262,14 +262,14 @@ class MaidMenuScreen(private val maidId: Int, food: Int) : Screen(Component.lite
 
     private fun onEntry(i: Int) {
         when (i) {
-            0 -> this.minecraft?.setScreenAndShow(MaidTaskScreen(this, this.state))
+            0 -> this.minecraft.setScreenAndShow(MaidTaskScreen(this, this.state))
             1 -> {
                 MaidNet.send(MaidCommandPayload(MaidCommandPayload.ACTION_OPEN_INVENTORY))
                 this.onClose()
             }
-            2 -> this.minecraft?.setScreenAndShow(MaidPlaceholderScreen(this, "对话"))
-            3 -> this.minecraft?.setScreenAndShow(MaidSettingsScreen(this, this.state))
-            4 -> this.minecraft?.setScreenAndShow(MaidPlaceholderScreen(this, "动作"))
+            2 -> this.minecraft.setScreenAndShow(MaidPlaceholderScreen(this, "对话"))
+            3 -> this.minecraft.setScreenAndShow(MaidSettingsScreen(this, this.state))
+            4 -> this.minecraft.setScreenAndShow(MaidPlaceholderScreen(this, "动作"))
         }
     }
 
@@ -277,13 +277,13 @@ class MaidMenuScreen(private val maidId: Int, food: Int) : Screen(Component.lite
         val maid = getMaid()
         when (i) {
             0 -> {
-                if (maid != null && maid.isOrderedToSit()) {
+                if (maid != null && maid.isOrderedToSit) {
                     sendCmd(MaidCommandPayload.ACTION_TOGGLE_SIT)
                 }
                 showToast("跟随中")
             }
             1 -> {
-                if (maid == null || !maid.isOrderedToSit()) {
+                if (maid == null || !maid.isOrderedToSit) {
                     sendCmd(MaidCommandPayload.ACTION_TOGGLE_SIT)
                 }
                 showToast("坐下待命")

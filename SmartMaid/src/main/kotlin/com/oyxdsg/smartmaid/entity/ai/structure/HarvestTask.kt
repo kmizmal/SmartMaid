@@ -18,6 +18,7 @@ import java.util.ArrayDeque
 import java.util.HashMap
 import java.util.HashSet
 import java.util.function.Predicate
+import kotlin.math.max
 
 /**
  * 收割任务（Atomic Command Protocol §5.4）：对某结构（树/矿脉…），把种子位置所在的那一团
@@ -84,7 +85,7 @@ open class HarvestTask(
                             + (if (this.count > 0) this.count.toString() else "产物耗尽") + "）"
                 )
             } else if (!this.breaker.isActive() && currentTarget != null
-                && !maid.level().getBlockState(currentTarget).isAir()
+                && !maid.level().getBlockState(currentTarget).isAir
             ) {
                 // 目标被遮挡/不可达 → 放回队列末尾（从外到内逐步收割，对齐玩家砍树行为），
                 // 等外围方块挖掉后它变为可达再收割；超限重试则放弃（防死循环）
@@ -126,7 +127,7 @@ open class HarvestTask(
         while (!this.pending.isEmpty()) {
             val p: BlockPos = this.pending.poll()
             val s = maid.level().getBlockState(p)
-            if (s.isAir()) {
+            if (s.isAir) {
                 continue
             }
             // 重试超限的目标直接放弃（多次被挡，玩家也挖不到）
@@ -179,7 +180,7 @@ open class HarvestTask(
                 this.pending.add(p)
                 this.remaining++
             }
-            for (d in Direction.values()) {
+            for (d in Direction.entries) {
                 val q = p.relative(d)
                 if (!this.visited.add(q.asLong())) {
                     continue
@@ -234,10 +235,10 @@ open class HarvestTask(
         }
         o.add("visited", visitedArr)
         val retryArr = JsonArray()
-        for (e in this.retryCount.entries) {
+        for ((key, value) in this.retryCount) {
             val r = JsonObject()
-            r.add("pos", TaskState.pos(e.key))
-            r.addProperty("n", e.value)
+            r.add("pos", TaskState.pos(key))
+            r.addProperty("n", value)
             retryArr.add(r)
         }
         o.add("retry", retryArr)
@@ -317,7 +318,7 @@ open class HarvestTask(
     override fun resultJson(): JsonObject {
         val out = JsonObject()
         out.addProperty("collected", this.collected)
-        out.addProperty("remaining", Math.max(0, this.remaining))
+        out.addProperty("remaining", max(0, this.remaining))
         out.add("pos", StructureScan.posArray(this.seed!!))
         // 未收到任何目标时说明原因，便于 AI 决策（换位置重试 / 放弃）
         if (this.scanned && this.collected == 0) {

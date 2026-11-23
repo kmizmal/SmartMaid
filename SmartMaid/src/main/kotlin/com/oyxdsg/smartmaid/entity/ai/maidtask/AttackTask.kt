@@ -53,7 +53,7 @@ class AttackTask(
         val t = this.target
         MaidDebug.log("Attack start target=" +
                 (t?.let { it.type.toShortString() + " @" + it.blockPosition() } ?: "无") +
-                (if (targetType != null) " wantType=" + targetType!!.toShortString() else ""))
+                (if (targetType != null) " wantType=" + targetType.toShortString() else ""))
         if (t == null) {
             maid.showBubble(Component.literal("附近没有" + targetLabel()), 60)
         }
@@ -64,10 +64,10 @@ class AttackTask(
         if (t == null || !t.isAlive) {
             return // isDone 捕获，任务结束
         }
-        maid.getLookControl().setLookAt(t, 10.0f, maid.getMaxHeadXRot().toFloat())
+        maid.getLookControl().setLookAt(t, 10.0f, maid.maxHeadXRot.toFloat())
         val distSqr = maid.distanceToSqr(t)
         if (distSqr > 2.5 * 2.5) {
-            if (maid.getNavigation().isDone() || maid.tickCount % 20 == 0) {
+            if (maid.getNavigation().isDone || maid.tickCount % 20 == 0) {
                 maid.getNavigation().moveTo(t, 1.0)
             }
         } else {
@@ -85,11 +85,10 @@ class AttackTask(
     }
 
     override fun result(): String {
-        val t = this.target
-        if (t == null) return if (targetType != null) "附近没有" + targetLabel() else "无目标"
+        val t = this.target ?: return if (targetType != null) "附近没有" + targetLabel() else "无目标"
         return if (!t.isAlive) "已击杀 " + t.type.toShortString() else "目标丢失"
     }
 
     /** 目标类型的中文显示名；未指定类型时返回「敌人」。 */
-    private fun targetLabel(): String = targetType?.getDescription()?.getString() ?: "敌人"
+    private fun targetLabel(): String = targetType?.getDescription()?.string ?: "敌人"
 }

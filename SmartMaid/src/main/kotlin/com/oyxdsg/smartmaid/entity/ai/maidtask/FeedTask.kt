@@ -19,7 +19,7 @@ class FeedTask : MaidAITask("feed") {
         private const val FACE_DISTANCE = 2.0
     }
 
-    override fun canStart(maid: SmartMaidEntity): Boolean = maid.getOwner() is Player
+    override fun canStart(maid: SmartMaidEntity): Boolean = maid.owner is Player
 
     override fun start(maid: SmartMaidEntity) {
         this.done = false
@@ -27,7 +27,7 @@ class FeedTask : MaidAITask("feed") {
     }
 
     override fun tick(maid: SmartMaidEntity) {
-        val owner = maid.getOwner() as? Player
+        val owner = maid.owner as? Player
         if (owner == null || !owner.isAlive) {
             this.done = true
             return
@@ -35,14 +35,14 @@ class FeedTask : MaidAITask("feed") {
         // 1. 走到玩家面前
         val distSqr = maid.distanceToSqr(owner)
         if (distSqr > FACE_DISTANCE * FACE_DISTANCE) {
-            if (maid.getNavigation().isDone() || maid.tickCount % 20 == 0) {
+            if (maid.getNavigation().isDone || maid.tickCount % 20 == 0) {
                 maid.getNavigation().moveTo(owner, 1.0)
             }
             return
         }
         maid.getNavigation().stop()
         // 2. 面朝玩家
-        maid.getLookControl().setLookAt(owner, 10.0f, maid.getMaxHeadXRot().toFloat())
+        maid.getLookControl().setLookAt(owner, 10.0f, maid.maxHeadXRot.toFloat())
         // 3. 找背包食物 → 换到主手
         val food = findFood(maid)
         if (food == null) {
@@ -51,10 +51,10 @@ class FeedTask : MaidAITask("feed") {
             return
         }
         // 4. 丢出来给玩家
-        if (MaidActions.isFood(maid.getMainHandItem())) {
-            val drop = maid.getMainHandItem().split(1)
+        if (MaidActions.isFood(maid.mainHandItem)) {
+            val drop = maid.mainHandItem.split(1)
             MaidActions.throwItem(maid, drop, owner, 0.5)
-            MaidDebug.log("Feed 丢出食物: " + drop.getItem().getDescriptionId())
+            MaidDebug.log("Feed 丢出食物: " + drop.item.getDescriptionId())
             this.done = true
         }
     }
@@ -66,8 +66,8 @@ class FeedTask : MaidAITask("feed") {
     }
 
     private fun findFood(maid: SmartMaidEntity): ItemStack? {
-        if (MaidActions.isFood(maid.getMainHandItem())) {
-            return maid.getMainHandItem()
+        if (MaidActions.isFood(maid.mainHandItem)) {
+            return maid.mainHandItem
         }
         val slot = MaidActions.findInBackpack(maid) { stack -> MaidActions.isFood(stack) }
         if (slot < 0) {
@@ -77,6 +77,6 @@ class FeedTask : MaidAITask("feed") {
         if (!MaidActions.equipFromBackpack(maid) { stack -> MaidActions.isFood(stack) }) {
             return null
         }
-        return maid.getMainHandItem()
+        return maid.mainHandItem
     }
 }

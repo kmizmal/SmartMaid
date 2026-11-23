@@ -11,6 +11,7 @@ import com.zigythebird.playeranimcore.bones.PlayerAnimBone
 import com.zigythebird.playeranimcore.enums.PlayState
 import com.zigythebird.playeranimcore.loading.UniversalAnimLoader
 import net.minecraft.client.model.geom.ModelPart
+import kotlin.math.abs
 
 /**
  * 女仆动作管理：加载 Emotecraft 动作 JSON → PAL Animation，用 [HumanoidAnimationController] 播放。
@@ -86,7 +87,7 @@ class MaidAnimManager private constructor() {
         fun getAnimNames(): Array<String> = ANIM_NAMES
 
         private fun getController(maid: SmartMaidEntity): HumanoidAnimationController {
-            return CONTROLLERS.computeIfAbsent(maid.getId()) {
+            return CONTROLLERS.computeIfAbsent(maid.id) {
                 HumanoidAnimationController(
                     { _, _, _ -> PlayState.CONTINUE },
                     // 表达式引擎由版本隔离层提供；由 createEngine 的返回值匹配当前 PAL 构造器。
@@ -100,7 +101,7 @@ class MaidAnimManager private constructor() {
         fun play(maid: SmartMaidEntity, animId: Int) {
             ensureLoaded()
             val name = if (animId >= 0 && animId < ANIM_NAMES.size) ANIM_NAMES[animId] else ""
-            val eid = maid.getId()
+            val eid = maid.id
             val ctrl = getController(maid)
 
             val cur = CURRENT[eid]
@@ -127,11 +128,11 @@ class MaidAnimManager private constructor() {
         /** 每游戏 tick 推进动画时间（实体 aiStep 客户端调用，PAL 需要 tick 字段递增） */
         @JvmStatic
         fun tick(maid: SmartMaidEntity) {
-            val ctrl = CONTROLLERS[maid.getId()]
-            if (ctrl == null || !ctrl.isActive()) {
+            val ctrl = CONTROLLERS[maid.id]
+            if (ctrl == null || !ctrl.isActive) {
                 return
             }
-            val h = Math.abs(maid.getDeltaMovement().x) + Math.abs(maid.getDeltaMovement().z)
+            val h = abs(maid.deltaMovement.x) + abs(maid.deltaMovement.z)
             ctrl.tick(AnimationData((h / 2.0).toFloat(), 0.0f, false))
         }
 
@@ -141,17 +142,17 @@ class MaidAnimManager private constructor() {
          */
         @JvmStatic
         fun processOnce(maid: SmartMaidEntity, tickDelta: Float) {
-            val ctrl = CONTROLLERS[maid.getId()]
-            if (ctrl == null || !ctrl.isActive()) {
+            val ctrl = CONTROLLERS[maid.id]
+            if (ctrl == null || !ctrl.isActive) {
                 return
             }
-            val h = Math.abs(maid.getDeltaMovement().x) + Math.abs(maid.getDeltaMovement().z)
+            val h = abs(maid.deltaMovement.x) + abs(maid.deltaMovement.z)
             ctrl.setupAnim(AnimationData((h / 2.0).toFloat(), tickDelta, false))
         }
 
         /** 是否正在播放动作 */
         @JvmStatic
-        fun isPlaying(maid: SmartMaidEntity): Boolean = CURRENT.containsKey(maid.getId())
+        fun isPlaying(maid: SmartMaidEntity): Boolean = CURRENT.containsKey(maid.id)
 
         /**
          * 把骨骼变换应用到模型部件（setupAnim 中调用，需先 [processOnce]）。
@@ -159,20 +160,14 @@ class MaidAnimManager private constructor() {
          */
         @JvmStatic
         fun apply(maid: SmartMaidEntity, boneName: String, part: ModelPart) {
-            val ctrl = CONTROLLERS[maid.getId()]
-            if (ctrl == null || !ctrl.isActive()) {
+            val ctrl = CONTROLLERS[maid.id]
+            if (ctrl == null || !ctrl.isActive) {
                 return
             }
             val bone = PlayerAnimBone(boneName)
             ctrl.get3DTransform(bone)
-            RenderUtil.translatePartToBone(part, bone, part.getInitialPose())
+            RenderUtil.translatePartToBone(part, bone, part.initialPose)
         }
 
-        /** 实体移除时清理控制器 */
-        @JvmStatic
-        fun cleanup(entityId: Int) {
-            CONTROLLERS.remove(entityId)
-            CURRENT.remove(entityId)
-        }
     }
 }

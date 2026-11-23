@@ -14,6 +14,6 @@ class MaidInventoryMenuProvider(private val maid: SmartMaidEntity) : MenuProvide
     override fun getDisplayName(): Component =
         Component.translatable("gui.smartmaid.maid_inventory")
 
-    override fun createMenu(syncId: Int, inv: Inventory, player: Player): AbstractContainerMenu? =
+    override fun createMenu(syncId: Int, inv: Inventory, player: Player): AbstractContainerMenu =
         MaidInventoryMenu(syncId, inv, maid)
 }

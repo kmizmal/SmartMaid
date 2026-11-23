@@ -25,20 +25,20 @@ object MaidActor {
         val level = maid.level() as? ServerLevel ?: return null
         val actor = FakePlayer.get(level, ownerProfile(maid))
         // 位置/朝向同步：领地与区域判定依赖坐标
-        actor.setPos(maid.getX(), maid.getY(), maid.getZ())
-        actor.setYRot(maid.getYRot())
-        actor.setXRot(maid.getXRot())
+        actor.setPos(maid.x, maid.y, maid.z)
+        actor.yRot = maid.yRot
+        actor.xRot = maid.xRot
         // 手持同步：第三方方块直接读 player.getItemInHand()
-        actor.setItemInHand(InteractionHand.MAIN_HAND, maid.getMainHandItem())
-        actor.setItemInHand(InteractionHand.OFF_HAND, maid.getOffhandItem())
+        actor.setItemInHand(InteractionHand.MAIN_HAND, maid.mainHandItem)
+        actor.setItemInHand(InteractionHand.OFF_HAND, maid.offhandItem)
         return actor
     }
 
     /** 优先用主人的身份；主人离线/无主人时退化为女仆自身 UUID 的合成身份。 */
     private fun ownerProfile(maid: SmartMaidEntity): GameProfile {
-        val owner = maid.getOwner()
+        val owner = maid.owner
         if (owner is ServerPlayer) {
-            return owner.getGameProfile()
+            return owner.gameProfile
         }
         return GameProfile(maid.getUUID(), "SmartMaid")
     }

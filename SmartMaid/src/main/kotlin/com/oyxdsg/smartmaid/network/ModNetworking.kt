@@ -40,21 +40,21 @@ class ModNetworking private constructor() {
 
             ServerPlayNetworking.registerGlobalReceiver(MaidCommandPayload.TYPE) { payload, context ->
                 val player = context.player()
-                player.level().getServer().execute command@{
+                player.level().server.execute command@{
                     val level: Level = player.level()
                     if (level !is ServerLevel) return@command
                     val maid = findOwnerMaid(level, player)
                     if (maid == null) {
-                        SmartMaid.LOGGER.debug("GUI 动作未找到玩家 {} 的女仆", player.getName().getString())
+                        SmartMaid.LOGGER.debug("GUI 动作未找到玩家 {} 的女仆", player.name.string)
                         return@command
                     }
                     when (payload.action) {
                         MaidCommandPayload.ACTION_TOGGLE_SIT -> {
                             // 坐/站统一切换：落地吸附 + 移动锁定都在 setOrderedToSit 内处理
-                            maid.setOrderedToSit(!maid.isOrderedToSit())
+                            maid.setOrderedToSit(!maid.isOrderedToSit)
                         }
                         MaidCommandPayload.ACTION_RECALL -> maid.teleportToOwner()
-                        MaidCommandPayload.ACTION_CLEAR_TARGET -> maid.setTarget(null)
+                        MaidCommandPayload.ACTION_CLEAR_TARGET -> maid.target = null
                         MaidCommandPayload.ACTION_OPEN_INVENTORY -> {
                             player.openMenu(MaidInventoryMenuProvider(maid))
                         }
@@ -65,7 +65,7 @@ class ModNetworking private constructor() {
 
             ServerPlayNetworking.registerGlobalReceiver(MaidSettingsPayload.TYPE) { payload, context ->
                 val player = context.player()
-                player.level().getServer().execute settings@{
+                player.level().server.execute settings@{
                     val level: Level = player.level()
                     if (level !is ServerLevel) return@settings
                     val maid = findOwnerMaid(level, player) ?: return@settings
@@ -80,7 +80,7 @@ class ModNetworking private constructor() {
 
             ServerPlayNetworking.registerGlobalReceiver(MaidChatPayload.TYPE) { payload, context ->
                 val player = context.player()
-                player.level().getServer().execute chat@{
+                player.level().server.execute chat@{
                     val level: Level = player.level()
                     if (level !is ServerLevel) return@chat
                     val maid = findOwnerMaid(level, player)
@@ -97,7 +97,7 @@ class ModNetworking private constructor() {
             // 菜单动作（N1）：转成 queue 指令走 MaidAIBridge，与 /maidai 同一条路径
             ServerPlayNetworking.registerGlobalReceiver(MaidMenuActionPayload.TYPE) { payload, context ->
                 val player = context.player()
-                player.level().getServer().execute menuAction@{
+                player.level().server.execute menuAction@{
                     val level: Level = player.level()
                     if (level !is ServerLevel) return@menuAction
                     val maid = findOwnerMaid(level, player) ?: return@menuAction
@@ -189,7 +189,7 @@ class ModNetworking private constructor() {
 
         /** 查找某玩家名下的女仆（每玩家仅一只） */
         private fun findOwnerMaid(level: ServerLevel, player: ServerPlayer): SmartMaidEntity? {
-            for (entity in level.getAllEntities()) {
+            for (entity in level.allEntities) {
                 if (entity is SmartMaidEntity && entity.isOwnedBy(player)) {
                     return entity
                 }

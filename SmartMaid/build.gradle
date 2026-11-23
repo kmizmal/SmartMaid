@@ -18,7 +18,7 @@ base {
 //
 // 切换目标版本（不改文件、只改参数）：
 //   ./gradlew build -Pmc_series=26.3 -Pminecraft_version=26.3 \
-//       -Ploader_version=0.19.5 -Ploom_version=1.18-SNAPSHOT -Pfabric_api_version=0.161.0+26.3
+//       -Ploader_version=0.19.5 -Ploom_version=1.18.4 -Pfabric_api_version=0.161.0+26.3
 // 详见 SmartMaid/DESIGN_MULTIVERSION.md
 // ============================================================
 def mcSeries = (project.findProperty('mc_series') ?: '26.2').toString()
@@ -112,11 +112,4 @@ java {
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
-}
-
-kotlin {
-    jvmToolchain(25)
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25
-    }
 }

@@ -7,8 +7,8 @@ import com.oyxdsg.smartmaid.entity.ai.perception.MaidPerception
 import com.oyxdsg.smartmaid.entity.ai.perception.PerceptionUtil
 import com.oyxdsg.smartmaid.entity.ai.perception.Sense
 import net.minecraft.world.entity.EquipmentSlot
-import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.player.Player
+import kotlin.math.roundToLong
 
 class OwnerSense : Sense {
     override fun intervalTicks(): Int = 10
@@ -21,7 +21,7 @@ class OwnerSense : Sense {
         ownerObj.addProperty("uuid", owner.uuid.toString())
         PerceptionUtil.blockPos(ownerObj, owner.blockPosition())
         PerceptionUtil.pos(ownerObj, owner.position())
-        ownerObj.addProperty("dist", Math.round(maid.distanceTo(owner) * 10.0) / 10.0)
+        ownerObj.addProperty("dist", (maid.distanceTo(owner) * 10.0).roundToLong() / 10.0)
         ownerObj.addProperty("health", owner.health)
         ownerObj.addProperty("max_health", owner.maxHealth)
         ownerObj.addProperty("armor_value", owner.armorValue)

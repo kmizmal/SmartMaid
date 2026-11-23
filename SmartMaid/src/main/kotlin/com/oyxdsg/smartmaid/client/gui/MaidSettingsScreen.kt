@@ -8,17 +8,38 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import java.util.ArrayList
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * 二级「设置」页（N1）：把原来 9 项玩家绑定设置搬进新菜单。
  * 点击整行循环切换档位；客户端只发「字段 + 档位索引」给服务端权威修改，回推状态刷新。
  */
-class MaidSettingsScreen(parent: Screen?, state: JsonObject?) : MaidSubScreen(parent, Component.literal("设置")) {
+class MaidSettingsScreen(parent: Screen?, private var state: JsonObject?) : MaidSubScreen(parent, Component.literal("设置")) {
 
-    private data class Row(val field: String, val label: String, val values: Array<String>)
+    private data class Row(val field: String, val label: String, val values: Array<String>) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Row
+
+            if (field != other.field) return false
+            if (label != other.label) return false
+            if (!values.contentEquals(other.values)) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = field.hashCode()
+            result = 31 * result + label.hashCode()
+            result = 31 * result + values.contentHashCode()
+            return result
+        }
+    }
 
     private val rects = ArrayList<IntArray>()
-    private var state: JsonObject? = state
     private var hover: Int = -1
 
     fun updateState(json: String) {
@@ -64,7 +85,7 @@ class MaidSettingsScreen(parent: Screen?, state: JsonObject?) : MaidSubScreen(pa
         val s = this.state
         if (s != null && s.has("settings") && s.getAsJsonObject("settings").has(row.field)) {
             val v = s.getAsJsonObject("settings").get(row.field).asInt
-            return Math.max(0, Math.min(v, row.values.size - 1))
+            return max(0, min(v, row.values.size - 1))
         }
         return 0
     }

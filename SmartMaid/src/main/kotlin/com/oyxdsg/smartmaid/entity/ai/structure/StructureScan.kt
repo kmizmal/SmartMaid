@@ -1,7 +1,6 @@
 package com.oyxdsg.smartmaid.entity.ai.structure
 
 import com.google.gson.JsonArray
-import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
@@ -165,7 +164,7 @@ object StructureScan {
             } else if (st.supportBlock().test(s)) {
                 supports.add(p)
             }
-            for (d in Direction.values()) {
+            for (d in Direction.entries) {
                 val q = p.relative(d)
                 if (!seen.add(q.asLong())) {
                     continue
@@ -195,10 +194,10 @@ object StructureScan {
 
     /** 物种对齐：组件内 support（树叶）包含该物种对应树叶 */
     private fun hasSpeciesLeaves(level: Level, comp: StructureComponent, species: String): Boolean {
-        val leavesId: Identifier? = TreeStructure.leavesIdOf(species)
+        val leavesId: Identifier = TreeStructure.leavesIdOf(species)
             ?: return true // 该物种无树叶概念 → 不额外要求
         for (p in comp.supports()) {
-            val bid: Identifier? = BuiltInRegistries.BLOCK.getKey(level.getBlockState(p).block)
+            val bid: Identifier = BuiltInRegistries.BLOCK.getKey(level.getBlockState(p).block)
             if (bid != null && bid == leavesId) {
                 return true
             }
@@ -241,7 +240,7 @@ object StructureScan {
         for (p in comp.cores()) {
             val s = level.getBlockState(p)
             if (matcher.test(s)) {
-                val bid: Identifier? = BuiltInRegistries.BLOCK.getKey(s.block)
+                val bid: Identifier = BuiltInRegistries.BLOCK.getKey(s.block)
                 if (bid != null) {
                     types.add(bid.toString())
                 }
@@ -263,38 +262,6 @@ object StructureScan {
         arr.add(pos.y)
         arr.add(pos.z)
         return arr
-    }
-
-    @JvmStatic
-    fun posFromArray(maid: SmartMaidEntity, elem: JsonElement?): BlockPos? {
-        if (elem == null || !elem.isJsonArray || elem.asJsonArray.size() < 3) {
-            return null
-        }
-        val arr = elem.asJsonArray
-        val x = coord(maid.blockPosition().x, arr[0])
-        val y = coord(maid.blockPosition().y, arr[1])
-        val z = coord(maid.blockPosition().z, arr[2])
-        return if (x == null || y == null || z == null) {
-            null
-        } else {
-            BlockPos(x, y, z)
-        }
-    }
-
-    private fun coord(base: Int, e: JsonElement): Int? {
-        if (e.isJsonPrimitive && e.asJsonPrimitive.isNumber) {
-            return e.asInt
-        }
-        try {
-            val s = e.asString
-            if (s.startsWith("~")) {
-                val rest = s.substring(1).trim()
-                return if (rest.isEmpty()) base else base + rest.toInt()
-            }
-            return s.toInt()
-        } catch (ex: Exception) {
-            return null
-        }
     }
 
     private fun str(o: JsonObject, key: String, def: String?): String? {

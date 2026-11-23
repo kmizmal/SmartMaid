@@ -9,10 +9,7 @@ import net.minecraft.client.gui.screens.Screen
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.network.chat.Component
 import net.minecraft.world.level.ClipContext
-import net.minecraft.world.phys.BlockHitResult
 import net.minecraft.world.phys.HitResult
-import net.minecraft.world.phys.Vec3
-import java.util.ArrayList
 
 /**
  * 二级「添加任务」页（N1 步骤 4）：任务网格 + 就地参数面板（数字 stepper / 坐标三态「准星·女仆脚下」）。
@@ -52,10 +49,9 @@ class MaidAddTaskScreen(parent: Screen?, state: JsonObject?) :
         for (i in QUICKS.indices) {
             val cx = x + (i % 2) * (w + 8)
             val cy = y + (i / 2) * (h + 8)
-            val idx = i
             MaidTheme.roundRect(ex, cx, cy, cx + w, cy + h, MaidTheme.CARD, 0)
             ex.text(this.font, Component.literal(QUICKS[i].label), cx + 10, cy + 8, MaidTheme.TEXT)
-            this.hots.add(Hot(cx, cy, w, h, Runnable { select(idx) }))
+            this.hots.add(Hot(cx, cy, w, h) { select(i) })
         }
     }
 
@@ -77,32 +73,30 @@ class MaidAddTaskScreen(parent: Screen?, state: JsonObject?) :
             val s = specs[i]
             ex.text(this.font, Component.literal(s.key), this.left + 16, y + 5, MaidTheme.TEXT_2)
             val bx = this.left + 110
-            val idx = i
-            button(ex, bx, y, 20, "-", Runnable {
-                values[idx] = Math.max(s.min, values[idx] - step(s))
-            })
+            button(ex, bx, y, 20, "-") {
+                values[i] = Math.max(s.min, values[i] - step(s))
+            }
             ex.text(this.font, Component.literal(values[i].toString()), bx + 30, y + 6, MaidTheme.TEXT)
-            button(ex, bx + 56, y, 20, "+", Runnable {
-                values[idx] = Math.min(s.max, values[idx] + step(s))
-            })
+            button(ex, bx + 56, y, 20, "+") {
+                values[i] = Math.min(s.max, values[i] + step(s))
+            }
             y += 26
         }
 
         if (q.needsPos) {
             ex.text(this.font, Component.literal("坐标"), this.left + 16, y + 5, MaidTheme.TEXT_2)
             val bx = this.left + 110
-            button(ex, bx, y, 60, if (posMode == 0) "[准星]✓" else "准星", Runnable { posMode = 0 })
-            button(ex, bx + 66, y, 78, if (posMode == 1) "[女仆脚下]✓" else "女仆脚下", Runnable { posMode = 1 })
+            button(ex, bx, y, 60, if (posMode == 0) "[准星]✓" else "准星") { posMode = 0 }
+            button(ex, bx + 66, y, 78, if (posMode == 1) "[女仆脚下]✓" else "女仆脚下") { posMode = 1 }
             y += 26
             if (posMode == 0 && crosshairBlock() == null) {
                 ex.text(this.font, Component.literal("（准星未指向方块）"), this.left + 16, y, MaidTheme.TEXT_3)
-                y += 14
             }
         }
 
         val by = this.top + PANEL_H - 26
-        button(ex, this.left + 16, by, 84, "取消", Runnable { this.selected = -1 })
-        button(ex, this.left + PANEL_W - 16 - 84, by, 84, "追加到队列", Runnable { submit() })
+        button(ex, this.left + 16, by, 84, "取消") { this.selected = -1 }
+        button(ex, this.left + PANEL_W - 16 - 84, by, 84, "追加到队列") { submit() }
     }
 
     private fun submit() {
@@ -140,9 +134,9 @@ class MaidAddTaskScreen(parent: Screen?, state: JsonObject?) :
 
     override fun mouseClicked(event: MouseButtonEvent, focused: Boolean): Boolean {
         if (com.oyxdsg.smartmaid.compat.MaidCompat.isPrimaryMouseButton(event.button())) {
-            for (h in this.hots) {
-                if (inside(event.x(), event.y(), h.x, h.y, h.w, h.h)) {
-                    h.action.run()
+            for ((x, y, w, h1, action) in this.hots) {
+                if (inside(event.x(), event.y(), x, y, w, h1)) {
+                    action.run()
                     return true
                 }
             }
@@ -168,12 +162,12 @@ class MaidAddTaskScreen(parent: Screen?, state: JsonObject?) :
         private fun crosshairBlock(): IntArray? {
             val mc = Minecraft.getInstance()
             val player = mc.player ?: return null
-            val from = player.getEyePosition()
+            val from = player.eyePosition
             val to = from.add(player.getViewVector(1.0f).scale(8.0))
             val hit = player.level().clip(
                 ClipContext(from, to, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player)
             )
-            if (hit == null || hit.type == HitResult.Type.MISS) {
+            if (hit.type == HitResult.Type.MISS) {
                 return null
             }
             val bp = hit.blockPos

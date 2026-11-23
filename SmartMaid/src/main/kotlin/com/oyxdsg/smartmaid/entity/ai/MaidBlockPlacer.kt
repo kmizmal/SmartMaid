@@ -71,9 +71,9 @@ open class MaidBlockPlacer {
         }
         // 确保主手是合适的方块物品（搭路模式只换普通建材，贵重方块也换掉）
         val handOk = if (this.bridgeMode) {
-            MaidActions.isBridgeBlock(maid.getMainHandItem())
+            MaidActions.isBridgeBlock(maid.mainHandItem)
         } else {
-            maid.getMainHandItem().getItem() is BlockItem
+            maid.mainHandItem.item is BlockItem
         }
         if (!handOk) {
             val equipped = if (this.bridgeMode) {
