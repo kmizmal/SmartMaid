@@ -254,6 +254,7 @@ class CraftExecutor private constructor() {
          * 确保背包里匹配 `ing` 的物品总数 ≥ `need`；不足时递归合成
          * 候选项（取第一个可合成的）并放进背包，直到数量达标。
          */
+        @Suppress("DEPRECATION") // Ingredient.items() is the only public 26.2 API that enumerates tag candidates.
         private fun ensureIngredient(
             maid: SmartMaidEntity,
             ing: Ingredient,
@@ -307,7 +308,7 @@ class CraftExecutor private constructor() {
         /**
          * 聚合配方每种材料各需要几个。placement 的 `ingredients()` 是「每格展开」列表
          * （铁镐 = [铁锭,铁锭,铁锭,木棍,木棍]），必须按相同材料聚合 → [3, 2]，否则
-         * need 会被低估（铁镐 each=1），递归与干跑判断都会失真。
+         * need 会被低估（铁镐 each=1），递归 与干跑判断都会失真。
          */
         private fun ingredientNeeds(recipe: CraftingRecipe): IngredientNeeds {
             val expanded = recipe.placementInfo().ingredients()
@@ -339,6 +340,7 @@ class CraftExecutor private constructor() {
         }
 
         /** 两个 ingredient 是否等价（候选物品集合相同）。 */
+        @Suppress("DEPRECATION") // Ingredient.items() is the only public 26.2 API that compares tag contents.
         private fun sameIngredient(a: Ingredient, b: Ingredient): Boolean {
             if (a === b) {
                 return true
@@ -361,7 +363,7 @@ class CraftExecutor private constructor() {
         ): List<RecipeHolder<CraftingRecipe>> {
             val candidates = ArrayList<RecipeHolder<CraftingRecipe>>()
             val keys = target.get(DataComponents.RECIPES)
-            if (keys != null && !keys.isEmpty()) {
+            if (!keys.isNullOrEmpty()) {
                 for (key in keys) {
                     rm.byKey(key).ifPresent { holder ->
                         if (holder.value() is CraftingRecipe) {
@@ -478,7 +480,7 @@ class CraftExecutor private constructor() {
             val candidates = ArrayList<RecipeHolder<CraftingRecipe>>()
             var trusted = false
             val keys = t.get(DataComponents.RECIPES)
-            if (keys != null && !keys.isEmpty()) {
+            if (!keys.isNullOrEmpty()) {
                 trusted = true // 物品自带的配方 id：产物必然是该物品
                 for (key in keys) {
                     rm.byKey(key).ifPresent { holder ->
@@ -536,6 +538,7 @@ class CraftExecutor private constructor() {
          * 补足则 `ok=true`，并附 `via_craft=true` 与 `craft_plan`
          * （需要先合成的中间物品列表），供桌宠向用户解释。
          */
+        @Suppress("DEPRECATION") // Ingredient.items() is required to expose candidate ids in the diagnostic payload.
         private fun describe(maid: SmartMaidEntity, recipe: CraftingRecipe, want: Int, perCraft: Int): JsonArray {
             val inv = maid.getMaidInventory()
 
@@ -588,6 +591,7 @@ class CraftExecutor private constructor() {
          * @return 可补齐时返回「需要先合成的中间物品」列表（含缺口量，如
          *         `["minecraft:stick×2","minecraft:oak_planks×2"]`）；否则返回 null
          */
+        @Suppress("DEPRECATION") // Ingredient.items() is required to enumerate recursive crafting candidates.
         private fun resolveMissing(
             maid: SmartMaidEntity,
             ing: Ingredient,
@@ -621,7 +625,7 @@ class CraftExecutor private constructor() {
          *
          * 递归检查该物品配方的每种材料：背包直接够的跳过；不够的递归
          * [resolveMissing]。全部可满足则返回「该物品自身 + 子链需要先合成的
-         * 中间物」列表；任一分支无解 / 配方循环 / 超深度返回 null。
+         * 中间物」列表；任意分支无解 / 配方循环 / 超深度返回 null。
          */
         private fun resolveItem(
             maid: SmartMaidEntity,
@@ -712,7 +716,7 @@ class CraftExecutor private constructor() {
 
         /** 一次合成产出几个（用候选项填满的假网格 assemble 得到）。 */
         private fun outputCount(recipe: CraftingRecipe): Int {
-            val input = filledInput(recipe) ?: return 1
+            val input = filledInput(recipe)
             return try {
                 max(1, recipe.assemble(input).count)
             } catch (_: Throwable) {
@@ -722,7 +726,7 @@ class CraftExecutor private constructor() {
 
         /** 全量扫描候选时，校验这条配方确实产出 target。 */
         private fun produces(maid: SmartMaidEntity, recipe: CraftingRecipe, target: ItemStack): Boolean {
-            val input = filledInput(recipe) ?: return false
+            val input = filledInput(recipe)
             return try {
                 recipe.matches(input, maid.level())
                     && ItemStack.isSameItemSameComponents(recipe.assemble(input), target)
@@ -732,6 +736,7 @@ class CraftExecutor private constructor() {
         }
 
         /** 用每个 ingredient 的第一个候选项搭一个假网格（按配方真实宽高，只看形状，不看数量）。 */
+        @Suppress("DEPRECATION") // Ingredient.items() supplies one representative holder for the synthetic grid.
         private fun filledInput(recipe: CraftingRecipe): CraftingInput {
             val info = recipe.placementInfo()
             val slotToIng = info.slotsToIngredientIndex()

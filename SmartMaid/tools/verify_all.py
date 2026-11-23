@@ -46,10 +46,10 @@ SERIES = {
     "26.2": {
         "mc_jar": None,                       # 由 loom 缓存解析
         "loom_mc": "net/minecraft/minecraft-merged-deobf/26.2/minecraft-merged-deobf-26.2.jar",
-        "fapi": "mods/fabric-api-0.158.0+26.2.jar",
+            "fapi": "mods/fabric-api-0.161.0+26.2.jar",
         "libs": "libs",
         "nested": ["libs/player_animation_library-1.2.6.jar"],
-        "mc_range": "~26.2", "fapi_range": ">=0.158.0+26.2", "pal_range": ">=1.2.6",
+            "mc_range": "~26.2", "fapi_range": ">=0.161.0+26.2", "pal_range": ">=1.2.6",
     },
     "26.3": {
         "loom_mc": None,
@@ -80,16 +80,42 @@ def resolve(cfg: dict) -> dict:
     elif cfg.get("mc_jar"):
         out["mc_jar"] = os.path.join(mc, cfg["mc_jar"])
     fapi = cfg["fapi"]
-    out["fapi"] = (os.path.join(LOGS, fapi.replace("__deps__/", "deps/"))
-                   if fapi.startswith("__deps__/") else os.path.join(mc, fapi))
+    if fapi.startswith("__deps__/"):
+        fapi_path = os.path.join(LOGS, fapi.replace("__deps__/", "deps/"))
+    else:
+        fapi_path = os.path.join(mc, fapi)
+        # Gradle Loom resolves Fabric API from its dependency cache, while the
+        # older verifier only searched <.minecraft>/mods. Prefer an explicit
+        # override, then fall back to the exact cached module/version.
+        if not os.path.isfile(fapi_path):
+            override = os.environ.get("SMARTMAID_FABRIC_JAR")
+            if override and os.path.isfile(override):
+                fapi_path = override
+            else:
+                name = os.path.basename(fapi)
+                if name.startswith("fabric-api-") and name.endswith(".jar"):
+                    version = name[len("fabric-api-"):-4]
+                    cache_glob = os.path.expanduser(
+                        os.path.join("~", ".gradle", "caches", "modules-2", "files-2.1",
+                                     "net.fabricmc.fabric-api", "fabric-api", version,
+                                     "*", name))
+                    hits = sorted(glob.glob(cache_glob))
+                    if hits:
+                        fapi_path = hits[-1]
+    out["fapi"] = fapi_path
     out["libs"] = os.path.join(REPO, cfg["libs"])
     out["nested"] = [os.path.join(REPO, p) for p in cfg["nested"]]
     out["mc_libraries"] = os.path.join(mc, "libraries")
+    out["gradle_modules"] = os.path.expanduser(
+        os.path.join("~", ".gradle", "caches", "modules-2", "files-2.1"))
     return out
 
 
 def run(argv: list[str]) -> tuple[int, str]:
-    r = subprocess.run([sys.executable] + argv, capture_output=True, text=True, errors="replace")
+    # 子工具输出包含中文；Windows 的系统 locale 可能是 GBK，而工具本身
+    # 按 UTF-8 输出。显式指定解码，否则正则会看到乱码并把成功结果解析成 -1。
+    r = subprocess.run([sys.executable] + argv, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
@@ -167,7 +193,8 @@ def step_mixin(cfg: dict, series: str) -> dict:
             continue
         rc, text = run([os.path.join(HERE, "check_mixin_targets.py"),
                         "--mod-jar", jar, "--mc-jar", cfg["mc_jar"],
-                        "--libs-dir", cfg["mc_libraries"]])
+                        "--libs-dir", cfg["mc_libraries"],
+                        "--libs-dir", cfg["gradle_modules"]])
         mf = _RE_MIXIN_FATAL.search(text)
         mw = _RE_MIXIN_WARN.search(text)
         fatal = int(mf.group(1)) if mf else -1
@@ -206,7 +233,8 @@ def step_dep(cfg: dict, series: str) -> dict:
         rc, text = run([os.path.join(HERE, "check_dep_compat.py"), "--dep", jar,
                         "--mc-jar", cfg["mc_jar"],
                         "--extra-classpath", fapi_classes,
-                        "--extra-classpath", cfg["mc_libraries"]])
+                        "--extra-classpath", cfg["mc_libraries"],
+                        "--extra-classpath", cfg["gradle_modules"]])
         passed = "静态核对通过" in text
         lines.append("%s → %s" % (name, "通过" if passed else "**不通过**"))
         if not passed:
