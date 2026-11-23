@@ -15,7 +15,6 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking
 import net.minecraft.network.chat.Component
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.Level
@@ -26,38 +25,19 @@ import net.minecraft.world.level.Level
  */
 class ModNetworking private constructor() {
     companion object {
-        /** 保留寄存器返回值（Fabric 要求 static final 持有），记录已注册的包类型 */
-        @JvmField
-        val MAID_COMMAND_CODEC: CustomPacketPayload.TypeAndCodec<*, MaidCommandPayload> =
-            PayloadTypeRegistry.serverboundPlay().register(MaidCommandPayload.TYPE, MaidCommandPayload.STREAM_CODEC)
-
-        /** 女仆设置修改包（C2S） */
-        @JvmField
-        val MAID_SETTINGS_CODEC: CustomPacketPayload.TypeAndCodec<*, MaidSettingsPayload> =
-            PayloadTypeRegistry.serverboundPlay().register(MaidSettingsPayload.TYPE, MaidSettingsPayload.STREAM_CODEC)
-
-        /** 玩家聊天栏对话包（C2S） */
-        @JvmField
-        val MAID_CHAT_CODEC: CustomPacketPayload.TypeAndCodec<*, MaidChatPayload> =
-            PayloadTypeRegistry.serverboundPlay().register(MaidChatPayload.TYPE, MaidChatPayload.STREAM_CODEC)
-
-        /** 菜单动作包（C2S）：队列 op 白名单（Q9/N1） */
-        @JvmField
-        val MAID_MENU_ACTION_CODEC: CustomPacketPayload.TypeAndCodec<*, MaidMenuActionPayload> =
-            PayloadTypeRegistry.serverboundPlay().register(MaidMenuActionPayload.TYPE, MaidMenuActionPayload.STREAM_CODEC)
-
-        /** 打开纯 Screen 主菜单（S2C，N1） */
-        @JvmField
-        val MAID_OPEN_MENU_CODEC: CustomPacketPayload.TypeAndCodec<*, MaidOpenMenuPayload> =
-            PayloadTypeRegistry.clientboundPlay().register(MaidOpenMenuPayload.TYPE, MaidOpenMenuPayload.STREAM_CODEC)
-
-        /** 菜单状态快照（S2C，N1 步骤 2/3） */
-        @JvmField
-        val MAID_MENU_STATE_CODEC: CustomPacketPayload.TypeAndCodec<*, MaidMenuStatePayload> =
-            PayloadTypeRegistry.clientboundPlay().register(MaidMenuStatePayload.TYPE, MaidMenuStatePayload.STREAM_CODEC)
-
         @JvmStatic
         fun register() {
+            // Fabric 在安装收包处理器前会检查类型是否已注册。
+            val serverbound = PayloadTypeRegistry.serverboundPlay()
+            serverbound.register(MaidCommandPayload.TYPE, MaidCommandPayload.STREAM_CODEC)
+            serverbound.register(MaidSettingsPayload.TYPE, MaidSettingsPayload.STREAM_CODEC)
+            serverbound.register(MaidChatPayload.TYPE, MaidChatPayload.STREAM_CODEC)
+            serverbound.register(MaidMenuActionPayload.TYPE, MaidMenuActionPayload.STREAM_CODEC)
+
+            val clientbound = PayloadTypeRegistry.clientboundPlay()
+            clientbound.register(MaidOpenMenuPayload.TYPE, MaidOpenMenuPayload.STREAM_CODEC)
+            clientbound.register(MaidMenuStatePayload.TYPE, MaidMenuStatePayload.STREAM_CODEC)
+
             ServerPlayNetworking.registerGlobalReceiver(MaidCommandPayload.TYPE) { payload, context ->
                 val player = context.player()
                 player.level().getServer().execute command@{
