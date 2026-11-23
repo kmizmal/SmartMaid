@@ -7,7 +7,7 @@ import net.minecraft.world.item.ItemStack
 /**
  * 物品槽位抽象（正交 transfer 指令的核心）。
  *
- * <p>女仆相关的所有物品操作统一建模为"从一个槽位把物品移动到另一个槽位"：
+ * <p>女仆相关的所有物品操作统一建模为「从一个槽位把物品移动到另一个槽位」：
  * <code>transfer &lt;from&gt; &lt;to&gt; [count]</code>。</p>
  *
  * <p>槽位类型：</p>

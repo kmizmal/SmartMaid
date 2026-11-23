@@ -27,7 +27,7 @@ import java.util.function.Consumer
 
 /**
  * 桌宠联动上行/下行通道（M5-b）：模组作为 WebSocket Client 连接桌宠侧 Server
- * `ws://127.0.0.1:21420`，实现"女仆上报感知、桌宠下发指令"的闭环。
+ * `ws://127.0.0.1:21420`，实现「女仆上报感知、桌宠下发指令」的闭环。
  *
  * <p>用 JDK 内置 `java.net.http.WebSocket`，不引入任何新依赖。</p>
  *

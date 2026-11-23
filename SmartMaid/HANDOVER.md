@@ -173,8 +173,8 @@ prompt 模板把产物写死 `#minecraft:oak_logs`，且 `prompt.txt`/`prompt2.t
 
 ### 已完成（2026-09-11：桌宠 NLU 支撑）
 - [x] **`craft_check` 干跑查询（M6-a）**：`CraftExecutor.check()` —— 走与 `craft` 相同的配方解析路径但**不消耗材料**，逐项回报 `ingredients[].{options,need,have,ok}`（tag 类配方给候选列表、多产出配方按 `out_per_craft` 折算要做的次数）。`MaidAIBridge` 里作为**查询指令**（不进任务队列、不改世界状态）处理
-- [x] **`item_index` 物品索引下发（M6-b）**：`bridge/ItemIndexPayload.java` —— 握手后把「当前语言物品名 → `minecraft:id`」整表推给桌宠（客户端 `I18n` 取名，覆盖 mod 物品；`null` 表示专用服务端无语言资源）。桌宠据此本地做中文/拼音模糊匹配（语音「稿子」→「镐子」）
-- [x] **`owner.pos` 感知补全（M6-c）**：`OwnerSense` 补主人**方块坐标**（原来只有 `dist`），桌宠才能把「在我脚下放方块 / 到我这儿来」换算成模组要的绝对坐标
+- [x] **`item_index` 物品索引下发（M6-b）**：`bridge/ItemIndexPayload.java` —— 握手后把「当前语言物品名 → `minecraft:id`」的完整映射表推给桌宠（客户端 `I18n` 取名，覆盖 mod 物品；`null` 表示专用服务端无语言资源）。桌宠据此本地做中文/拼音模糊匹配（语音「稿子」→「镐子」）
+- [x] **`owner.pos` 感知补全（M6-c）**：`OwnerSense` 新增主人的**方块坐标**（原来只有 `dist`），桌宠才能把「在我脚下放方块 / 到我这儿来」换算成模组要的绝对坐标
 - [x] 构建验证：JDK 25 + Gradle wrapper `BUILD SUCCESSFUL`
 
 > 这三项都是**桌宠侧 NLU（本地意图识别 + 自动执行）**的支撑需求：桌宠要在本地判断

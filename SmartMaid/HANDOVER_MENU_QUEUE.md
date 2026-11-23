@@ -174,7 +174,7 @@ python tools/probe_api.py --fabric events-interaction                           
 5. **展开逻辑放上层**（桌宠 NLU / 菜单），服务端只按 `mutexKey` 精确判重 ——
    若服务端也自己展开"所有矿物"，会和上层重复展开。
 6. **`Resumable` 不实现的任务要显式声明"不支持接续"**，恢复时按"重头来"并如实回执 —— 不假装能接着做。
-7. **菜单是纯 `Screen` 后没有 `ContainerData`** —— 状态必须走新 S2C 包，别想着复用 `menu.getSetting`。
+7. **菜单改用普通 `Screen` 后，不再有 `ContainerData`** —— 状态必须走新 S2C 包，别想着复用 `menu.getSetting`。
 
 ---
 

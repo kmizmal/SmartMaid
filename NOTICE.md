@@ -26,7 +26,7 @@
 
 - **上游项目**：Emotecraft (emotes) by KosmX
   https://github.com/KosmX/emotes
-- **上游许可**：GPL-3.0（整仓库，含内置表情资产模块 emotesAssets）
+- **上游许可**：GPL-3.0（适用于整个上游仓库，含内置表情资产模块 emotesAssets）
 - **涉及文件**：`SmartMaid/src/main/resources/assets/smartmaid/emotes/`
   下 11 个 JSON 文件（backflip / clap / club_penguin_dance / crying /
   here / kazotsky_kick / palm / point / roblox_potion_dance / twerk /

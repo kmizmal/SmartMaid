@@ -100,7 +100,7 @@ class MaidBlockBreaker {
         // 挖掘进行中（digTicks > 0）→ 持续挖完当前目标，不被 pillar/挡路块/导航打断：
         //   搭高后站在柱子上挖矿，若每 tick 重新决策，可能因"够不着/命中柱子"被反复打断。
         if (this.digTicks > 0) {
-            // 目标已被挖掉 → 完成本块（挡路块则切回真正目标）
+            // 该方块已被挖掉：结束当前方块的破坏流程；如果它是挡路方块，则切回原目标
             if (maid.level().getBlockState(target).isAir) {
                 if (!this.goal!!.equals(target)) {
                     if (maid.level().getBlockState(this.goal!!).isAir) {

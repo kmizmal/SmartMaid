@@ -3,7 +3,7 @@
 > 状态：**P1+P2+P3 全部完成 + AI 组装真机验证**——模组编译通过、桌宠 `test_nlu`/`test_maid_loop`/`test_chat_unit`/`test_chat_chain` 全过。
 > 已移除「硬编码砍树模板」（违背 AI 自由组装初衷），改为 **AI 用原子指令自由组装任意 script**；
 > 真实调用网页版 AI 验证组装能力（砍树/挖矿/打猪/存箱）符合预期；真机发现并修复 6 个 bug（见「真机与 AI 组装验证记录」）。
-> 范围：让 AI 能**一次性规划多步指令流**，女仆模组侧按脚本顺序执行，支持**查询决策、条件分支、循环、步间变量流转**。
+> 范围：让 AI 能**一次性规划多步指令流**，女仆模组侧按脚本顺序执行，支持**查询决策、条件分支、循环、在步骤之间传递变量**。
 > 关联：`DESIGN_AI_INTERFACE.md`（既有 24 指令）、`HANDOVER.md`、桌宠侧 `desktop-pet/nlu/mod_contract.py` / `game/maid_intent.py`。
 
 ## P1 实现清单（2026-09-21，编译通过）
@@ -125,7 +125,7 @@ desktop-pet/tests/test_maid_loop.py # +test_dsl_script_parse（【script({...jso
 | `Script 终止: <名> → <reason>（已执行 N 步）` | 结束原因 |
 | `Harvest 收割 N 块（目标 ...）` / `Harvest 结束` | 收割进度/结束 |
 
-**高噪开关**：`MaidDebug.VERBOSE=true`（`MaidDebug.java`）可看更细——每步完成结果、find 每轮范围扩大、组件产物过滤/物种对齐失败、Harvest 跳过目标。排查完改回 `false`。
+**高噪开关**：`MaidDebug.VERBOSE=true`（`MaidDebug.java`）可看更细——每个步骤的执行结果、find 每轮范围扩大、组件产物过滤/物种对齐失败、Harvest 跳过目标。排查完改回 `false`。
 
 **AutoTest**：`tools/autotest.script.example.json` → 游戏 `config/smartmaid/autotest.json`，日志搜
 `AutoTest [id] 断言=PASS/FAIL 期望=... 实际=...`（可断言 script 受理回执）。
@@ -165,7 +165,7 @@ desktop-pet/tests/test_maid_loop.py # +test_dsl_script_parse（【script({...jso
 2. 没有查询指令，AI 无法根据游戏内实际情况决策
 3. 回执无结构化数据（没有坐标/数量/是否存在）
 4. 集成指令（mine/craft…）是黑盒，内部编排不可定制
-5. 无失败策略 / 分支 / 循环 / 步间数据流
+5. 无失败策略 / 分支 / 循环 / 步骤之间的数据流
 
 ## 二、目标与设计原则
 
@@ -173,7 +173,7 @@ desktop-pet/tests/test_maid_loop.py # +test_dsl_script_parse（【script({...jso
 - **查询即原子**：`inventory`/`block_at`/`find`/`distance` 是组合的地基，全部无副作用
 - **结构识别通用化**：`StructureRegistry` 注册结构类型，`find`/`harvest` 按类型+产物过滤，新增结构不碰执行器
 - **产物过滤在执行器内部**：`produce` 参数解析期编译为 `Predicate<BlockState>`，识别与收割两处都按它过滤
-- **回执即上下文**：每步结构化 `result` 可被变量引用，脚本结束汇总注入下一轮 AI
+- **回执即上下文**：各步骤返回的结构化 `result` 可供变量引用，脚本结束汇总注入下一轮 AI
 - **向后兼容**：既有 24 指令、WS 协议、桌宠闭环全部不动；`script`/`find`/`harvest`/查询类均为新增
 
 ---

@@ -8,7 +8,7 @@ import java.util.TreeMap
 /**
  * 物品索引下发（供桌宠 NLU 做物品名模糊匹配）。
  *
- * <p>把「当前语言的物品显示名 → {@code minecraft:id}」整表推给桌宠，桌宠侧就能
+ * <p>把「当前语言的物品显示名 → {@code minecraft:id}」的完整映射表推给桌宠，桌宠侧就能
  * 在本地做中文/拼音模糊匹配（「帮我合成一把稿子」→「镐子」→
  * {@code minecraft:wooden_pickaxe}），再把**权威 id** 发回来执行。</p>
  *

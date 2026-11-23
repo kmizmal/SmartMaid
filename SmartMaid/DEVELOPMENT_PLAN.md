@@ -34,7 +34,7 @@
 **已修复**：`damage` 事件 `target:"?"` 攻击者解析遗漏（B 方案落地，2026-09-10）：`SmartMaidEntity.hurtServer` 缓存攻击者 + `PerceptionModule.attackerLabel()` 类型映射表，`target` 输出短名/玩家名，未知写 `unknown` 且遥测降级 NORMAL。详见 DEVELOPMENT_ISSUES §2026-09-10 问题 5 修复记录。
 **2026-09-11 追加（M6：桌宠 NLU 支撑）**：桌宠侧要做「本地意图识别 + 自动执行」，对模组提出三个需求，均已实现：
 - **P6 `craft_check`**：干跑配方预检（不消耗材料），逐项回报所需材料/现有/够不够；tag 类配方给候选列表、多产出配方按 `out_per_craft` 折算。走与 `craft` 相同的解析路径，避免「预检说够、真做失败」
-- **P7 `item_index`**：握手后一次性下发「当前语言物品名 → `minecraft:id`」整表（客户端 `I18n`，覆盖 mod 物品；专用服务端返回 null 让对方降级）
+- **P7 `item_index`**：握手后一次性下发「当前语言物品名 → `minecraft:id`」的完整映射表（客户端 `I18n`，覆盖 mod 物品；专用服务端返回 null 让对方降级）
 - **P8 `owner.pos`**：`OwnerSense` 补主人方块坐标（原来只有 `dist`），使「在我脚下放方块 / 到我这儿来」可换算成绝对坐标
 
 > 对接中还梳理出**集成方必须知道的接口语义边界**（`transfer` 的 from/to 必填、`chestopen` 是异步任务、

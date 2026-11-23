@@ -78,7 +78,7 @@ SmartMaid 是**桌面宠物 DeskPet 的 Minecraft 侧搭档**——女仆的 AI 
 - **感知模块（AI"玩家视角"）**：`/maidperception` 查看感知快照——自身状态/背包能力摘要/主人状态（含**方块坐标 `owner.pos`**，供相对指令换算）/周边实体/方块/环境/事件队列，服务端分层采样（0.25s~2s），为 AI 提供结构化决策输入（`MaidPerception`）
 - **AI 指令桥接**：`/maidai <json>` 统一 JSON 指令协议（24 指令与 `/maidtasks` 一致），坐标支持相对 `~`，回执含 `id/ok/state/step/result`，`persist:true` 持久化任务配置（`.cfg`）
 - **干跑查询 `craft_check`（M6-a）**：不消耗材料的配方预检——逐项回报「需要什么材料 / 女仆现有多少 / 够不够」（`options/need/have/ok`，支持 tag 类配方如「任意木板×3」）。桌宠侧 NLU 靠它在自动合成前判断并向用户解释缺料
-- **物品索引下发 `item_index`（M6-b）**：握手后把「当前语言的物品显示名 → `minecraft:id`」整表推给桌宠（客户端 `I18n` 取名，覆盖 mod 物品），桌宠即可本地做中文/拼音模糊匹配（语音「稿子」→「镐子」）；专用服务端无语言资源时自动跳过
+- **物品索引下发 `item_index`（M6-b）**：握手后把「当前语言的物品显示名 → `minecraft:id`」的完整映射表推给桌宠（客户端 `I18n` 取名，覆盖 mod 物品），桌宠即可本地做中文/拼音模糊匹配（语音「稿子」→「镐子」）；专用服务端无语言资源时自动跳过
 - **桌宠联动下行 (M5-a)**：女仆事件按 20s 窗口聚合落到 `<游戏目录>/deskpet/maid/YYYYMMDD-HHMM.jsonl`（事件 type 复用桌宠已认识的 `damage` / `summary`，桌宠侧零改动渲染中文）；状态快照随窗口附带于 `maid` 字段
 - **桌宠联动上行 (M5-b)**：JDK 25 内置 WebSocket Client 连桌宠 `ws://127.0.0.1:21420`，5s 心跳 + 指数退避（1s→30s）+ 可选 token 握手；上行 `hello`/`perception`/`event`/`command_result`/`pong`，下行 `command`/`speak`/`animation`/`ping`；回调线程铁律——一律 `server.execute()` 切回服务端线程再碰世界
 - **感知增量 diff (M-P1)**：差异只发 `{changed, removed}`，接收方递归合并；首帧全量、断线 reset；真机 5761B → 971B，降 **83.1%**
@@ -123,7 +123,7 @@ SmartMaid 是**桌面宠物 DeskPet 的 Minecraft 侧搭档**——女仆的 AI 
 | Java | >= 25（JDK 25 构建） | >= 25（JDK 25 构建） |
 | Gradle | 9.7.1（wrapper 内置） | 9.7.1（wrapper 内置） |
 
-> **一版本一个 jar** —— 每个 jar 只声明自己**真正支持**的版本范围。
+> **每个版本各构建一个 jar** —— 每个 jar 只声明自己**真正支持**的版本范围。
 > 建议**不要**打"宽范围通吃"的 jar：Fabric Loader 不做 mod 版本握手，协议号不一致时会**静默网络失败**。
 
 ## 构建

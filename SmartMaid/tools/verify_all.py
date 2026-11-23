@@ -111,7 +111,7 @@ def step_compile(cfg: dict, series: str) -> dict:
 
     # ⚠️ 每次跑用**唯一**输出目录：compile_check.py 会先清空目标目录，而目标里往往有几百个
     #    .class —— 在带"删除保护"的环境里那会被拦成 "SAFE_DELETE_BULK_CONFIRM_REQUIRED"，
-    #    于是编译步假失败。用唯一目录 = 根本没有东西要删。
+    #    于是编译检查会误报失败。使用全新的输出目录就不需要删除任何文件。
     out_dir = os.path.join(tempfile.gettempdir(),
                            "sm_verify_%s_%d" % (series.replace(".", ""), time.time_ns()))
     os.makedirs(out_dir, exist_ok=True)

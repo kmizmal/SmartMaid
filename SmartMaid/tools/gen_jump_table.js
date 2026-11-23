@@ -1,6 +1,6 @@
 // Generates MaidJumpTable.java — offline precise jump solution table for the maid.
 // Physics: prismarine-physics (vanilla-equivalent). MOVEMENT_SPEED=0.16.
-// Scenarios: horizontal feet displacement dist in {2,3,4} x height diff dy in {-3..+1}.
+// Scenarios: horizontal feet displacement dist in {2,3,4} and height difference dy from -3 through +1.
 // Solution: {sprint, back} where sprint = walk/sprint tier, back = takeoff-point retreat from edge.
 // NOTE: takeoff speed is FIXED (no run-up needed) — capability equals vanilla player jumps.
 // Run: node tools/gen_jump_table.js
@@ -37,7 +37,7 @@ function canLand (needNear, dy, takeoff) {
   return false
 }
 
-// Solve: walk tier then sprint tier; retreat (back) until the landing lands in the target cell
+// Solve: walk tier then sprint tier; retreat (back) until the landing position falls inside the target cell
 // (or, for up-jumps, the trajectory crosses the target cell at sufficient height).
 function solve (dist, dy) {
   for (const sprint of [false, true]) {
