@@ -1,8 +1,8 @@
 # SmartMaid Kotlin 迁移：Loom 验收后交接
 
-> 交接日期：2026-11-24（北京时间）  
-> 分支：`feature/kotlin-migration`  
-> 代码基线提交：`d9245721f36792c969e125f08f7084701713f51f`（`fix: 修复合成材料规划与女仆侧车恢复`）  
+> 交接日期：2026-11-24（北京时间）\
+> 分支：`feature/kotlin-migration`\
+> 代码基线提交：`d9245721f36792c969e125f08f7084701713f51f`（`fix: 修复合成材料规划与女仆侧车恢复`）\
 > 远端：`origin/feature/kotlin-migration` 已包含该代码提交。
 
 ## 1. 当前结论

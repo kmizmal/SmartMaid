@@ -43,8 +43,8 @@
 
 ## Task 1: 修复跳表生成器并建立可重复 smoke test
 
-**负责人:** 修复者 A（Node/工具链）  
-**预计耗时:** 30–60 分钟  
+**负责人:** 修复者 A（Node/工具链）\
+**预计耗时:** 30–60 分钟\
 **并行:** 可与 Task 2 并行；Task 3 对 `gen_jump_table.js` 的换行处理需等待本任务完成。
 
 **Files:**
@@ -53,8 +53,8 @@
 - Test: `SmartMaid/tools/gen_jump_table.js`（命令行 smoke）
 - Reference: `SmartMaid/src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/MaidJumpTable.kt`
 
-**Inputs:** 当前坏脚本、现有 Kotlin 跳表、项目文档中规定的生成命令。  
-**Outputs:** 可执行且面向 Kotlin 输出的生成器、成功生成的 Kotlin 表、命令输出日志和生成前后 diff 结论。  
+**Inputs:** 当前坏脚本、现有 Kotlin 跳表、项目文档中规定的生成命令。\
+**Outputs:** 可执行且面向 Kotlin 输出的生成器、成功生成的 Kotlin 表、命令输出日志和生成前后 diff 结论。\
 **协作要求:** 不生成或重新引入 `src/main/java` 生产源码；生成器必须输出 `src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/MaidJumpTable.kt` 的 Kotlin `object`/`@JvmRecord` 结构，保持 `get(dist: Int, dy: Int): JumpSolution?` 和表项语义不变；不得覆盖其他任务的文件；提交前报告生成前后 SHA/diff。
 
 - [ ] **Step 1: 写失败复现记录**
@@ -118,8 +118,8 @@ fix: restore jump table generator runtime dependencies
 
 ## Task 2: 恢复可复现的 Gradle/JDK 验证环境
 
-**负责人:** 验证者 B（Windows/Gradle）  
-**预计耗时:** 30–90 分钟，取决于 wrapper 分发缓存  
+**负责人:** 验证者 B（Windows/Gradle）\
+**预计耗时:** 30–90 分钟，取决于 wrapper 分发缓存\
 **并行:** 可与 Task 1、Task 3（非 `gen_jump_table.js` 文件）并行。
 
 **Files:**
@@ -128,8 +128,8 @@ fix: restore jump table generator runtime dependencies
 - Inspect: `SmartMaid/gradlew.bat`, `SmartMaid/gradle.properties`
 - Optional local-only cleanup: `C:/Users/zmal/.gradle/wrapper/dists/...`（不得提交）
 
-**Inputs:** 当前错误 `FileNotFoundException ... gradle-9.9.1-bin.zip.lck`、JDK 25 安装路径、Gradle wrapper 配置。  
-**Outputs:** 可复现的构建命令、完整日志、退出码；或者明确记录仍阻断的环境原因和未修改的项目状态。  
+**Inputs:** 当前错误 `FileNotFoundException ... gradle-9.9.1-bin.zip.lck`、JDK 25 安装路径、Gradle wrapper 配置。\
+**Outputs:** 可复现的构建命令、完整日志、退出码；或者明确记录仍阻断的环境原因和未修改的项目状态。\
 **协作要求:** 不修改 `build.gradle`、版本号或源码来规避环境错误；如需要删除锁文件，先确认没有活跃 Gradle/Java 进程。
 
 - [ ] **Step 1: 诊断 JDK 与进程状态**
@@ -182,8 +182,8 @@ Expected：26.3 也得到 `BUILD SUCCESSFUL`；若依赖网络不可用，记录
 
 ## Task 3: 清理换行噪声并保护差异边界
 
-**负责人:** 整洁性维护者 C（Git/格式）  
-**预计耗时:** 20–45 分钟  
+**负责人:** 整洁性维护者 C（Git/格式）\
+**预计耗时:** 20–45 分钟\
 **并行:** 可与 Task 2 并行；涉及 `gen_jump_table.js` 的行尾处理需在 Task 1 后执行。
 
 **Files:**
@@ -193,8 +193,8 @@ Expected：26.3 也得到 `BUILD SUCCESSFUL`；若依赖网络不可用，记录
 - After Task 1: `SmartMaid/tools/gen_jump_table.js`
 - Optional policy: root `.gitattributes`
 
-**Inputs:** `git diff --check main...HEAD` 输出、当前 Git attributes 和工作树状态。  
-**Outputs:** 仅换行/尾空白清理的可审查 diff，且不改变解析后内容。  
+**Inputs:** `git diff --check main...HEAD` 输出、当前 Git attributes 和工作树状态。\
+**Outputs:** 仅换行/尾空白清理的可审查 diff，且不改变解析后内容。\
 **协作要求:** 先保存 `git status --short` 和 `git diff --stat`；不得使用全仓库无差别换行转换；不得吸收其他未提交改动。
 
 - [ ] **Step 1: 建立文件级基线**
@@ -228,8 +228,8 @@ Expected：无 trailing-whitespace；Node/Python 语法检查全部通过。
 
 ## Task 4: 更新迁移状态文档
 
-**负责人:** 文档维护者 D（需在 Task 2 结果确定后执行）  
-**预计耗时:** 20–40 分钟  
+**负责人:** 文档维护者 D（需在 Task 2 结果确定后执行）\
+**预计耗时:** 20–40 分钟\
 **并行:** 可提前准备草稿；正式修改依赖 Task 2、Task 3 的最终结果。
 
 **Files:**
@@ -238,8 +238,8 @@ Expected：无 trailing-whitespace；Node/Python 语法检查全部通过。
 - Reference: `SmartMaid/gradle/wrapper/gradle-wrapper.properties`
 - Reference: `SmartMaid/src/main/resources/fabric.mod.json`
 
-**Inputs:** Task 2 的构建日志、Task 3 的 diff-check 结果、Git tree 文件统计。  
-**Outputs:** 与当前 HEAD 一致的迁移状态和验收记录。  
+**Inputs:** Task 2 的构建日志、Task 3 的 diff-check 结果、Git tree 文件统计。\
+**Outputs:** 与当前 HEAD 一致的迁移状态和验收记录。\
 **协作要求:** 不把历史成功记录写成当前验证；每个“通过”必须对应命令、时间和日志位置。
 
 - [ ] **Step 1: 更新真实迁移范围**
@@ -280,16 +280,16 @@ Expected：文档本身无换行错误，所有版本号与配置文件一致。
 
 ## Task 5: 统一功能验证、回归测试与发布风险检查
 
-**负责人:** 发布验证负责人 E（合并前唯一门禁负责人）  
-**预计耗时:** 60–180 分钟  
+**负责人:** 发布验证负责人 E（合并前唯一门禁负责人）\
+**预计耗时:** 60–180 分钟\
 **执行顺序:** 必须在 Task 1-4 完成后串行执行。
 
 **Files:**
 - Read-only verification across all changed files.
 - Test outputs: use ignored `build_logs/` or an external temporary directory; do not commit generated logs.
 
-**Inputs:** Task 1-4 的提交和日志。  
-**Outputs:** 一份带命令、退出码、关键输出和未决风险的合并门禁报告。  
+**Inputs:** Task 1-4 的提交和日志。\
+**Outputs:** 一份带命令、退出码、关键输出和未决风险的合并门禁报告。\
 **协作要求:** 若任一 P0 检查失败，不得给出“可合并”结论；失败项必须关联到具体任务或回滚方案。
 
 - [ ] **Step 1: 检查 Git 差异与生产源统计**
