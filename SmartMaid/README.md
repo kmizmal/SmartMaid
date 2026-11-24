@@ -312,9 +312,9 @@ tools/
 ├── gen_jump_table.js      ★离线生成 MaidJumpTable.java
 ├── fix_ai_skin.py         修复 AI 皮肤（镜像补齐）
 ├── fix_maid_skin_hands.py 修复皮肤手部缺失面
-└── maid_inventory_sim.js  ★背包槽位规则验证（Node，无依赖）
-├── launch_game.py         ★从 HMCL 日志提取启动命令 + 补 token + quickPlay
-└── run_e2e_test.py        ★一键端到端联调：起桌宠 → 起游戏 → 轮询 → 报告；含 --check-token
+├── maid_inventory_sim.js  ★背包槽位规则验证（Node，无依赖）
+├── clienttest.py          ★部署客户端用例、读取报告和错误通道
+└── verify_all.py          ★编译 / Mixin / 依赖成员静态门禁
 config/smartmaid/
 ├── main.json              ★模组配置（调试开关 / 命令权限 / 背包自动整理；首次自动生成）
 ├── bridge.json            ★M5 桌宠联动配置（遥测 + WS；首次自动生成）
@@ -337,12 +337,18 @@ node tools/gen_jump_table.js
 # 验证女仆背包槽位规则（与 Java 端逻辑一致）
 node tools/maid_inventory_sim.js
 
-# 端到端联调（游戏 + 桌宠一起跑）
-# 前置：用 GUI 启动器登录一次（让 HMCL 刷新 accessToken）
-python tools/run_e2e_test.py --quick-play "新的世界 (11)"
-#  --check-token    在跑前校验 HMCL 凭证，过期早退
-# 内部逻辑：launch_game.py 从 HMCL 日志逆向提取启动命令 + 补 quick-play
 ```
+
+开发客户端统一通过模块目录的 Gradle Wrapper / Fabric Loom 启动：
+
+```powershell
+$env:SMARTMAID_MC_DIR = (Resolve-Path '.\run').Path
+.\gradlew.bat --offline --no-daemon --console=plain runClient
+```
+
+游戏测试的配置部署、逐轮归档、GUI 报告和可选桌宠观测见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)。使用真实 `SMARTMAID_MC_DIR` 时，`clienttest.py` 不传 `--series`。
+
+旧 `launch_game.py` / `run_e2e_test.py` 启动入口已退役；历史交接及设计文档中的 HMCL、token 和一键启动命令不再适用，当前操作以本 README 和操作卡为准。
 
 ## 动作动画（/maidanim）
 
@@ -368,7 +374,7 @@ python tools/run_e2e_test.py --quick-play "新的世界 (11)"
 - [x] **桌宠联动 M5-a（感知下行：写 `<游戏目录>/deskpet/maid/*.jsonl`）**
 - [x] **桌宠联动 M5-b（指令上行：WebSocket Client 连桌宠 `ws://127.0.0.1:21420`）**
 - [x] **感知增量 diff（M-P1：首帧全量+后续 changed/removed，真机降 83.1%）**
-- [x] **一键端到端联调（`tools/run_e2e_test.py`）**
+- [x] **Loom 标准启动 + AutoTest / clienttest 分步验收**（见测试操作卡）
 - [x] **`craft_check` 干跑查询（M6-a：不消耗材料的配方/缺料明细）**
 - [x] **`item_index` 物品索引下发（M6-b：当前语言名→id，支撑桌宠本地物品名匹配）**
 - [x] **`owner.pos` 感知补全（M6-c：相对指令「在我脚下…」可换算）**

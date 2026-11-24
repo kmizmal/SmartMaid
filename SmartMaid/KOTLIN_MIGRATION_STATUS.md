@@ -1,4 +1,19 @@
-# Kotlin migration — Task 5 verification complete; merge decision: 修复后合并
+# Kotlin migration — T4 技术门禁通过，待合并决定
+
+## 当前状态（2026-11-24，T4 / IDEA MCP 终验）
+
+- 两个旧入口 `tools/launch_game.py`、`tools/run_e2e_test.py` 已定向删除，README、开发计划和 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 指向 Wrapper / AutoTest / clienttest。未修改业务源码。
+- 删除后 26.2 `clean build`：用户普通 PowerShell 成功（54 秒），本机核对并归档 6 suites / 33 tests / 0 failures/errors/skips。随后通过 IDEA MCP 完整复跑 `verify_all.py --series 26.2`，A/B/C 全部通过，A 构建 53 秒；本轮 26.2 XML 亦为 6 suites / 33 tests / 全零失败、错误、跳过。
+- 删除后 26.3：IDEA MCP 终端按操作卡的全部五个版本参数执行 `--offline --no-daemon --console=plain clean build`，`BUILD SUCCESSFUL in 1m 1s`；6 suites / 33 tests / 0 failures/errors/skips。XML 已在静态总门前归档至 `T4-20261124/26.3-build-20261124-175221-538/`，成功输出保存在同目录 `daemon-build.log`。首次终端调用超时返回，构建继续完成；未把超时响应当作成功退出码。
+- 静态 Mixin：PAL 1.2.6，0 fatal / 0 warning。依赖签名：84 个引用类型全部存在、209 个成员全部匹配。证据为 `verify-all-26.2-idea.log` 和 `dep-26.2-idea.log`。
+- 基础 AutoTest：独立 26.2 世界 `SmartMaid-T4-20261124-A`，启动前 level.dat 与干净快照哈希一致；c1–c6 全部 PASS，17:55:58 汇总 PASS=6 FAIL=0，done 与本轮输入逐字节一致。用户正常保存退出，日志确认所有维度保存和客户端停止。证据 `A-idea-20261124-175417/`。
+- GUI：独立新进程、世界 `SmartMaid-T4-20261124-GUI`；报告时间 18:00:26–18:00:28（北京时间），Minecraft 26.2 / SmartMaid 0.1.3，gui-chain 29/29 PASS，FAIL/ERROR=0，done 与输入一致。错误通道本轮新增 5 条 INFO，0 WARN/ERROR；13:43 的按键 ERROR 为历史记录。正常保存退出已核对，证据 `GUI-idea-20261124-175950/`。
+- GUI 覆盖菜单链路与入口调用；报告 nearestMaid=-1，invokeOpenInventory=false，未断言真实女仆容器打开，也不替代实体按键验证。26.3 专用世界/输入按用户决定不补做，保持未验证；桌宠 N/A。
+- 活动代码/运行配置调用仍为 0；IDEA workspace.xml 的两个 beforePath 为删除文件的 changelist 元数据，不是调用。历史和退役文本保留。用户设计文档 SHA-256 保持 `90982E0DB300D408ADD8EA61637CB64CABB74F394987C82504F41FAB0AFAE1A1`。
+- IDEA MCP 终端可用，已完成构建和客户端测试；先前 Work shell 的 localhost 限制记录保留为历史，不再作为本轮阻断。没有修改系统权限、依赖或 JVM 配置。
+- T4 / M4 本轮技术检查通过；合并建议维持“暂缓/修复后合并”，待项目负责人结合未验证范围作决定。不自动提交、推送或合并；工作树仅含交接时已有的预期改动。完整证据与范围见 [T4 退役记录](../docs/superpowers/handoffs/2026-11-24-launcher-retirement-report.md)。
+
+## 历史验证记录（以下保留原时间线，以顶部当前状态为准）
 
 Checked on 2026-11-23 during execution of `docs/superpowers/plans/2026-11-23-kotlin-migration-merge-fixes.md`.
 This document records the current working-tree state and the commands actually run in this checkout.
