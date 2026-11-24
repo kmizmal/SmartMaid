@@ -8,7 +8,7 @@
 
 **M5 双向链路与感知增量的历史验收（2026-09-10）**见 `HANDOVER.md`、`DEVELOPMENT_ISSUES.md`；当时的一键 E2E 入口已退役，当前使用 Loom 操作卡。
 
-当前代码/验证范围见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)；后续任务见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。双版本构建通过不代表 26.3 游戏输入已验证。
+当前设计导航见 [设计索引](DESIGN_INDEX.md)；当前代码/验证范围见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)；后续任务见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。双版本构建通过不代表 26.3 游戏输入已验证。
 
 **玩家绑定设置 + 游戏内女仆菜单 + 聊天栏对话 + 桌宠隐退已落地（2026-09-19）**——见 `HANDOVER.md` §2026-09-19 节。
 
@@ -18,7 +18,7 @@
 
 **挖矿坐标可选 + 挖掘面向 + 对话事件静默 + 生物名中文已落地（2026-09-19）**——`mine` 不给坐标自动探测周围矿物（水平 12 / 垂直 8 格）、挖掘面向目标挥镐；玩家对话女仆期间游戏事件 AI 静默（消除"一条消息多条回复"）；感知/状态里生物名翻译中文。
 
-**多版本兼容：26.3 支持已落地（2026-10-07，真机验证）**——同一份源码按版本切构建（`gradle.properties` 的 `mc_series`，默认 26.2），每个版本产出**只声明自己支持范围**的 jar；版本差异全部收敛在 `compat/MaidCompat`。26.3 的渲染与输入后端是大改（Blaze3D→Renderpearl、GLFW→SDL），适配结论与踩坑见 [`DESIGN_MULTIVERSION.md`](./DESIGN_MULTIVERSION.md)；配套的自动化测试体系见 [`TEST_SYSTEM.md`](./TEST_SYSTEM.md)。
+**多版本构建**：共享 Kotlin 代码按 `mc_series` 选择版本适配源集，26.2/26.3 各自产出 jar。当前双版本构建与测试已通过；26.3 游戏输入按用户决定不补做，不能将历史适配结果当作本轮输入验证。设计与边界见 [多版本说明](DESIGN_MULTIVERSION.md)，操作见 [测试体系](TEST_SYSTEM.md)。
 
 ## 相关仓库（先看这里）
 
