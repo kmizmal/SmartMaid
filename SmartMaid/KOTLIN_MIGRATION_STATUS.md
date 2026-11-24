@@ -2,6 +2,8 @@
 
 ## 当前状态（2026-11-24，T4 / IDEA MCP 终验）
 
+**接续风险审查：暂缓合并。** 已确认 Kotlin 版 /maidtasks 丢失 10 个原有子命令及多条可选参数路径；全分支 git diff --check main...HEAD 仍失败（16 个文件，主要为已提交 CRLF）。T4 通过仅代表其技术验证范围。详见 [剩余风险审查](../docs/superpowers/handoffs/2026-11-24-kotlin-migration-risk-review.md)。
+
 - 两个旧入口 `tools/launch_game.py`、`tools/run_e2e_test.py` 已定向删除，README、开发计划和 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 指向 Wrapper / AutoTest / clienttest。未修改业务源码。
 - 删除后 26.2 `clean build`：用户普通 PowerShell 成功（54 秒），本机核对并归档 6 suites / 33 tests / 0 failures/errors/skips。随后通过 IDEA MCP 完整复跑 `verify_all.py --series 26.2`，A/B/C 全部通过，A 构建 53 秒；本轮 26.2 XML 亦为 6 suites / 33 tests / 全零失败、错误、跳过。
 - 删除后 26.3：IDEA MCP 终端按操作卡的全部五个版本参数执行 `--offline --no-daemon --console=plain clean build`，`BUILD SUCCESSFUL in 1m 1s`；6 suites / 33 tests / 0 failures/errors/skips。XML 已在静态总门前归档至 `T4-20261124/26.3-build-20261124-175221-538/`，成功输出保存在同目录 `daemon-build.log`。首次终端调用超时返回，构建继续完成；未把超时响应当作成功退出码。
