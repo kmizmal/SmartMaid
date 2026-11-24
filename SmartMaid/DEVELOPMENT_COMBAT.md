@@ -1,401 +1,149 @@
-# Smart Maid 女仆战斗系统 · 实现方案
-
-> 基线：`382fff3`（2026-09-16）
-> 来源：`女仆战斗系统.docx`（用户设计）+ 2026-09-16 方案评审决策
-> 本文是「可直接照着写代码」的深化实现方案。已完成的实现细节见 `HANDOVER.md`，踩坑记录见 `DEVELOPMENT_ISSUES.md`。
-
----
-
-## 一、设计决策（已拍板）
-
-| 项 | 决策 | 说明 |
-|---|---|---|
-| 运行环境 | **单人模式** | 无其他玩家；"主人被打无条件反击"只会对怪物生效 |
-| 射箭 | **仿玩家**，但**不可调用原版玩家方法**（`BowItem.releaseUsing` 有 `instanceof Player` 门槛） | 复制玩家的蓄力/发射流程自行实现 |
-| 盾牌格挡 | **仿玩家**（`startUsingItem(OFFSHAND)` → `isBlocking()` → `BLOCKS_ATTACKS` 减伤） | 原版自动生效 |
-| 饱食度 + 回血 | 新增，**仅内部状态**（不接 HUD / 不接感知 / 不上下行） | 只做内部回血逻辑 + debug 日志 |
-| 近战判定边界 | **3.0 格** | 统一定义，消除原文档 3/4 格矛盾 |
-| 女仆攻击距离 | **3.2 格** | 覆写 `isWithinMeleeAttackRange`；现无设置（默认 3.0） |
-| 弓箭选枪 | **只比力量附魔等级**（`Enchantments.POWER`） | 同级取先找到的 |
-| 近战攻速 | **从物品解析**（`forEachModifier` 读 `ATTACK_SPEED`/`ATTACK_DAMAGE`） | 按 DPS 选武器 |
-| 敌对判定 | **排除表**（末影人/僵尸猪人默认不算敌对） | 除非主动攻击主人 |
-| 主人被攻击 | **无条件反击** | `OwnerHurtByTargetGoal` |
-| 索敌中心 | **以女仆为中心**，要求**女仆可见** | `hasLineOfSight` |
-| 友军免伤 | **硬规则：女仆无法伤害玩家**（友军只指玩家） | 近战 `doHurtTarget` 拦截；远程用 `MaidArrow` |
-| 走位 | **必须能退后（不转身）**；**侧移绕行不可省略**；**背对可跳上 1 格障碍** | 用原版 `MoveControl.strafe()` |
-| 与寻路降级 | 战斗期**禁用** `MaidStraightNav`（不挖/不搭） | — |
-| 与跳跃 | 战斗期**保留**跳跃执行器 + 背对跳 | — |
-| 鱼竿 | **保留原版分支**；非 Player 不可用时降级为右键 use（兜底） | `FishingRodItem.use(Level, Player, ...)` 是 Player 专属 |
-| 优先级 | **L0 安全层 > 战斗 > 其他 AI 任务 > 常规 Goal** | — |
-
----
-
-## 二、26.2 API 预研结论（已反编译确认，含纠正）
-
-| 能力 | 真实 API（`minecraft-merged-*.jar`） | 结论 / 坑 |
-|---|---|---|
-| 近战距离 | `Mob.isWithinMeleeAttackRange(LivingEntity)`；`MeleeAttackGoal.canPerformAttack` 调用它；无物品 `DataComponents.ATTACK_RANGE` 时用 `DEFAULT_ATTACK_REACH` | 默认 reach = `sqrt(12.96) - 0.6 = 3.0`（clinit 确认）。**覆写该方法即得 3.2** |
-| 攻击距离组件 | `net.minecraft.world.item.component.AttackRange`（26.2 新增） | 不走组件，覆写更直接 |
-| 拉弓释放 | `BowItem.releaseUsing(...)` 首行 `if (!(entity instanceof Player)) return false` | **女仆不能用**，必须自写 |
-| 找弹药 | `LivingEntity.getProjectile(ItemStack)` 默认 `return ItemStack.EMPTY`（`Player` 才覆写） | **女仆必须覆写**，从女仆背包找箭 |
-| 箭实体 | `net.minecraft.world.entity.projectile.arrow.Arrow`；构造 `(Level, LivingEntity, ItemStack weapon, ItemStack ammo)` 内部写死 `EntityTypes.ARROW`；`AbstractArrow.setBaseDamage/setCritArrow/shoot` | 可完全复制玩家发射；**子类仍是 ARROW 类型**（见 §5.7 误伤） |
-| 蓄力 | `BowItem.getPowerForTime(int)`（public static） | 直接复用 |
-| 附魔 | `EnchantmentHelper.getItemEnchantmentLevel(Holder<Enchantment>, ItemInstance)`；力量 = `Enchantments.POWER` | 弓"只比力量"用它 |
-| 盾牌格挡 | `isBlocking()` = `isUsingItem()` 且使用中物品含 `DataComponents.BLOCKS_ATTACKS`；减伤在 `LivingEntity.blockUsingItem`；`BlocksAttacks.blockDelayTicks()`（盾=5t） | `startUsingItem(OFFHAND)` 即生效 |
-| 使用中物品推进 | `LivingEntity.tick()` 第 5 行调 `updatingUsingItem()` | 进食/举盾倒计时**自动推进**（无挥动动画那类子类坑） |
-| 进食 | `DataComponents.CONSUMABLE` + `DataComponents.FOOD`；`FoodProperties.onConsume` 字节码里 `instanceof Player` 才加饱食 | 女仆能吃到效果/音效/动画，**饱食度要自己加**（覆写 `completeUsingItem`） |
-| 饱食数据 | `FoodData`：`eat(int,float)`/`eat(FoodProperties)`/`addExhaustion`；**`tick(ServerPlayer)` 强依赖 ServerPlayer** | 女仆自持 `FoodData` + 自写回血 tick |
-| 近战攻速 | `ItemStack.forEachModifier(EquipmentSlot, BiConsumer<Holder<Attribute>, AttributeModifier>)`；`AttributeModifier.amount()`；`Attributes.ATTACK_SPEED/ATTACK_DAMAGE` | 直接从物品解析；需先给女仆注册 `ATTACK_SPEED` |
-| 退后不转身 | `MoveControl.strafe(float forward, float right)` → `Operation.STRAFE`；其 `tick()` 分支只 `setSpeed/setZza/setXxa`，**不调 `setYRot`** | **这是"背对后退"的原生原语**（MOVE_TO 会 `setYRot` → 转身，禁用） |
-| 身体朝向 | `LivingEntity.tick()` → `tickHeadTurn(f)` 以 0.3 系数把 `yBodyRot` 向目标插值 | 设 `yRot` → `yBodyRot` 平滑跟随 |
-| 苦力怕引信 | `Creeper.getSwellDir()` / `getSwelling(float)` / `isIgnited()`（均 public） | 威胁检测无需反射 |
-| 箭矢量 | `net.minecraft.world.entity.projectile.arrow.AbstractArrow`（`getDeltaMovement()` 可预测） | 每 tick 威胁扫描 |
-| 鱼竿 | `FishingRodItem.use(Level, Player, ...)`；`FishingHook.getPlayerOwner()` | Player 专属；兜底见 §5.6 |
-| 手臂姿势 | `HumanoidModel.ArmPose`：`ITEM/BLOCK/BOW_AND_ARROW/...` | 现 `SmartMaidRenderer.getArmPose` 只手握就返回 `ITEM` → **会顶掉拉弓/举盾姿势，必须改** |
-
----
-
-## 三、系统架构与优先级
-
-```
-每 tick：L0 安全层（applySafetyRules，硬编码，永不让路）
-   ↓
-战斗层（MaidCombatGoal，goalSelector priority 1）
-   ↓ 战斗激活时：取消 / 拒绝所有 AI 任务
-AI 任务层（MaidTaskManager）
-   ↓
-常规 Goal（跟随 priority 2 / 散步 3 / 环视 4）
-```
-
-**接入方式：战斗做成高优先级 Goal**（替换现有 `MaidMeleeAttackGoal`）。理由：走位/追击必须与跟随/散步互斥，Goal 系统天然解决；"战斗高于任务"用反向门控实现：
-
-```java
-// SmartMaidEntity
-public boolean isCombatActive() { return this.combatGoal.isEngaged(); }
-
-// MaidTaskManager.setTask(...) 开头
-if (maid.isCombatActive()) { /* lastRejectReason = "战斗中" */ return false; }
-// MaidTaskManager.tick() 里
-if (maid.isCombatActive()) { cancel(); return; }
-```
-
-- `MaidCombatGoal.canUse/canContinueToUse` **不检查 `isAiBusy`**（战斗优先）。
-- 其余 Goal（跟随/散步/环视）检查 `isAiBusy || isCombatActive` 让路。
-- 目标由 `targetSelector` 提供，战斗 Goal 读 `mob.getTarget()`。
-
----
-
-## 四、战斗状态机与决策矩阵
-
-```
-IDLE ──(targetSelector 给出目标 且 女仆可见)──▶ ENGAGED
-ENGAGED 每 tick：
-  1) 威胁检测（廉价）：箭矢是否将命中 / 苦力怕是否将爆
-       ├─ 命中 → BLOCK（无视冷却，0.5s，可刷新）
-  2) actionCooldown>0 → 仅「走位」并行，其余跳过
-  3) 冷却到 → 按优先级决策：
-       血量 < 50% → EAT（先退到 >6 格）
-       有鱼竿且 4~6 格 → FISH
-       按距离带 → MELEE / CLOSE / RANGED+KITE / RANGED
-  4) 执行动作 + 设冷却（走位/盾不占冷却）
-目标死亡/丢失且 3s 内无新目标 → IDLE（滞回防抖）
-```
-
-**距离带**（女仆↔敌人中心距）
-
-| 距离 | 有远程 + 弹药 | 无远程 / 无弹药 |
-|---|---|---|
-| 0–3.0 | 近战（走位保持 ~3） | 近战 |
-| 3.0–6.0 | 近战（拉近到 3） | 近战 |
-| 6.0–15.0 | 远程 + 走位远离（kite） | 拉近到 3 近战 |
-| >15.0 | 远程（站定） | 拉近到 3 近战 |
-
-- 近战**判定边界 3.0**，**可攻击距离 3.2**（留 0.2 缓冲，避免"判定到了够不着"）。
-- 吃食物：血量 < 50% → 退到 >6 格再吃；优先级最高的攻击类动作（盾除外）。
-
-**冷却表**（1s = 20t）
-
-| 动作 | 冷却 | 说明 |
-|---|---|---|
-| 盾牌格挡 | 10（可刷新，无视冷却） | 必须 ≥ `blockDelayTicks`(5) 才有效减伤 |
-| 吃食物 | 34（或按 `getUseDuration`） | 足够吃完大部分食物 |
-| 近战 | `clamp(round(20 / 攻速), 14, 26)` | 剑≈14(0.7s)、斧≈26(1.3s)、其他 20(1s) |
-| 远程 | 24 | 足够满蓄力射出去 |
-| 鱼竿 | 20 | — |
-
-> 原则：**威胁检测每 tick，行为决策按冷却节拍**。
-
----
-
-## 五、子系统详设
-
-### 5.1 移动与面向（走位 / 退后 / 绕行 / 背对跳）★核心
-
-**统一入口 `MaidCombatMovement`（每 tick）**
-
-```
-1. 逼近阶段（需缩短距离：3~6 近战拉近 / 6~15 无远程拉近 / >15 拉近）
-   → navigation.moveTo(target)     // MOVE_TO 会朝向移动方向 = 朝敌，且跳跃执行器生效
-2. 走位阶段（保持距离 / 后退 / kite / 绕行）
-   → lookControl.setLookAt(target)          // 面向敌人（yRot 转向，yBodyRot 插值跟随）
-   → moveControl.strafe(forward, side)      // 原版 STRAFE：移动但不改 yRot
-   → 背对跳跃（forward<0 时，见下）
-```
-
-**为什么用 `strafe` 而不是 `setWantedPosition`**：`MoveControl.tick()` 的 MOVE_TO 分支会
-`mob.setYRot(atan2(dz,dx)-90)`（转向移动方向）→ 后退会转身。STRAFE 分支**不调用 `setYRot`**，
-所以「面向敌人 + 向后退」得以共存。
-
-**关键细节**
-- `forward`：保持 3 格时按距离误差缓动（前进缓动、**后退满幅 -1**）；kite 时 `forward = -1`。
-  ⚠️ 原版 STRAFE 分支的 `zza` 直接取 `forward` 原始值，`getInputVector` 对长度 <1 的向量**不归一化**，
-  因此比例值会让后退按比例减速（曾导致"后退很慢"）——后退必须给满幅。
-- **不绕圈（重要）**：默认 `side = 0`——只在「面向敌人的直线」上前后调整，并在距离 ±0.3 格死区内保持不动；
-  **只有后退被挡、且背对跳也上不去时才短暂侧移绕行**。这样女仆在目标前方的一个狭窄扇形内走位，
-  而不是一直绕圈（2026-09-17 真机反馈修正）。
-- `side`：绕行分量（见下），仅受阻时非 0。
-- **瞬间对准**：`LookControl` 有转向速率上限，攻击出手前可 `setYRot(yawToTarget)` 直接对准，
-  保证 `strafe` 的局部坐标轴与「面向敌人」一致（避免"斜着后退"）。
-- 每 tick 必须重发 `strafe`（STRAFE 操作执行一次后即回到 WAIT）。
-
-**背对跳跃（与原版玩家一致：背后 1 格高障碍 → 背对跳上去）**
-
-```java
-// forward < 0（正在后退）且贴住身后障碍时
-if (forward < 0.0F && maid.onGround() && maid.horizontalCollision) {
-    Vec3 back = backwardDir(maid);          // 面向目标的反方向（水平归一化）
-    BlockPos fb = maid.blockPosition().offset(round(back.x), 0, round(back.z));
-    BlockPos fh = fb.above();
-    boolean obstacle  = !state(fb).getCollisionShape(level, fb).isEmpty();
-    boolean headClear =  state(fh).getCollisionShape(level, fh).isEmpty();
-    double topY = state(fb).getCollisionShape(level, fb).max(Direction.Axis.Y) + fb.getY();
-    boolean lowEnough = topY <= maid.getY() + 1.0D;   // ≤ 1 格
-    if (obstacle && headClear && lowEnough) {
-        maid.getJumpControl().jump();       // 物理 = 原版 jumpFromGround（vy0=0.42，可抬 1.25 格）
-    }
-}
-```
-- 起跳后 `strafe` 的 `zza`（后向）仍有输入 → 空中继续向后位移，落到障碍顶上（与玩家背对跳同理）。
-- `MaidMoveControl.tick()` 在 `straightNav` 关闭的战斗期不拦截 STRAFE → 空中输入不丢。
-- 加跳跃节流（`noJumpDelay` / 自身冷却），避免贴墙每 tick 连跳。
-
-**绕行（不可省略）**：身后被挡且后退空间不足时，`side` 取 ±1（优先选择空间更大的一侧），
-`strafe(forward≈-0.2, side=±1)` 绕敌方单位走位；两侧都被挡 → 用背对跳翻 1 格。
-绕行只在**受阻**期间生效，脱困后 `side` 立即归 0（不再持续绕圈）。
-
-### 5.2 近战（判定 3.0 / 攻击 3.2 / 武器评分）
-
-```java
-// SmartMaidEntity
-private static final double MAID_ATTACK_REACH = 3.2;
-@Override public boolean isWithinMeleeAttackRange(LivingEntity t) {
-    return this.getAttackBoundingBox(MAID_ATTACK_REACH).intersects(t.getBoundingBox());
-}
-```
-- **补 `ATTACK_SPEED` 属性**：`createAttributes()` 现只有 `ATTACK_DAMAGE=4`，需 `.add(Attributes.ATTACK_SPEED, 4.0D)`（玩家基线）。
-- **武器评分（解析物品，不查表）**：
-```java
-double[] dmg = {0}, spd = {0};
-stack.forEachModifier(EquipmentSlot.MAINHAND, (attr, mod) -> {
-    if (attr.value() == Attributes.ATTACK_DAMAGE.value()) dmg[0] += mod.amount();
-    if (attr.value() == Attributes.ATTACK_SPEED.value())  spd[0] += mod.amount();
-});
-double score = (baseAttackDamage + dmg[0]) * (baseAttackSpeed + spd[0]);   // 单次伤害 × 攻速
-```
-- 换武器复用 `MaidActions.equipFromBackpack`（换到主手槽 0 + `syncInventoryArmor`）。
-- 攻击用 `MaidActions.attack`（`doHurtTarget(ServerLevel, ...)`），随后按武器攻速设冷却。
-
-### 5.3 远程（仿玩家，**自写发射**）
-
-1. **选弓：只比力量附魔** `EnchantmentHelper.getItemEnchantmentLevel(POWER, bow)`；同级取先找到的。
-2. **弹药**：覆写 `SmartMaidEntity.getProjectile(ItemStack weapon)`，用
-   `((ProjectileWeaponItem) weapon.getItem()).getAllSupportedProjectiles()` 在女仆背包里找箭；
-   找不到 → 不进入远程分支。
-3. **蓄力**：`startUsingItem(MAINHAND)`（弓）；每 tick 看 `getTicksUsingItem()`；达到
-   `BowItem.getPowerForTime(ticks) >= 1.0`（≈20t）或冷却到 24t → 释放。
-4. **释放（复制玩家逻辑，`BowItem.releaseUsing` 不能用）**：
-```java
-float power = BowItem.getPowerForTime(ticks);
-MaidArrow arrow = new MaidArrow(level, maid, bowStack, arrowStack);   // 见 §5.7
-arrow.setPos(maid.getX(), maid.getEyeY() - 0.1D, maid.getZ());
-Vec3 dir = aimDir(target);            // 朝目标（可选速度预判）
-arrow.shoot(dir.x, dir.y, dir.z, power * 3.0F, 1.0F);
-arrow.setCritArrow(power >= 1.0F);
-int pow = EnchantmentHelper.getItemEnchantmentLevel(POWER, bowStack);
-if (pow > 0) arrow.setBaseDamage(arrow.getBaseDamage() + pow * 0.5D + 0.5D);
-level.addFreshEntity(arrow);
-// 手动消耗弹药（除非无限附魔） + 弓耐久
-arrowStack.shrink(1);
-bowStack.hurtAndBreak(1, maid, EquipmentSlot.MAINHAND);
-```
-5. 走位：`lookControl.setLookAt(target)` + `strafe(-1, side)`（kite，面向敌人后退）。
-
-> 实现要点：箭的 `pickup` 设为 `DISALLOWED`——女仆 `setCanPickUpLoot(true)`，
-> 否则会不停捡回自己射出的箭（无限箭循环）。`getProjectile` 覆写为从女仆背包找箭
-> （原版 `LivingEntity.getProjectile` 恒空，只有 `Player` 覆写）。
->
-> ⚠️ **战斗结束/切换必须 `stopUsingItem()`**：否则目标死亡后 `LivingEntity` 仍持续推进
-> `use` 状态、而战斗 Goal 已结束没人释放，女仆会一直**拉满弓**（朝向后又被跟随 Goal
-> 转向主人）——2026-09-17 真机反馈。`MaidCombatGoal.stop()` 已释放；另在 tick 里检测
-> 「拉弓中但已无箭/弓被换走」时主动松弦。
-
-### 5.4 盾牌格挡（仿玩家）
-
-1. 背包找盾（物品含 `DataComponents.BLOCKS_ATTACKS`）→ 换到**副手槽 40** → `syncInventoryArmor()` 同步。
-   - 副手被占 → 先挪回背包。
-2. `startUsingItem(InteractionHand.OFFHAND)` → `isBlocking()` 为真 → `LivingEntity.blockUsingItem` 自动减伤。
-3. 持续 10t（≥ `blockDelayTicks` 5）后 `stopUsingItem()`；威胁仍在则刷新。
-4. **威胁检测（每 tick）**：
-   - 箭：遍历范围内 `AbstractArrow`，用 `getDeltaMovement()` 做射线，预测 1.5s 内是否与女仆 AABB 相交。
-   - 苦力怕：`Creeper` 且 `getSwellDir() > 0`、`getSwelling(1f) > 0.6`、距离 < 4。
-5. 背包无盾 → 分支直接跳过（不因没盾停摆）。
-
-### 5.5 进食与回血（仅内部状态）
-
-**为什么不用原版 `FoodData`**：`FoodData` 的 `exhaustionLevel`/`tickTimer` 是 private，
-且 `tick(ServerPlayer)` 只接受 `ServerPlayer` —— 女仆无法复用。改为自实现
-`entity/MaidFoodData.java`，按其反编译规则**等价复刻**：`eat(FoodProperties)`、`addExhaustion`、
-自然回血（每秒 6 档：饱食≥20 且饱和度>0 每 10t 回 1/6 饱和度血；饱食≥18 每 80t 回 1）、
-饥饿伤害（难度相关，与原版一致）。
-
-- 字段：`SmartMaidEntity` 持 `private final MaidFoodData maidFood`，`getMaidFood()` 供战斗读取。
-- **吃**：`/maidtasks eat [item]` / `/maidai {"cmd":"eat","params":{"item":"minecraft:golden_apple"}}`
-  → `EatTask` 选食（无 item 时选营养最高、其次饱和度最高）→ 换到主手 →
-  `startUsingItem(MAINHAND)`（`LivingEntity.tick()` 自动推进并完成）。
-- **补饱食**：覆写 `SmartMaidEntity.completeUsingItem()`，按 `DataComponents.FOOD` 调
-  `maidFood.eat(food)`（原版 `FoodProperties.onConsume` 只在 `instanceof Player` 时加饱食）。
-  食物效果（如金苹果的吸收/生命恢复）由 `Consumable` 自动应用，女仆同样生效。
-- **战斗触发**：血量 <50% 且背包有食物 → `MaidCombatGoal` 优先进食（先面向敌人后退到 >7 格再吃）。
-- 攻击/背对跳会给 `addExhaustion`（0.1 / 0.05）。
-- ⚠️ `LivingEntity.isHurt()` 在 26.2 不存在（只在 `Player`），回血判定用「血量未满」。
-- **不持久化**（女仆实体 `noSave()`）、不接 HUD / 不接感知 / 不上下行，仅 `MaidDebug.log`（事件性）。
-
-### 5.6 鱼竿（spike 结论：原版对女仆不可用）
-
-**spike 结果（反编译确认）**：`FishingHook.tick()` 开头就是
-`Player player = getPlayerOwner(); if (player == null) { discard(); return; }`——
-非玩家 owner（女仆）的鱼钩**第一 tick 就被丢弃**；`shouldStopFishing`/`retrieve`/`pullEntity`
-也都依赖 `Player`。且 `FishingRodItem.use(Level, Player, InteractionHand)` 是 Player 专属，
-`ItemStack.useOn`（null-player 路径）不会触发它。
-
-**结论**：原版鱼竿分支无法用"切换+右键 use"的轻量方式实现（兜底也不成立）。
-真正可用的路径只有自研 `MaidFishingHook extends FishingHook` 覆写 `tick` 支持 LivingEntity owner
-（需复刻抛竿/入水/咬钩/拉拽），成本较高。**当前未实现**，等用户确认是否投入。
-
-### 5.7 索敌 / 排除表 / 友军免伤 / 误伤硬规则
-
-**敌对排除表 `MaidTargetFilter`**
-- 默认可攻击 = `Monster`（或 `Enemy`）。
-- **排除（不主动打）**：`EnderMan`、`ZombifiedPiglin`（文档点名）；常量集合便于扩展。
-- **友军（永不主动攻击 / 免伤）**：**只指玩家**（单人模式下即主人）。
-- 现有 `PerceptionBlockUtil.findNearestHostile` 改走同一 filter（保证 `AttackTask/GuardTask` 与战斗一致）；
-  距离**以女仆为中心**、要求 `maid.hasLineOfSight(e)`。
-
-**targetSelector**
-```java
-this.targetSelector.addGoal(1, new OwnerHurtByTargetGoal(this));                // 主人被打 → 无条件反击
-this.targetSelector.addGoal(2, new NearestAttackableTargetGoal<>(this, Monster.class, false,
-        e -> MaidTargetFilter.isHostile(this, e)));                              // 排除表 + 可见 + 友军过滤
-```
-
-**误伤硬规则（"女仆不能伤害玩家"）**
-
-近战（双保险）：
-```java
-@Override public boolean canAttack(LivingEntity t) {          // 连目标都不选玩家
-    return !(t instanceof Player) && super.canAttack(t);
-}
-@Override public boolean doHurtTarget(ServerLevel level, Entity target) {   // 兜底硬拦截
-    if (target instanceof Player) return false;
-    return super.doHurtTarget(level, target);
-}
-```
-
-远程——原版 `AbstractArrow.canHitEntity` 只在 owner 是 Player 时才走 PvP 判定，
-女仆 owner 非 Player → **原版箭能打到主人**。靠零注册子类实现硬规则：
-```java
-public class MaidArrow extends Arrow {
-    public MaidArrow(Level level, LivingEntity owner, ItemStack weapon, ItemStack ammo) {
-        super(level, owner, weapon, ammo);          // 内部写死 EntityTypes.ARROW
-    }
-    @Override protected boolean canHitEntity(Entity e) {
-        return !(e instanceof Player) && super.canHitEntity(e);
-    }
-}
-```
-> `Arrow(Level, LivingEntity, ItemStack, ItemStack)` 内部即 `super(EntityTypes.ARROW, ...)`，
-> 故 `MaidArrow` 类型仍是原版 `ARROW`：客户端走原版 `ArrowRenderer` 渲染，
-> **无需注册 EntityType、无需写渲染器**；`canHitEntity` 只在服务端命中判定生效。
-
-### 5.8 渲染（C3 已提前完成）
-
-`SmartMaidRenderer.getArmPose` 原来「只要手持就返回 `ITEM`」，会顶掉拉弓/举盾姿势。
-已改为玩家式映射：`isUsingItem()` 时按 `getUseAction()` 返回 `BOW_AND_ARROW`（弓）/
-`BLOCK`（盾）/`CROSSBOW_CHARGE`/`SPYGLASS`… 否则 `ITEM` / `EMPTY`。
-进食姿势由 `Consumable.animation` 驱动，`HumanoidModel` 原生处理。
-（拉弓的拉伸量由 `HumanoidRenderState.ticksUsingItem` 驱动，`super.extractRenderState` 已填充。）
-
----
-
-## 六、文件清单
-
-**新增 `entity/ai/combat/`**
-- `MaidCombatGoal.java` — 状态机主循环（替换 `MaidMeleeAttackGoal` 注册）
-- `MaidCombatState.java` — 状态 / 冷却
-- `MaidTargetFilter.java` — 排除表 + 友军判定
-- `MaidWeaponSelector.java` — 近战 DPS（`forEachModifier`）+ 弓（`POWER` 附魔）
-- `MaidThreatDetector.java` — 箭矢量预测 + 苦力怕引信
-- `MaidCombatMovement.java` — 逼近 / 走位 / **退后** / **绕行** / **背对跳**
-- `MaidMeleeSkill.java` / `MaidRangedSkill.java` / `MaidShieldSkill.java` / `MaidEatSkill.java` / `MaidFishSkill.java`
-- `MaidArrow.java` — 不伤玩家的箭
-
-**修改**
-- `SmartMaidEntity`：`ATTACK_SPEED` 属性、`FoodData` + NBT、`completeUsingItem`、
-  `isWithinMeleeAttackRange`(3.2)、`canAttack`、`doHurtTarget`、`getProjectile`、
-  `isCombatActive`、`registerGoals`、`aiStep`
-- `MaidGroundPathNavigation`：战斗期禁用 straight 降级
-- `MaidTaskManager`：战斗期 `setTask` 拒绝 / `tick` 取消
-- `PerceptionBlockUtil.findNearestHostile`：接 filter
-- `MaidActions`：`equipShield` / `useFishingRod` 等辅助
-- `SmartMaidRenderer.getArmPose`：加 `BOW_AND_ARROW` / `BLOCK`
-- `MaidDebug`：战斗状态迁移日志（事件性默认输出；高频检测走 `verbose`）
-
----
-
-## 七、实施里程碑
-
-| 序 | 内容 | 验收点 | 状态 |
-|---|---|---|---|
-| C0 | reach 3.2 + `ATTACK_SPEED` + 武器评分 + 排除表/友军 + `canAttack`/`doHurtTarget` + `MaidArrow` | 近战距离正确；女仆与箭都伤不到主人 | ✅ 构建通过 |
-| C1 | `MaidCombatGoal` + **strafe 退后/绕行/背对跳** + 近战 + 战斗期禁降级保跳跃 + 任务让路 | 女仆能退后且全程面向敌人；背后 1 格能背对跳上；战斗中会跳 1 格 | ✅ 构建+真机调试中 |
-| C2 | 饱食度 + 进食 + 回血（内部） | 半血吃食物、日志见 foodLevel 变化 | ✅ 构建通过 |
-| C3 | 远程（`getProjectile` + 自写发射 + `POWER` 选弓 + kite） | 箭消耗、命中、打不到主人 | ✅ 构建通过 |
-| C4 | 盾牌（威胁检测 + 举盾减伤） | 苦力怕/箭来举盾 | ✅ 构建通过 |
-| C5 | 鱼竿 spike（结论：原版不可用）+ 姿势渲染 + 感知 `combat` | 手臂姿势正确 | ⏳ 鱼竿待定，其余完成 |
-
-**每步都必须：`gradlew build` 打包 → 备份旧 jar → 部署到 mods → 真机测**（`DEVELOPMENT_ISSUES.md`
-2026-09-16 教训：只 `compileJava` 不打包会导致一直测旧 jar）。
-
----
-
-## 八、风险与约束
-
-| 风险 | 说明 | 对策 |
-|---|---|---|
-| strafe 局部轴偏移 | `LookControl` 转向有速率上限，未对准时退后会斜 | 出手/走位前可 `setYRot` 瞬间对准 |
-| 背对跳误触 | 贴墙时可能连跳 | 加跳跃节流 + 头顶净空 + 高度 ≤1 判定 |
-| 绕行卡死 | 两侧皆挡 | 背对跳翻 1 格；仍失败则放弃绕行改走位方向 |
-| 远程自写发射 | 力量附魔/无限附魔/耐久语义需与玩家一致 | 照抄玩家公式，附魔逐项处理 |
-| 鱼竿非 Player | `FishingHook` 依赖 `getPlayerOwner()` | 先 spike；不可用走兜底（已接受） |
-| 任务抢占体感 | 战斗中挖矿任务被强制取消 | 按用户决策"战斗高于其他任务"，不做恢复 |
-| 弓选择 | 只比力量，同级取先找到的 | 已拍板 |
-
----
-
-## 九、已确认 / 不再讨论
-
-- 单人模式：无 PvP 问题。
-- 绕行 + 退后 + 背对跳：**必须实现，不可简化**。
-- 弓：只比力量附魔。
-- 鱼竿：保留原版，非 Player 不可用则降级（已接受）。
-- 饱食度：仅内部状态。
+# Smart Maid 女仆战斗系统：实现与维护
+
+更新：2026-11-24（北京时间）。核对基线：`feature/kotlin-migration`，HEAD `658e390` 及当前工作树；默认 Minecraft 26.2。本文替代 2026-09-16 的待实施方案，描述当前 Kotlin 实现、保留决策及待修项，不代表本轮完成了代码修复或游戏验收。
+
+玩法规则与原始需求对照见 [女仆战斗系统](../女仆战斗系统.md)；本文维护源码导航和开发验证，避免两份文档重复维护实现细节。项目排期以 [下一阶段计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md) 为准，迁移验证范围以 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 为准。
+
+## 1. 决策来源与修订
+
+| 来源 | 保留结论及本次修订 |
+| --- | --- |
+| 原始女仆战斗需求（原 docx，现为根目录 Markdown） | 保留进食、攻击、格挡与普通动作锁定的需求；不把“有代码”写成“完整验收” |
+| 2026-09-16/17 战斗方案与 [HANDOVER](HANDOVER.md) 战斗 C0—C5 章节 | 女仆中心索敌、按 DPS 选近战、力量附魔选弓、自写弓箭、受阻走位；鱼竿经 API 调研后已确认暂不做 |
+| 2026-09-19 [问题记录](DEVELOPMENT_ISSUES.md) 与交接记录 | 取消盾牌 5 tick 前摇；近战走位死区改为 2.7—3.2；保留方向判定 |
+| 玩家设置实现 | 护主 ACTIVE/PASSIVE/OFF；友军免伤为默认设置，可开启友军伤害；饱食消耗/回血倍率可调 |
+| [任务队列](DESIGN_MAID_TASK_QUEUE.md) Q5 与当前代码 | 战斗暂停当前项、保留运行时对象并回队首，战斗结束继续；淘汰“统一取消且不恢复”的旧描述 |
+| 2026-11-24 静态复核 | 增补 COMBAT-01—05；本轮未运行战斗测试，未关闭这些问题 |
+
+旧方案中“原版鱼竿右键兜底可用”“盾牌必须等 5 tick”“玩家永远免伤”“战斗取消全部任务”已不适合作为当前实现指引。历史交接和问题日志保留当时上下文，不覆盖历史测试结论。
+
+## 2. 当前源码导航
+
+以下链接均指向实际文件；不再列出未创建的 MaidCombatState、MaidFishSkill 或拆分的近战/进食 Skill 类。
+
+| 文件 | 职责与关键入口 |
+| --- | --- |
+| [SmartMaidEntity.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/SmartMaidEntity.kt) | registerGoals、攻击包围盒、免前摇格挡、友军设置、getProjectile、completeUsingItem、aiStep |
+| [MaidCombatGoal.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/combat/MaidCombatGoal.kt) | 战斗生命周期、缓存目标、动作分支、冷却、退让 |
+| [MaidCombatMovement.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/combat/MaidCombatMovement.kt) | 水平距离控制、后退、侧移、背对跳 |
+| [MaidWeaponSelector.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/combat/MaidWeaponSelector.kt) | 近战评分、换主手、攻速冷却 |
+| [MaidRangedSkill.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/combat/MaidRangedSkill.kt) | 找弓和弹药、蓄力、自写发射与瞄准 |
+| [MaidArrow.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/combat/MaidArrow.kt) | 按友军伤害设置过滤玩家命中；沿用原版箭类型 |
+| [MaidTargetFilter.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/combat/MaidTargetFilter.kt) | 附近 Monster 过滤、玩家过滤、标签/配置排除、女仆视线 |
+| [MaidThreatDetector.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/combat/MaidThreatDetector.kt) | 箭轨迹离散外推、苦力怕膨胀检测与诊断日志 |
+| [MaidShieldSkill.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/combat/MaidShieldSkill.kt) | BLOCKS_ATTACKS 物品识别、换副手、开始使用 |
+| [MaidFoodData.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/MaidFoodData.kt) 与 [MaidActions.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/MaidActions.kt) | 饱食、回血、食物评分、物品使用及近战调用 |
+| [MaidTaskManager.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/maidtask/MaidTaskManager.kt) | 战斗暂停/续跑与任务门控 |
+| [MaidGroundPathNavigation.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/MaidGroundPathNavigation.kt) 与 [MaidMoveControl.kt](src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/MaidMoveControl.kt) | 战斗禁用直线挖搭降级，移动与跳跃协作 |
+| [MaidSettings.kt](src/main/kotlin/com/oyxdsg/smartmaid/data/MaidSettings.kt) 与 [never_target.json](src/main/resources/data/smartmaid/tags/entity_type/never_target.json) | 护主/友军/回血设置和默认排除类型 |
+| [SmartMaidRenderer.kt](src/main/kotlin/com/oyxdsg/smartmaid/client/renderer/SmartMaidRenderer.kt) | 按使用动作映射拉弓、格挡等手臂姿势 |
+
+## 3. 接入与当前执行顺序
+
+战斗 Goal 注册在 goalSelector 优先级 1，持有 MOVE/LOOK；跟随、散步、环视优先级为 2/3/4。FloatGoal 为 0；L0 安全规则仍独立执行，不应把设计优先级理解为所有代码的严格执行先后。
+
+targetSelector 优先级：1 为主人受击，护主非 OFF 时可启动；2 为主人攻击目标，仅 ACTIVE；3 为附近最近 Monster，仅 ACTIVE。附近目标由女仆中心及女仆视线过滤。canUse 检查目标存活、canAttack 和坐下状态，没有重新检查主人视线。
+
+| 顺序 | 当前处理 | 限制 |
+| --- | --- | --- |
+| 1 | 对缓存目标设置注视，计算三维距离 | 未同步最新 maid.target，见 COMBAT-04 |
+| 2 | 有盾且有威胁则举盾、停止移动、返回 | 可抢占物品使用；不递减原动作冷却 |
+| 3 | 拉弓但无可用弓箭时松弦 | 不等于覆盖所有动作切换 |
+| 4 | 半血以下且有食物则进入退让/进食 | isUsingItem 未区分弓与食物，见 COMBAT-02 |
+| 5 | 距离大于 6 且 canShoot 则远程 | 小于 10 时尝试拉开距离；无独立 15 格分支 |
+| 6 | 攻击包围盒与目标相交则近战 | 用 3.2 作水平扩展参数，不是 3.2 格球形中心距 |
+| 7 | 其余情况寻路逼近 | 此分支不递减 actionCooldown |
+
+战斗激活时，队列当前项经 pauseCurrent(COMBAT) 保留并回队首；支持 Resumable 的任务保存状态，战后继续调度。旧 setTask 直接入口仍拒绝战斗中新任务，不能把该规则扩大为所有队列入口都拒绝入队。
+
+stop() 会释放使用中物品、停止导航和移动。canContinueToUse() 只检查缓存目标的存活/可攻击及坐下状态，不足以落实“目标丢失后 3 秒退出”。
+
+## 4. 子系统维护要点
+
+### 4.1 距离、走位与近战
+
+决策的 distanceTo 是三维距离，keepDistance 的误差是水平距离，近战判定是扩展包围盒相交。测试必须分别记录，不能仅凭常量宣称固定中心距命中。
+
+近战走位 wantedDistance=3.0、maxDistance=3.2，死区 2.7—3.2。默认侧移为 0；后退受阻时尝试背对跳及侧移，不能据此保证所有墙角都能脱困。keepDistance 的调用时机受 Goal 调度影响。
+
+武器评分以基础属性和物品 MAINHAND modifier 金额求和，按伤害乘攻速选择；未完整模拟所有属性运算类型、附魔及特殊命中效果。攻击通过 MaidActions.attack → doHurtTarget，友军伤害设置在实体和箭命中处分别拦截。
+
+### 4.2 远程
+
+仅 BowItem 分支；按 POWER 等级选弓，同级取先找到的。没有兼容箭则不进入远程。
+
+startUsingItem(MAIN_HAND) 推进原版蓄力；满蓄力约 20 个游戏 tick，或 ticksUsingItem 达到 24 时尝试释放。自写发射包含目标速度预判、下坠补偿、满蓄力暴击和力量伤害；箭不可拾取。每次发射直接缩减一支弹药并扣弓耐久，当前没有无限附魔免耗箭分支，不宣称与玩家全部附魔行为等价。
+
+### 4.3 进食与回血
+
+血量 <50% 且找到食物才触发，营养优先、其次饱和度。dist<7 时累计退让，走位目标 8；达到 40 次退让回调后允许原地进食。物品使用期间走位目标 7。
+
+completeUsingItem 补记 FOOD；MaidFoodData 按游戏规则、饱食度和设置倍率驱动回血/饥饿。食物用时由原版使用流程决定，34 只是额外冷却计数，不能代替消费完成检测。
+
+### 4.4 盾牌与威胁
+
+盾牌按 BLOCKS_ATTACKS 组件识别，背包 0—35 搜索后换到副手 40；副手已有盾则直接同步。beginBlock 中断当前使用并开始副手使用。
+
+箭检测扫描范围 16、预测 30 游戏 tick、女仆包围盒膨胀 0.8，按当前速度逐 tick 外推采样点；不是完整考虑重力/阻挡的轨迹碰撞求解。苦力怕扫描范围 4，要求 swellDir>0 且 swelling>0.6。
+
+SmartMaidEntity.getItemBlockingWith 去掉原版前摇；未移除朝向与具体伤害判定。当前面向的是缓存战斗目标，不保证自动转向每个来袭方向。威胁存在持续举盾，消失收盾，期间停止移动；固定 10 tick 持盾尚未实现。
+
+### 4.5 鱼竿调研结论
+
+历史 API 调研确认：FishingRodItem.use 要求 Player；原版 FishingHook 在无玩家 owner 时丢弃，右键兜底也不能构成可用攻击。既有决定为暂不做，不保留伪可用的 FISH 状态。
+
+重新立项需要独立评估 LivingEntity owner、自研鱼钩、抛出/回收/拉拽及渲染同步；不是本轮文档维护或 Kotlin 迁移门禁的隐含任务。
+
+## 5. 计时审查
+
+| 名称 | 代码参数 | 单位与注意事项 |
+| --- | --- | --- |
+| 近战冷却 | clamp(round(20 / attackSpeed), 14, 26) | actionCooldown 的递减次数 |
+| 进食冷却 | 34 | 开始吃时设置，正在使用物品时不递减 |
+| 进食退让 | 40 | 退让分支的累计调用次数，未保证 2 秒 |
+| 远程释放阈值 | 满蓄力或 ticksUsingItem>=24 | 原版使用计时，按游戏 tick 推进 |
+| 发射后冷却 | 6 | actionCooldown 的递减次数 |
+| 普通失败/进食失败 | 10 / 20 | actionCooldown 的递减次数 |
+| TARGET_LOST_TIMEOUT | 60 | 只在缓存目标空/死的 tick 分支增加，受生命周期提前停止影响，不能等同于有效 3 秒滞回 |
+| 举盾 | 无固定时长 | 威胁分支控制，不设 10 tick 持盾窗口 |
+
+本次核对 26.2 依赖源码：Goal.requiresUpdateEveryTick 默认 false；Mob.serverAiStep 交替调用完整 GoalSelector.tick 和 tickRunningGoals(false)，后者仅更新要求每 tick 的 Goal。MaidCombatGoal 没有覆写该方法，也未对冷却计数做 adjustedTickDelay 适配。
+
+因此不能用“20 次 Goal 回调=1 秒”描述当前行为。拟修复时应统一每游戏 tick 连续更新与动作决策节拍：持续更新移动、物品使用和威胁检测；普通动作是否可切换由明确的活动动作与锁定状态决定。不得简单把每帧决策整体延迟到冷却结束而停止更新拉弓和进食。
+
+## 6. 待修项与建议顺序
+
+下列均为静态发现，未标记为运行时复现通过。先补最小复现场景，再修复、复测；不以更新文档关闭代码问题。
+
+| 编号 | 优先级 | 代码位置/问题 | 建议处理与退出条件 |
+| --- | --- | --- | --- |
+| COMBAT-01 | 高 | MaidCombatGoal 未请求每 tick，计数与预期游戏时间不一致 | 明确调用频率、统一计时单位；用 tickCount 差值验证近战、远程、退让及连续走位 |
+| COMBAT-02 | 高 | handleEat 的 isUsingItem 将拉弓视为进食 | 区分弓、食物与盾；动作切换明确释放；半血拉弓场景能够完成或取消拉弓并进入进食，无无限持弓 |
+| COMBAT-03 | 中 | 各分支独立检查冷却，切换和盾后恢复语义不完整 | 建立统一活动动作/锁定规则；明确进食完成后是否额外等待；锁定期普通动作不相互打断，盾可抢占且之后正确恢复决策 |
+| COMBAT-04 | 中 | canUse 缓存 target，运行时不跟随 maid.target | 定义目标同步、失效、切换及超时退出；原目标死亡/越界/清空后不追旧目标，主人新受击目标可按既定优先级接入 |
+| COMBAT-05 | 待对齐 | 固定 0.5 秒持盾、格挡走位与代码存在差距 | 对齐原始需求与当前威胁持续策略，明确最低持盾时长、刷新、移动及冷却恢复；实现前不宣称已满足原需求 |
+
+COMBAT 编号只表示本专项内部顺序，不替换全项目 N1/N2/N3/P3 的排期；本轮不自动加入迁移合并门禁。
+
+## 7. 定向回归清单
+
+| 场景 | 必须观测的结果 |
+| --- | --- |
+| 无弓近战、不同攻速武器 | 实际出手 tick 差、选武器结果；上下/斜向距离下的包围盒判定 |
+| 有弓时 6 格两侧及约 10/15 格 | 分支边界、拉弓/释放、消耗与移动；区分水平距离和三维距离 |
+| 拉弓中目标贴近、血量跌破一半 | 动作锁定或明确取消，无持弓死锁、无使用状态串扰 |
+| 吃食物中受击回血跨过半血 | 物品消费与饱食变化、动作结束/取消一致，无错误弓释放 |
+| 平地退让、墙角进食 | 退让次数与真实 tick 差；达到上限后可消费食物，无无限后退 |
+| 箭矢、苦力怕，有盾/无盾 | 举盾/收盾、实际血量、方向、动作抢占与无盾持续行动 |
+| 战斗中换目标、清空目标、目标死亡/越界 | 实际攻击目标与索敌器一致，正确退出或重选，不追缓存旧目标 |
+| ACTIVE/PASSIVE/OFF、坐下与友军设置 | 来源门控、默认玩家免伤与显式开启后的行为；已有目标清理边界清楚 |
+| 可接续任务 → 战斗 → 战后 | 当前项暂停/回队首，战后继续，无任务丢失和资源泄漏 |
+| 受阻后退、侧移、背对跳 | 无持续无效走位；战斗不挖不搭，坐下不移动 |
+
+采用 [测试体系](TEST_SYSTEM.md) 与 [Loom 操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 的启动和归档方式，不恢复退役启动器。主玩法验证使用独立 26.2 测试世界；26.3 沿用现有验证边界，不把 26.2 实测推广为 26.3 输入通过。
+
+修复记录至少包含：实际 HEAD、版本、场景与输入、目标实体、起止游戏 tick、动作/使用状态、前后血量和库存、通过/失败/未验证结论。盾牌依据实际扣血及格挡状态判断，不能以 hurtServer 入口原始伤害断言漏盾。
+
+## 8. 本次维护结果
+
+仅更新文档。保留历史 2026-09 的调研及真机结果来源；不把历史“已实现 C0—C5”扩大为鱼竿已交付、当前全部战斗通过，或本轮关闭 COMBAT 问题。当前构建、互操作测试、基础 AutoTest、GUI 报告的覆盖范围仍以迁移状态为准。

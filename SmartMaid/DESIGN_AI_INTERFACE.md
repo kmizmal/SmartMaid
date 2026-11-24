@@ -80,7 +80,7 @@
 | `chestput [count]` | 主手物品放入已打开箱子：**优先同类可堆叠（智能 maxStackSize）→ 其次空槽**；满则留主手 + 提示 |
 | `chesttake [slot] [count]` | 从已打开箱子取物品到主手（slot 缺省 = 首个非空） |
 
-> `chestopen` 找不到容器 → 气泡"附近没有箱子"；未 open 就 put/take → 提示"先 chestopen"；箱子被移走 → 提示"箱子不在了"。
+> `chestopen` 找不到容器 → 气泡"附近没有箱子"；未 open 就 put/take → 提示"先   chestopen"；箱子被移走 → 提示"箱子不在了"。
 
 ### 4.3 基础指令（原子动作）
 
