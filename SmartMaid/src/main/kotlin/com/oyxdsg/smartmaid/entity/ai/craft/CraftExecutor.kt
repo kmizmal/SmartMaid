@@ -7,7 +7,6 @@ import com.oyxdsg.smartmaid.data.SmartMaidConfig
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidActions
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
-import com.oyxdsg.smartmaid.entity.ai.craft.CraftExecutor.Companion.resolveMissing
 import net.minecraft.core.Holder
 import net.minecraft.core.component.DataComponents
 import net.minecraft.core.registries.BuiltInRegistries
@@ -45,6 +44,9 @@ class CraftExecutor private constructor() {
 
     /** 配方材料需求：去重后的 ingredient 列表 + 每种在 3x3 布局中出现次数。 */
     private class IngredientNeeds(val ingredients: List<Ingredient>, val need: IntArray)
+
+    /** 干跑预算规划结果：步骤清单 + 规划后剩余库存。 */
+    private class PlanResult(val steps: List<String>, val available: MutableMap<Item, Int>)
 
     companion object {
 
@@ -263,8 +265,8 @@ class CraftExecutor private constructor() {
             visited: MutableSet<Item>
         ): Boolean {
             val inv = maid.getMaidInventory()
-            if (countMatching(inv, ing) >= need) {
-                return true
+            if (countMatching(inv, ing, visited) >= need) {
+                return true // 当前展开链上的物品不能当作普通库存，防止配方自举
             }
             if (depth > MAX_RECURSE_DEPTH) {
                 return false
@@ -279,7 +281,7 @@ class CraftExecutor private constructor() {
                 if (visited.contains(item)) {
                     continue
                 }
-                val missing = need - countMatching(inv, ing)
+                val missing = need - countMatching(inv, ing, visited)
                 if (missing <= 0) {
                     return true
                 }
@@ -288,7 +290,7 @@ class CraftExecutor private constructor() {
                 }
                 // 真正合成候选项直到匹配量够
                 var guard = 0
-                while (countMatching(inv, ing) < need) {
+                while (countMatching(inv, ing, visited) < need) {
                     guard++
                     if (guard > MAX_CRAFT_GUARD) {
                         break
@@ -298,7 +300,7 @@ class CraftExecutor private constructor() {
                         break
                     }
                 }
-                if (countMatching(inv, ing) >= need) {
+                if (countMatching(inv, ing, visited) >= need) {
                     return true
                 }
             }
@@ -513,7 +515,7 @@ class CraftExecutor private constructor() {
                     continue
                 }
                 val perCraft = outputCount(recipe)
-                val desc = describe(maid, recipe, want, perCraft)
+                val desc = describe(maid, recipe, want, perCraft, t.item)
                 val missing = countMissing(desc)
                 if (best == null || missing < bestMissing) {
                     best = desc
@@ -539,8 +541,16 @@ class CraftExecutor private constructor() {
          * （需要先合成的中间物品列表），供桌宠向用户解释。
          */
         @Suppress("DEPRECATION") // Ingredient.items() is required to expose candidate ids in the diagnostic payload.
-        private fun describe(maid: SmartMaidEntity, recipe: CraftingRecipe, want: Int, perCraft: Int): JsonArray {
+        private fun describe(
+            maid: SmartMaidEntity,
+            recipe: CraftingRecipe,
+            want: Int,
+            perCraft: Int,
+            targetItem: Item
+        ): JsonArray {
             val inv = maid.getMaidInventory()
+            var available = inventoryCounts(inv)
+            val blocked = setOf(targetItem)
 
             val inNeeds = ingredientNeeds(recipe)
             val ingredients = inNeeds.ingredients
@@ -567,15 +577,24 @@ class CraftExecutor private constructor() {
                 val have = countMatching(inv, ing)
                 item.addProperty("need", need)
                 item.addProperty("have", have)
-                var ok = have >= need
-                if (!ok) {
-                    // 递归干跑：背包缺的直接材料能否由合成补足（含循环防护）
-                    val plan = resolveMissing(maid, ing, need - have, 0, HashSet())
+                // 用预算而不是裸库存判断：目标物品自身不参与递归自举，且前面的
+                // 材料会从预算中扣掉，避免多个分支重复使用同一批库存。
+                val budgetHave = countMatching(available, ing, blocked)
+                var ok = budgetHave >= need
+                if (ok) {
+                    consumeMatching(available, ing, need, blocked)
+                } else {
+                    val trial = HashMap(available)
+                    if (budgetHave > 0) {
+                        consumeMatching(trial, ing, budgetHave, blocked)
+                    }
+                    val plan = planMissing(maid, ing, need - budgetHave, 0, hashSetOf(targetItem), trial)
                     if (plan != null) {
                         ok = true
+                        available = plan.available
                         item.addProperty("via_craft", true)
                         val via = JsonArray()
-                        plan.forEach { v -> via.add(v) }
+                        plan.steps.forEach { v -> via.add(v) }
                         item.add("craft_plan", via)
                     }
                 }
@@ -592,13 +611,17 @@ class CraftExecutor private constructor() {
          *         `["minecraft:stick×2","minecraft:oak_planks×2"]`）；否则返回 null
          */
         @Suppress("DEPRECATION") // Ingredient.items() is required to enumerate recursive crafting candidates.
-        private fun resolveMissing(
+        private fun planMissing(
             maid: SmartMaidEntity,
             ing: Ingredient,
             missing: Int,
             depth: Int,
-            visited: MutableSet<Item>
-        ): List<String>? {
+            visited: Set<Item>,
+            available: Map<Item, Int>
+        ): PlanResult? {
+            if (missing <= 0) {
+                return PlanResult(emptyList(), HashMap(available))
+            }
             if (depth > MAX_RECURSE_DEPTH) {
                 return null
             }
@@ -612,7 +635,7 @@ class CraftExecutor private constructor() {
                 if (visited.contains(item)) {
                     continue
                 }
-                val r = resolveItem(maid, item, missing, depth + 1, visited)
+                val r = planItem(maid, item, missing, depth + 1, visited, available)
                 if (r != null) {
                     return r
                 }
@@ -621,19 +644,24 @@ class CraftExecutor private constructor() {
         }
 
         /**
-         * 干跑：合成 `count` 个 item 的可行性解析（不消耗材料）。
+         * 干跑：合成 `count` 个 item 的可行性解析（不消耗真实材料）。
          *
-         * 递归检查该物品配方的每种材料：背包直接够的跳过；不够的递归
-         * [resolveMissing]。全部可满足则返回「该物品自身 + 子链需要先合成的
-         * 中间物」列表；任意分支无解 / 配方循环 / 超深度返回 null。
+         * 递归检查该物品配方的每种材料：先从 `available` 预算里扣；不够的递归
+         * [planMissing]。`next` 是当前展开链，既防止「铁锭→铁粒→铁锭」这类
+         * 配方循环自举，也防止把链上的目标物品当成普通库存重复计算。全部可满足
+         * 则返回「该物品自身 + 子链需要先合成的中间物」列表与规划后的预算。
          */
-        private fun resolveItem(
+        private fun planItem(
             maid: SmartMaidEntity,
             item: Item,
             count: Int,
             depth: Int,
-            visited: MutableSet<Item>
-        ): List<String>? {
+            visited: Set<Item>,
+            available: Map<Item, Int>
+        ): PlanResult? {
+            if (count <= 0) {
+                return PlanResult(emptyList(), HashMap(available))
+            }
             if (depth > MAX_RECURSE_DEPTH || visited.contains(item)) {
                 return null
             }
@@ -648,7 +676,6 @@ class CraftExecutor private constructor() {
             }
             val next = HashSet(visited)
             next.add(item)
-            val inv = maid.getMaidInventory()
             for (holder in candidates) {
                 val recipe = holder.value()
                 // 全量扫描路径必须验证产物 = item，否则会选中「材料可满足但产出不对」的配方
@@ -660,6 +687,7 @@ class CraftExecutor private constructor() {
                 val inNeeds = ingredientNeeds(recipe)
                 val need = inNeeds.need
                 val ingredients = inNeeds.ingredients
+                val trial = HashMap(available)
                 val subInputs = ArrayList<String>()
                 var ok = true
                 for (idx in need.indices) {
@@ -667,24 +695,34 @@ class CraftExecutor private constructor() {
                         continue
                     }
                     val ing = ingredients[idx]
-                    val have = countMatching(inv, ing)
                     val needN = need[idx] * crafts
+                    val have = countMatching(trial, ing, next)
                     if (have >= needN) {
-                        continue // 背包直接够，不产生额外中间物
+                        consumeMatching(trial, ing, needN, next)
+                        continue
                     }
-                    val sub = resolveMissing(maid, ing, needN - have, depth + 1, next)
+                    if (have > 0) {
+                        consumeMatching(trial, ing, have, next)
+                    }
+                    val sub = planMissing(maid, ing, needN - have, depth + 1, next, trial)
                     if (sub == null) {
                         ok = false
                         break
                     }
-                    subInputs.addAll(sub)
+                    trial.clear()
+                    trial.putAll(sub.available)
+                    subInputs.addAll(sub.steps)
                 }
                 if (ok) {
                     val result = ArrayList<String>()
                     val id = BuiltInRegistries.ITEM.getKey(item).toString()
                     result.add(id + "\u00d7" + count) // 该物品自身需要被合成
                     result.addAll(subInputs)
-                    return result
+                    val surplus = crafts * perCraft - count
+                    if (surplus > 0) {
+                        addItem(trial, item, surplus)
+                    }
+                    return PlanResult(result, trial)
                 }
             }
             return null
@@ -702,16 +740,72 @@ class CraftExecutor private constructor() {
             return n
         }
 
-        /** 背包里匹配该 ingredient 的物品总数。 */
-        private fun countMatching(inv: SimpleContainer, ing: Ingredient): Int {
+        /** 背包里匹配该 ingredient 的物品总数；`excluded` 中的物品不参与统计。 */
+        private fun countMatching(inv: SimpleContainer, ing: Ingredient, excluded: Set<Item> = emptySet()): Int {
             var total = 0
             for (s in 0 until inv.containerSize) {
                 val stack = inv.getItem(s)
-                if (!stack.isEmpty && ing.test(stack)) {
+                if (!stack.isEmpty && !excluded.contains(stack.item) && ing.test(stack)) {
                     total += stack.count
                 }
             }
             return total
+        }
+
+        /** 预算里匹配该 ingredient 的数量；`excluded` 中的物品不参与统计。 */
+        private fun countMatching(available: Map<Item, Int>, ing: Ingredient, excluded: Set<Item> = emptySet()): Int {
+            var total = 0
+            for ((item, count) in available) {
+                if (!excluded.contains(item) && ing.test(ItemStack(item))) {
+                    total += count
+                }
+            }
+            return total
+        }
+
+        /** 从预算中扣掉最多 `amount` 个匹配 ingredient 的物品。 */
+        private fun consumeMatching(
+            available: MutableMap<Item, Int>,
+            ing: Ingredient,
+            amount: Int,
+            excluded: Set<Item> = emptySet()
+        ) {
+            var left = amount
+            if (left <= 0) {
+                return
+            }
+            for ((item, count) in available.entries.toList()) {
+                if (left <= 0) {
+                    break
+                }
+                if (excluded.contains(item) || !ing.test(ItemStack(item))) {
+                    continue
+                }
+                val used = min(left, count)
+                if (used > 0) {
+                    available[item] = count - used
+                    left -= used
+                }
+            }
+        }
+
+        /** 把一次合成多出来的产物记回预算。 */
+        private fun addItem(available: MutableMap<Item, Int>, item: Item, count: Int) {
+            if (count > 0) {
+                available[item] = (available[item] ?: 0) + count
+            }
+        }
+
+        /** 把女仆背包按物品聚合为干跑预算。 */
+        private fun inventoryCounts(inv: SimpleContainer): MutableMap<Item, Int> {
+            val counts = HashMap<Item, Int>()
+            for (s in 0 until inv.containerSize) {
+                val stack = inv.getItem(s)
+                if (!stack.isEmpty) {
+                    counts[stack.item] = (counts[stack.item] ?: 0) + stack.count
+                }
+            }
+            return counts
         }
 
         /** 一次合成产出几个（用候选项填满的假网格 assemble 得到）。 */

@@ -84,3 +84,25 @@ The migration keeps the public Java-facing contracts, payload formats, serializa
 3. Payload review confirmed six `@JvmRecord` payloads expose `@JvmField TYPE` and `@JvmField STREAM_CODEC`; `ModNetworking.register()` registers four serverbound and two clientbound payloads. Both 26.2/26.3 compilation and server/client startup loaded the payload classes and `smartmaid` initializer.
 4. Earlier startup smoke passed through `runServer` (`Done`, `Smart Maid initialized`) and `runClient` (`Smart Maid initialized`, `SmartMaid 客户端初始化完成`); processes were terminated after the smoke window. The 26.2 dev jar contains the generated jump-table classes, all six payload classes, `META-INF/LICENSE`, and `META-INF/NOTICE.md`.
 5. The corrected P0 verification command now passes A/B/C with the Gradle cache classpath. Static merge gate is green, but the branch remains `修复后合并` until the real game instance is available and AutoTest/clienttest gameplay evidence is collected.
+
+## 2026-11-24 Loom 玩法验收（实际运行，仍为“修复后合并”）
+
+使用 `SmartMaid/run` 作为游戏目录、Windows `gradlew.bat --offline --no-daemon --console=plain runClient` 启动；未使用 HMCL/token。详细证据与路径见 `docs/superpowers/handoffs/2026-11-24-loom-gameplay-acceptance-report.md`。
+
+- T1 进入专用世界并正常保存退出：通过。
+- T2-A 基础 AutoTest（修复前）：**FAIL，PASS=5 FAIL=1**。`c3` 期望铁锭 `craft_check=false`，实际 `craftable=true`，`craft_plan` 为 9 个铁粒；执行 `craft` 后库存仍为 1 个铁锭。独立探针确认这是 `CraftExecutor` 递归自举/材料计数误报；对照 `main` 的 Java 与当前 Kotlin，相关 `resolveMissing`/`resolveItem` 逻辑一致，判定为迁移前既有问题，不是 Kotlin 迁移回归，需单独产品决策。该问题已于同日修复，见下方“CraftExecutor 循环自举/材料计数修复”。
+- T2-B 兼容套件：PASS=21 FAIL=0；T2-C 队列套件：PASS=30 FAIL=0。
+- T2 持久化：首次失败，`MaidDataManager.load` 抛 `IllegalArgumentException: Invalid slot 'MAINHAND'`；原因为 Kotlin 迁移把 Java `slot.getName()` 写成 `slot.name`。已最小修复 `MaidDataManager.kt` 第 29、55 行（保存用 `getName()`，读取兼容大小写）。修复后重跑 PASS=2 FAIL=0：工具队列恢复 1 项、金锭 7、`restart_guard` RUNNING。
+- `ModEntities.kt:29` 的 `.noSave()` 使女仆实体不进入世界存档；退出后重新召唤从侧车恢复背包/装备/队列是现有设计，UUID/坐标不跨重启保持。
+- T3 `gui-chain` 29/29 PASS；`key-encoding` 3/3 PASS（26.2，操作人实际按住 Shift+E）。26.3 SDL 键盘尚未单独验证；桌宠本轮 N/A。
+- 26.2/26.3 `clean build` 均通过，各 6 suites / 33 tests / 0 failures / 0 errors / 0 skipped；`python tools/verify_all.py --series 26.2` A/B/C 全通过。
+- T4 未执行：`SmartMaid/tools/launch_game.py`、`SmartMaid/tools/run_e2e_test.py` 未删除，README 旧入口未改；T2-A 已解决，但仍需完成 26.3 验证和退役门禁后再进入 T4。
+- 2026-11-24 c3 复测：在 `pauseOnLostFocus:false` 的独立世界 `SmartMaid-C3-Pause-A` 重跑同序列，`c3` 仍 FAIL（`craft_plan` 为 9 个铁粒），且 `checkInv minecraft:iron_ingot 实际=2` 证明 `craft` 已完成，排除游戏暂停因素；证据在 `.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/c3-pause-retest-20261124/`。
+
+## 2026-11-24 CraftExecutor 循环自举/材料计数修复
+
+- 修改 `SmartMaid/src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/craft/CraftExecutor.kt`：干跑规划改为预算式 `PlanResult`，目标物品加入 blocked/visited，`planMissing`/`planItem` 使用 `Map<Item,Int>` 库存预算并按配方分支消费/回滚，记录多余产出；同时 `ensureIngredient` 的库存计数排除当前展开链，防止实际 `craft` 路径也把祖先物品当普通库存。
+- 独立探针 `c3-fix-20261124`：`c3` PASS（`craftable=false`），汇总 `PASS=4 FAIL=0`。
+- 干净世界 `SmartMaid-CraftFix-A2` 完整 A 套件：`PASS=6 FAIL=0`，证据 `.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/A-full2-20261124-afterfix/game.log:190-201`。
+- 修复后 26.2/26.3 `clean build` 均 `BUILD SUCCESSFUL`，各 6 suites / 33 tests / 0 failures / 0 errors / 0 skipped；`python tools/verify_all.py --series 26.2` A/B/C 全部通过。
+- 仍不自动合并：T4 未执行，26.3 SDL 键盘/玩法未单独验证；`SmartMaid/tools/launch_game.py`、`SmartMaid/tools/run_e2e_test.py` 保留。

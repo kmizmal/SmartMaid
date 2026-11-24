@@ -26,7 +26,7 @@ object MaidDataManager {
             val tag = CompoundTag(); val list = ListTag()
             for (slot in EquipmentSlot.VALUES) {
                 val stack = maid.getItemBySlot(slot); if (stack.isEmpty) continue
-                val slotTag = CompoundTag(); slotTag.putString("slot", slot.name)
+                val slotTag = CompoundTag(); slotTag.putString("slot", slot.getName())
                 val encoded: DataResult<Tag> = ItemStack.OPTIONAL_CODEC.encodeStart(ops, stack)
                 encoded.result().ifPresent { slotTag.put("item", it) }; list.add(slotTag)
             }
@@ -52,7 +52,7 @@ object MaidDataManager {
             val ops = RegistryOps.create(NbtOps.INSTANCE, maid.registryAccess())
             val list = tag.getListOrEmpty("equipment")
             for (i in list.indices) {
-                val slotTag = list.getCompoundOrEmpty(i); val slot = EquipmentSlot.byName(slotTag.getStringOr("slot", "")); val itemTag = slotTag.get("item") ?: continue
+                val slotTag = list.getCompoundOrEmpty(i); val slot = runCatching { EquipmentSlot.byName(slotTag.getStringOr("slot", "").lowercase()) }.getOrNull(); val itemTag = slotTag.get("item") ?: continue
                 if (slot == null) continue
                 ItemStack.OPTIONAL_CODEC.parse(ops, itemTag).result().ifPresent { maid.setItemSlot(slot, it) }
             }
