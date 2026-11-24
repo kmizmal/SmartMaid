@@ -1,5 +1,7 @@
 # 承接单：游戏内女仆菜单（N1）+ 任务队列
 
+> 历史设计/实施记录：下文保留原有时间线、源码名称、工具实验与失败，不作为当前操作命令。当前构建为 Gradle 9.9.1 / Kotlin 2.4.21，源码使用 `src/main/kotlin` 与 `src/mc<series>/kotlin`；双版本 Wrapper 构建已实跑。当前状态见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)，执行见 [Loom 操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，后续见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。旧 HMCL/纯 javac 发布命令仅为历史。
+
 > **给接手这个任务的人（或 AI）。** 这是一份**入口文档** —— 读完它你就知道要做什么、读哪些文档、
 > 哪些决策已经定了不要再问、按什么顺序做、怎么验证。
 > 编写日期：2026-09-30 · 状态：**✅ 已实现（2026-10-01，真机验收通过）**。

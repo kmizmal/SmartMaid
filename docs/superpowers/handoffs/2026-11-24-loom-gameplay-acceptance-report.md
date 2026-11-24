@@ -1,5 +1,7 @@
 # SmartMaid Kotlin 迁移：Loom 玩法验收报告
 
+> 历史快照：保留当时的计划、失败与取证结果；旧未完成项和命令不作为当前执行入口。当前状态见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md)，后续任务见 [下一阶段开发计划](../plans/2026-11-24-next-stage-development.md)。
+
 **日期：** 2026-11-24（北京时间）
 **基线：** `feature/kotlin-migration` @ `60b5d82f37b01ce1f8a5a253e8f736a842b50fe2`
 **游戏目录：** `E:\study\bash\GitHub\zmalP\SmartMaid\SmartMaid\run`

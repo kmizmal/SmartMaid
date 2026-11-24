@@ -1,5 +1,7 @@
 # SmartMaid Kotlin 迁移：Fabric 标准启动与玩法验收｜修订版执行计划
 
+> 历史快照：保留当时的计划、失败与取证结果；旧未完成项和命令不作为当前执行入口。当前状态见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md)，后续任务见 [下一阶段开发计划](../plans/2026-11-24-next-stage-development.md)。
+
 > **For agentic workers:** 实施时使用 `superpowers:executing-plans` 或 `superpowers:subagent-driven-development`，按复选框跟踪。本文件是计划，不是测试通过报告。
 
 **Goal：** 批准开工后 3 个工作日内，交付可复跑的 Loom 启动操作卡、玩法证据、旧脚本退役记录及合并建议。期限内遇到未解决的阻断，也要交付失败证据，不降低验收标准。

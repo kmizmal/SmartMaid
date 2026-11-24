@@ -1,53 +1,40 @@
 # SmartMaid 测试体系
 
-> 目标：**把能自动化的都自动化，并且让「失败」有地方落**——不依赖人盯屏幕、不依赖人去翻 GBK 的 `latest.log`。
->
-> 现状：服务端 + 客户端两层自动化；静态三层回归门；一个统一的错误接收通道。
+更新：2026-11-24。当前 Kotlin 构建/测试入口与 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 一致；完整运行和归档步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，后续工作见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。
 
----
+## 0 当前执行入口
 
-## 0 一页速查
+所有命令从 `SmartMaid` 模块目录执行，使用 JDK 25。以下测试输入部署前先按操作卡归档旧配置/报告，确认没有待执行输入；同一 gameDir 只跑一个客户端。
 
-```bash
-# ① 静态回归总门（改完代码/升依赖后必跑；不需要开游戏）
-python tools/verify_all.py --series 26.3        # 编译 + Mixin 目标 + 依赖成员
+```powershell
+$env:JAVA_HOME = '<本机 JDK 25 安装目录>'
+$env:SMARTMAID_MC_DIR = (Resolve-Path '.\run').Path
+$env:PYTHONIOENCODING = 'utf-8'
+
+# 离线 JVM 测试（包括真实命令树注册/解析；不执行游戏命令回调）
+.\gradlew.bat --offline --no-daemon --console=plain test
+
+# 静态总门：当前默认 26.2，A 实际调用 Gradle 构建
 python tools/verify_all.py --series 26.2
 
-# ② 客户端自动化（GUI / 键位；要开游戏）
-python tools/clienttest.py list
-python tools/clienttest.py run gui-chain --series 26.3     # 放置测试脚本
-#   → 启动游戏、进世界（测试自动跑，全程不碰鼠标键盘）
-python tools/clienttest.py report --series 26.3            # 读结果
-python tools/clienttest.py errors --series 26.3 --stack 8   # 读错误通道
+# 客户端轻量菜单测试：已归档旧报告后部署
+python tools/clienttest.py run gui-chain
+.\gradlew.bat --offline --no-daemon --console=plain runClient
+# 正常保存退出后读取本轮结果
+python tools/clienttest.py report
+python tools/clienttest.py errors
 
-# ③ 服务端自动化（任务/队列/寻路，既有）
-#   把 tools/autotest.<名>.json 复制成 <game>/config/smartmaid/autotest.json → 进游戏
-grep "AutoTest" "<game>/logs/latest.log"
-
-# ④ 离线单测（纯逻辑，不需要游戏）
-./gradlew test
-
-# ⑤ 出发布包（两条线各有自己的通路）
-cd SmartMaid && ./gradlew build -x test          # 26.2 线 → build/libs/smartmaid-<版本>.jar
-python tools/compile_check.py \                  # 26.3 线（Gradle 多版本构建尚未实跑）
-  --mc-jar "<游戏目录>/versions/26.3/26.3.jar" \
-  --fapi-jar ../build_logs/deps/fabric-api-26.3.jar \
-  --src src/main/java --src src/mc26.3/java \
-  --libs libs/mc26.3 --libs-dir "<游戏目录>/libraries" \
-  --include-jar libs/mc26.3/player_animation_library-1.2.7.jar \
-  --mod-version <版本> --mc-version 26.3 --mc-range "~26.3" \
-  --fapi-range ">=0.161.0+26.3" --pal-range ">=1.2.7" \
-  --package ../build_logs/out/smartmaid-<版本>-mc26.3.jar
+git diff --check
+git diff --cached --check
+git diff --check main...HEAD
 ```
 
-> ⚠️ **打包必查**（26.3 曾踩过）：`--include-jar` 要**只给 PAL**（三份 mocha 由 PAL 运行时提供，不能内嵌）；
-> `--fapi-range` / `--pal-range` 默认是 `*`（只适合测试包），**发布包必须显式传真实范围**；
-> 打完用 `zipfile.testzip()` 校验，并确认包内 `fabric.mod.json` 的 `version` / `minecraft` 范围 / `META-INF/jars` 都对。
-
-> ⚠️ **这个启动器开了版本隔离**：`<game>` = `<.minecraft>/versions/<版本>`。
-> 所以 `clienttest.py` / `autotest` 的路径都要带 `--series`。详见 `MEMORY.md` §2。
-
----
+- 当前双版本各 **7 suites / 37 tests / 0 failures/errors/skips**。新增测试须解释数量变化；6 suites / 33 tests 是新增命令 suite 前的历史基线。
+- 双版本 clean build 的完整命令、版本参数及 XML 归档顺序见操作卡。Kotlin 发布包使用 Wrapper；旧纯 javac 的 `compile_check.py --package` 不是当前 Kotlin 编译/打包入口。
+- `SMARTMAID_MC_DIR` 已指向真实 `run`，clienttest 不传 `--series`。静态工具的 `--series 26.2` 是版本选择，需要保留；不能直接把它改为 26.3 就声称完成了该版本的所有静态验证。
+- AutoTest 在单机集成服务器执行：按轮部署至 `run/config/smartmaid/autotest.json`，确认入场和本轮断言后正常退出，不能用旧 done 文件签收。
+- gui-chain 29/29 只证明所覆盖的菜单链路；真实容器与命令回调验证列入下一阶段。`key-encoding` 需要操作人实际按键，不能宣称全程无需交互。26.3 游戏输入仍按用户决定不补做；桌宠 N/A。
+- 错误通道按本轮新增记录判定；保留日志原字节，按实际编码读取，不统一强制 GBK。后文样例用于说明报告结构，不作为当前测试证据。
 
 ## 1 分层总览
 
@@ -147,7 +134,7 @@ python tools/compile_check.py \                  # 26.3 线（Gradle 多版本�
 读取：
 
 ```bash
-python tools/clienttest.py errors --series 26.3 --stack 8
+python tools/clienttest.py errors --stack 8
 ```
 
 ---
@@ -158,7 +145,7 @@ python tools/clienttest.py errors --series 26.3 --stack 8
 
 | 检查 | 能发现 | **看不见** |
 |---|---|---|
-| A 编译（`compile_check.py`） | 版本 API 改名/删除/签名变化、classtweaker 误报 | **Mixin 注解**（不是常量池引用） |
+| A 编译（Kotlin 走 Gradle build） | 版本 API 改名/删除/签名变化、classtweaker 误报 | **Mixin 注解**（不是常量池引用） |
 | B Mixin 目标（`check_mixin_targets.py`） | `@Mixin` 目标类缺失、`@At` 注入点不存在（**致命项会启动崩**） | 运行期是否真的命中（ordinal/指令序） |
 | C 依赖成员（`check_dep_compat.py`） | 第三方 jar 引用的类/成员不存在 | 同上，也看不见 Mixin |
 

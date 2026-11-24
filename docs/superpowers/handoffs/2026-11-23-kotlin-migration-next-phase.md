@@ -1,5 +1,7 @@
 # SmartMaid Kotlin 迁移下一阶段交接文档
 
+> 历史快照：保留当时的计划、失败与取证结果；旧未完成项和命令不作为当前执行入口。当前状态见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md)，后续任务见 [下一阶段开发计划](../plans/2026-11-24-next-stage-development.md)。
+
 > 交接日期：2026-11-23\
 > 当前分支：`feature/kotlin-migration`\
 > 当前提交：`60b5d82`（`修复 Kotlin 迁移合并门禁与验证工具`）\

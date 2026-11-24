@@ -2,12 +2,15 @@
 
 ## 当前状态（2026-11-24，命令兼容修复复核）
 
+下一阶段见 [开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)：26.2 命令执行与权限回归、真实容器测试、复核后独立推进 P3。计划尚未实施；历史结果不移作新任务证据。
+
 - 审查 R1/R2 已由 `4516815` 修复：恢复 /maidtasks 的 10 个子命令和可选目标/范围/数量参数；新增真实 Brigadier 注册/解析与越界拒绝回归。修复前 4 项中 3 项失败，修复后 4/4 通过。
 - 修复后 26.2、26.3 clean build 均成功（50 秒 / 37 秒），各 **7 suites / 37 tests / 0 failures/errors/skips**；新增 1 个 suite、4 项测试，原 33 项保留。XML 已分版本归档。
 - 修复后 26.2 静态总门 A/B/C 全通过，PAL 0 fatal / 0 warning，依赖成员检查通过。
 - R3 已由 `ae65347` 独立修复：限定 16 个文件规范行尾，保留 Markdown 硬换行语义；全分支 `git diff --check main...HEAD` 退出 0。模块新增忽略 `.kotlin/`；生产 Java=0、Kotlin=131，Java 测试文件共 7 个。
 - 证据：`.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/command-fix-20261124/`；详细红绿测试、命令、范围与限制见 [修复复核记录](../docs/superpowers/handoffs/2026-11-24-kotlin-migration-risk-review.md)。
 - 本轮未进游戏执行命令，解析测试不替代世界操作/权限/真实容器运行验证；此前 T4 记录保留为修复前的独立证据。26.3 专用世界/输入按用户决定仍不补做，桌宠 N/A。已确认的三项问题已修复，最终合并仍由负责人结合验证范围决定；不自动推送或合并。
+- 根目录 LICENSE 已替换为 GPLv3 完整正文，与 GPL-3.0.txt 一致；上游 MIT 原文保存在 LICENSE-MIT-upstream.txt，二者及 NOTICE 随 jar 打包，构建和包内字节核对通过。
 - 用户设计文档保持原有修改，未纳入提交。现有 Kotlin/弃用警告未扩展清理。
 
 

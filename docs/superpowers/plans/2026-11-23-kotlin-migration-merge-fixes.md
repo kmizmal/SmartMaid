@@ -1,5 +1,7 @@
 # Kotlin Migration Merge Fixes Implementation Plan
 
+> 历史快照：保留当时的计划、失败与取证结果；旧未完成项和命令不作为当前执行入口。当前状态见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md)，后续任务见 [下一阶段开发计划](../plans/2026-11-24-next-stage-development.md)。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 修复 `feature/kotlin-migration` 相对 `main` 已确认的工具链、文档和验证阻断问题，并以可复现的构建、测试和运行验证为合并门禁。

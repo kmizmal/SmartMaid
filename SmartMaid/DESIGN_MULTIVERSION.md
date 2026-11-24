@@ -1,5 +1,7 @@
 # SmartMaid 多版本兼容方案（调研 + 设计）
 
+> 历史设计/实施记录：下文保留原有时间线、源码名称、工具实验与失败，不作为当前操作命令。当前构建为 Gradle 9.9.1 / Kotlin 2.4.21，源码使用 `src/main/kotlin` 与 `src/mc<series>/kotlin`；双版本 Wrapper 构建已实跑。当前状态见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)，执行见 [Loom 操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，后续见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。旧 HMCL/纯 javac 发布命令仅为历史。
+
 > 编写日期：2026-10-06 · 状态：**方案待评审（未开工）**
 > 目标：让 SmartMaid 从「只支持 MC 26.2」扩展为「一份源码，产出多个版本的目标 jar」。
 > 本文只做调研 + 设计，**不含任何代码改动**。所有涉及代码的结论都标注了文件与行号，可复核。

@@ -1,5 +1,7 @@
 # SmartMaid Kotlin 迁移：Loom 验收后交接
 
+> 历史快照：保留当时的计划、失败与取证结果；旧未完成项和命令不作为当前执行入口。当前状态见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md)，后续任务见 [下一阶段开发计划](../plans/2026-11-24-next-stage-development.md)。
+
 > 交接日期：2026-11-24（北京时间）\
 > 分支：`feature/kotlin-migration`\
 > 代码基线提交：`d9245721f36792c969e125f08f7084701713f51f`（`fix: 修复合成材料规划与女仆侧车恢复`）\

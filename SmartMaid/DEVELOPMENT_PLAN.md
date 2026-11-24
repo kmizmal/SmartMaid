@@ -1,7 +1,25 @@
 # Smart Maid 后续开发方案
 
+## 当前开发路线（2026-11-24）
+
+当前迁移基线与验证以 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 为准。旧一键 E2E 已退役，当前入口为 Wrapper / Loom、AutoTest 和 clienttest；[操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 是执行入口。
+
+| 优先级 | 下一项工作 | 状态与交付 |
+| --- | --- | --- |
+| 1 | 26.2 /maidtasks 执行与权限回归 | 尚未执行；现有 4 项命令测试只验证注册、解析和越界拒绝 |
+| 2 | 真实女仆背包容器套件 | 尚未实现；既有 gui-chain 使用 maidId=-1，不能代表真实容器验证 |
+| 3 | 合并材料复核 | 双版本各 37 项测试与静态门禁通过；结合新增运行证据及明确的未验证范围，由负责人决定是否合并 |
+| 4 | P3 跳跃实测标定 | 独立后续开发任务，先测量和定位，再决定是否改表或执行器 |
+| 以后 | M6 完整桌宠联调、P5 模型 | 单独排期；本阶段桌宠 N/A，不顺带扩展 |
+
+任务拆分、实施文件、可观察断言、前置条件与退出标准见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。本轮仅编写计划，以上任务不记作已完成。26.3 仅继续构建/互操作测试，不补做其专用世界和实体输入验证。
+
+## 历史规划与实施记录
+
+以下保留 2026-09 至 10 月的阶段设计和当时验证，旧状态、源码文件名和排期不是新的接续任务；当前优先级以上表为准。
+
 > 基线：`4ca22a6`（2026-09-10）
-> 已完成：M1~M3.6 任务系统 / M-P0 感知模块 / M4 指令桥接 / MaidAutoTest / **M5 桌宠联动** / **M-P1 感知增量** / **一键 e2e 脚本** / **M6 桌宠 NLU 支撑（craft_check 干跑查询 / item_index 物品索引 / owner.pos）**
+> 已完成：M1~M3.6 任务系统 / M-P0 感知模块 / M4 指令桥接 / MaidAutoTest / **M5 桌宠联动** / **M-P1 感知增量** / **Loom / AutoTest / clienttest 分步验收** / **M6 桌宠 NLU 支撑（craft_check 干跑查询 / item_index 物品索引 / owner.pos）**
 > 本文只写"接下来做什么"，已完成的实现细节见 `HANDOVER.md` / `DESIGN_AI_INTERFACE.md`。
 
 ---
@@ -249,7 +267,7 @@
 
 1. 用 `config/smartmaid/autotest.json` 编场景：对角跨沟 / 跨 3 沟上 1 格 / 下跳 1~3 格
 2. 读日志 `[SmartMaid-Debug] Jump start/fired/landed` 取实际落点（**注意 `latest.log` 是 GBK 编码**）
-3. 落点偏差 → 改参数后跑 `node tools/gen_jump_table.js` 重新生成 `MaidJumpTable.java`
+3. 落点偏差 → 改参数后跑 `node tools/gen_jump_table.js` 重新生成 `MaidJumpTable.kt`
 4. 顺带定 `MOVEMENT_SPEED`：现为 `0.16`（行走偏快 ≈7 m/s），若要"和玩家一致"回 `0.1`，但跨 3 沟能力会下降
 
 ---
@@ -284,7 +302,7 @@
 |---|---|---|
 | 桌宠只扫顶层目录 | `window_files()` 用 `os.listdir`，不递归 | 用 `deskpet/maid/` 子目录 + 桌宠侧小改 |
 | 两个 mod 混写同一文件 | deskpet-mod 与 SmartMaid 都写 `deskpet/` | 子目录隔离 |
-| 日志编码 | Windows 中文系统 `latest.log` 是 **GBK** | 分析脚本必须 gbk 解码 |
+| 日志编码 | 日志与终端输出编码可能不同 | 保留原字节并按实际编码解码；不统一强制 GBK |
 | 桌宠线程模型 | PySide6 单线程 GUI | 不要在 UI 线程做阻塞 IO |
 | 指令注入 | 文件通道任何人都能写 | 指令带 token 校验；或限定端口仅本机 |
 | 端口占用 | 若走 WS，21420 可能被占 | 文件通道天然规避 |
@@ -306,6 +324,6 @@
 | 7 | P6/P7/P8 桌宠 NLU 支撑（craft_check / item_index / owner.pos） | — | ✅ 已完成（2026-09-11），构建通过 |
 | 8 | **真机联调 M6**：进游戏确认 item_index 下发、craft_check 缺料明细 | 需进游戏 | 建议优先（尚未真机验证） |
 | 9 | **P12 整合包兼容改造（T1–T9）+ 采集/背包修正** | — | ✅ 已完成（2026-09-29）：AutoTest PASS=17/FAIL=0、砍树 8/8 |
-| 10 | **P13 多版本兼容（26.2 / 26.3）** | — | ✅ 已完成（2026-10-07）：26.2/26.3 双向编译 0 真实错误；`clienttest gui-chain` 29/29 PASS；菜单/任务队列/背包键位真机修复。余项：26.1 线未动、Gradle `-Pmc_series` 未实跑 |
+| 10 | **P13 多版本兼容（26.2 / 26.3）** | — | ✅ 已完成（2026-10-07）：26.2/26.3 双向编译 0 真实错误；`clienttest gui-chain` 29/29 PASS；菜单/任务队列/背包键位真机修复。后续更新：26.2/26.3 Wrapper 构建均已实跑，各 37 项测试通过；26.1 未推进，26.3 游戏输入未单独验证 |
 
-**当前实际状态**：行 0~3 已完成 + 真机验证；行 7（M6）已完成但**仅编译验证，未真机联调**；行 9、10（P12/P13）已完成并真机验收；行 4~6、8 未做。当前开发验收使用 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，按轮部署配置、执行 `gradlew.bat runClient` 并归档报告。
+**历史排期状态说明**：P4（行 5）已完成；P3（行 4）待实测、P5（行 6）独立立项。M6 已有 craft_check 游戏侧断言，但 item_index/桌宠完整闭环未作为本轮签收。P13 当前双版本构建/互操作通过，26.3 输入仍未验证。当前优先级以文首路线表为准。当前开发验收使用 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，按轮部署配置、执行 `gradlew.bat runClient` 并归档报告。

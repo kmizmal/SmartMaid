@@ -6,7 +6,9 @@
 
 **女仆战斗系统已落地（2026-09-17，C0–C5）**——规则驱动：近战（判定 3.0 / 攻击 3.2）、走位（面向敌人后退 / 侧移绕行 / 背对跳 1 格）、远程弓箭、盾牌格挡、半血进食回血；与桌宠 `eat` 指令打通。见 `DEVELOPMENT_COMBAT.md`。
 
-**M5 双向链路 + 感知增量 diff + 一键 e2e 已通过真机端到端验证（2026-09-10）**——见 `HANDOVER.md` §二、§已知 bug 与 `DEVELOPMENT_ISSUES.md` 2026-09-10 节。
+**M5 双向链路与感知增量的历史验收（2026-09-10）**见 `HANDOVER.md`、`DEVELOPMENT_ISSUES.md`；当时的一键 E2E 入口已退役，当前使用 Loom 操作卡。
+
+当前代码/验证范围见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)；后续任务见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。双版本构建通过不代表 26.3 游戏输入已验证。
 
 **玩家绑定设置 + 游戏内女仆菜单 + 聊天栏对话 + 桌宠隐退已落地（2026-09-19）**——见 `HANDOVER.md` §2026-09-19 节。
 
@@ -117,32 +119,33 @@ SmartMaid 是**桌面宠物 DeskPet 的 Minecraft 侧搭档**——女仆的 AI 
 | 项 | 26.2 线 | 26.3 线 |
 |---|---|---|
 | Minecraft | 26.2（`~26.2`） | 26.3（`~26.3`） |
-| 加载器 | Fabric Loader >= 0.18.4（开发用 0.19.3） | Fabric Loader >= 0.19.5 |
-| 前置 | Fabric API `0.158.0+26.2` | Fabric API `0.161.0+26.3` |
+| 加载器 | 元数据 >= 0.18.4；构建配置 0.19.3 | 元数据 >= 0.18.4；构建配置 0.19.5 |
+| 前置 | Fabric API `0.161.0+26.2` | Fabric API `0.161.0+26.3` |
 | 内置动画库 | Player Animation Library `1.2.6` | Player Animation Library `1.2.7` |
 | Java | >= 25（JDK 25 构建） | >= 25（JDK 25 构建） |
-| Gradle | 9.7.1（wrapper 内置） | 9.7.1（wrapper 内置） |
+| Gradle | 9.9.1（Wrapper） | 9.9.1（Wrapper） |
+| Kotlin / stdlib（构建） | 2.4.21 | 2.4.21 |
+| Fabric Language Kotlin（外部依赖） | >= 1.14.2+kotlin.2.4.21 | >= 1.14.2+kotlin.2.4.21 |
 
 > **每个版本各构建一个 jar** —— 每个 jar 只声明自己**真正支持**的版本范围。
 > 建议**不要**打"宽范围通吃"的 jar：Fabric Loader 不做 mod 版本握手，协议号不一致时会**静默网络失败**。
 
 ## 构建
 
-```bash
-# 需要 JDK 25（26.2 起要求），先设置 JAVA_HOME 指向你的 JDK 25 安装目录
-$env:JAVA_HOME="<你的 JDK 25 安装目录>"
-gradlew.bat build                          # 默认构建 26.2 线
+从本模块目录使用 PowerShell，设置本机 JDK 25 路径：
+
+```powershell
+$env:JAVA_HOME = '<本机 JDK 25 安装目录>'
+.\gradlew.bat --offline --no-daemon --console=plain clean build
+# 先归档 build/test-results/test，再构建另一版本：
+.\gradlew.bat --offline --no-daemon --console=plain clean build '-Pmc_series=26.3' '-Pminecraft_version=26.3' '-Ploader_version=0.19.5' '-Ploom_version=1.18.4' '-Pfabric_api_version=0.161.0+26.3'
 ```
 
-26.3 线的构建参数已接好（`gradlew.bat build -Pmc_series=26.3 -Pminecraft_version=26.3 -Ploader_version=0.19.5 -Pfabric_api_version=0.161.0+26.3`），
-⚠️ 但**该 Gradle 路径尚未实跑**；当前 26.3 产物走 `tools/compile_check.py --package` 这条纯 javac 通路（见 `TEST_SYSTEM.md`）。
+双版本 Wrapper 构建均已实跑，当前各 7 suites / 37 tests 全通过。Kotlin 生产代码统一使用 Gradle 构建，旧 `compile_check.py --package` 的纯 javac 流程不是当前发布入口。离线执行需本机已有依赖缓存；首次下载按本机网络环境准备。
 
-产物在 `build/libs/smartmaid-<version>.jar`，放入对应版本的 `mods/` 即可。
+产物在 `build/libs/`；两个版本的文件名可能相同，下一轮 clean 前分别归档 jar 和测试 XML，避免覆盖。玩家安装时选择对应版本的 jar，并安装上表声明的外部依赖。客户端开发验收使用模块下 `run`，完整归档及门禁步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)。
 
-> 国内网络：Gradle 发行版走腾讯镜像（`gradle/wrapper/gradle-wrapper.properties` 已配置）；公共依赖走阿里云/腾讯镜像（`build.gradle` 已配置）；Mojang 下载需代理。
-
-> ⚠️ 启动器开了**版本隔离**时，每个版本的 `gameDir` 是 `<.minecraft>/versions/<版本>/`，
-> mods 要放 `versions/<版本>/mods/`，不是 `.minecraft/mods/`。
+启动器安装时的 mods 位置以其实际 gameDir 为准；启用版本隔离的实例可能在 `versions/<版本>/`。这不改变开发验收的 `SmartMaid/run`，不能因此给 clienttest 追加 `--series`。
 
 ## 使用方法
 
@@ -309,7 +312,7 @@ libs/                     ★本地依赖（Player Animation Library + mocha，j
 tools/
 ├── maid_monitor.ps1       资源/日志监测脚本
 ├── maid_jump_sim.js       ★速度/落点/朝向模拟（Node，无依赖）
-├── gen_jump_table.js      ★离线生成 MaidJumpTable.java
+├── gen_jump_table.js      ★离线生成 MaidJumpTable.kt
 ├── fix_ai_skin.py         修复 AI 皮肤（镜像补齐）
 ├── fix_maid_skin_hands.py 修复皮肤手部缺失面
 ├── maid_inventory_sim.js  ★背包槽位规则验证（Node，无依赖）
@@ -416,12 +419,12 @@ $env:SMARTMAID_MC_DIR = (Resolve-Path '.\run').Path
 
 | 内容 | 许可 |
 |---|---|
-| `cb9dcaba7538ab018b01a339cd360e2f695b57aa` 及之前的上游 MIT 部分 | 保留原 [MIT 许可与版权声明](../LICENSE) |
-| 2026 年 11 月 21 日起的 kmizmal 维护部分 | [GNU GPL 第 3 版](../GPL-3.0.txt)（`GPL-3.0-only`） |
-| `entity/ai/MaidMoveControl.java` 的"触发跳跃"判断条件 | 改编自 [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid)（代码部分 MIT，Copyright © 2019-2025 tartaric_acid），文件头已保留其版权声明 |
+| `cb9dcaba7538ab018b01a339cd360e2f695b57aa` 及之前的上游 MIT 部分 | 保留原 [MIT 许可与版权声明](../LICENSE-MIT-upstream.txt) |
+| 2026 年 11 月 21 日起的 kmizmal 维护部分 | [GNU GPL 第 3 版](../LICENSE)（`GPL-3.0-only`） |
+| `entity/ai/MaidMoveControl.kt` 的"触发跳跃"判断条件 | 改编自 [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid)（代码部分 MIT，Copyright © 2019-2025 tartaric_acid），来源与署名记录见根目录 NOTICE.md |
 | `assets/smartmaid/emotes/*.json`（11 个表情动画） | 来自 [Emotecraft](https://github.com/KosmX/emotes)（KosmX）内置表情的未修改副本，**GPL-3.0** |
 | 女仆皮肤图片（`textures/entity/smart_maid.png`、仓库根 `皮肤大肥鱼.png`）与模组图标（`assets/smartmaid/icon.png`） | 基于"大肥鱼"角色立绘制作，**CC BY-NC-SA 4.0**（须署名 / **禁止商用** / 衍生须相同方式共享） |
 | `libs/` 内置第三方库 | Player Animation Library（MIT）；mochafloats（PAL 传递依赖） |
 
-> 完整来源与条款见仓库根 [`NOTICE.md`](../NOTICE.md)。MIT、GPLv3 正文及声明随 JAR 打包到 `META-INF/`。
+> 完整来源与条款见仓库根 [`NOTICE.md`](../NOTICE.md)。根目录 LICENSE 为 GPLv3 完整正文；上游 MIT 原文单独保存在 LICENSE-MIT-upstream.txt。两份正文及声明随 JAR 打包到 `META-INF/`。
 > CC BY-NC-SA 4.0 的非商业限制适用于对应素材，不是 GPLv3 的附加限制。

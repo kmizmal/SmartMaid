@@ -1,10 +1,12 @@
 # SmartMaid Kotlin 迁移：T4 退役与执行环境交接
 
+> 历史取证快照：下文记录 T4 当时现场，不是当前 HEAD 或最新测试计数。当前结论见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md) 和 [修复复核](2026-11-24-kotlin-migration-risk-review.md)；接续执行 [下一阶段开发计划](../plans/2026-11-24-next-stage-development.md)，不重复下文已完成的起始任务。
+
 ## IDEA MCP 接续终验更新（2026-11-24，北京时间）
 
 **T4 / M4 本轮技术检查通过。以下此前的环境阻断和 NOT RUN 表格为历史记录，以本节及迁移状态顶部为当前结论。**
 
-证据根目录仍为 `.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/T4-20261124/`。HEAD 仍为 `98715aed043c2707035468083ad61020ef37e0d6`，未修改业务源码，未提交、暂存、推送或合并。
+证据根目录仍为 `.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/T4-20261124/`。取证时 HEAD 为 `98715aed043c2707035468083ad61020ef37e0d6`；当时未修改业务源码，未提交、暂存、推送或合并。此后已提交 T4，并完成命令兼容修复；当前提交与验证范围见顶部链接。
 
 | 检查 | 本轮结果 | 新证据 |
 | --- | --- | --- |

@@ -1,6 +1,6 @@
 # SmartMaid Loom 测试操作卡
 
-日期：2026-11-24。所有命令从仓库的 `SmartMaid` 模块目录执行，使用 JDK 25。默认验收 Minecraft 26.2，唯一 gameDir 为模块下 `run`。本卡接替旧启动脚本的当前操作说明；原交接、开发问题记录和设计文档中的 HMCL/token/一键启动示例只作历史记录。
+更新：2026-11-24（命令兼容修复后）。所有命令从仓库的 `SmartMaid` 模块目录执行，使用 JDK 25。默认验收 Minecraft 26.2，唯一 gameDir 为模块下 `run`。本卡接替旧启动脚本的当前操作说明；原交接、开发问题记录和设计文档中的 HMCL/token/一键启动示例只作历史记录。
 
 ## 1. 每轮准备与归档
 
@@ -72,6 +72,12 @@ python tools/clienttest.py errors
 # 将本次 XML 归档到本轮 26.3 证据目录。
 python tools/verify_all.py --series 26.2
 git diff --check
+git diff --cached --check
+git diff --check main...HEAD
 ```
 
-期望双版本各 6 suites / 33 tests / 0 failures/errors/skips；静态 A/B/C 通过、PAL 0 fatal/0 warning、209 个依赖成员匹配。这里 `verify_all.py --series` 是静态工具的版本选择，与客户端 gameDir 规则不同。构建成功不等于 26.3 游戏输入已经验证。当前范围与门禁结果见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md) 和 [T4 退役记录](2026-11-24-launcher-retirement-report.md)；不自动合并。
+当前基线为双版本各 7 suites / 37 tests / 0 failures/errors/skips（原 33 项加命令 suite 的 4 项；新增测试须说明计数变化）；静态 A/B/C 通过、PAL 0 fatal/0 warning、209 个依赖成员匹配。这里 `verify_all.py --series` 是静态工具的版本选择，与客户端 gameDir 规则不同。构建成功不等于 26.3 游戏输入已经验证。当前范围与门禁结果见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md) 和 [T4 退役记录](2026-11-24-launcher-retirement-report.md)；不自动合并。
+
+## 6. 接续开发
+
+当前证据见迁移状态顶部；命令执行、权限、真实容器与 P3 跳跃标定的后续工作见 [下一阶段开发计划](../plans/2026-11-24-next-stage-development.md)。本操作卡提供运行方法，不代表后续套件已经实现或通过。
