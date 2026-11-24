@@ -1,8 +1,18 @@
-# Kotlin migration — T4 技术门禁通过，待合并决定
+# Kotlin migration — 命令兼容与分支门禁已修复，待合并决定
 
-## 当前状态（2026-11-24，T4 / IDEA MCP 终验）
+## 当前状态（2026-11-24，命令兼容修复复核）
 
-**接续风险审查：暂缓合并。** 已确认 Kotlin 版 /maidtasks 丢失 10 个原有子命令及多条可选参数路径；全分支 git diff --check main...HEAD 仍失败（16 个文件，主要为已提交 CRLF）。T4 通过仅代表其技术验证范围。详见 [剩余风险审查](../docs/superpowers/handoffs/2026-11-24-kotlin-migration-risk-review.md)。
+- 审查 R1/R2 已由 `4516815` 修复：恢复 /maidtasks 的 10 个子命令和可选目标/范围/数量参数；新增真实 Brigadier 注册/解析与越界拒绝回归。修复前 4 项中 3 项失败，修复后 4/4 通过。
+- 修复后 26.2、26.3 clean build 均成功（50 秒 / 37 秒），各 **7 suites / 37 tests / 0 failures/errors/skips**；新增 1 个 suite、4 项测试，原 33 项保留。XML 已分版本归档。
+- 修复后 26.2 静态总门 A/B/C 全通过，PAL 0 fatal / 0 warning，依赖成员检查通过。
+- R3 已由 `ae65347` 独立修复：限定 16 个文件规范行尾，保留 Markdown 硬换行语义；全分支 `git diff --check main...HEAD` 退出 0。模块新增忽略 `.kotlin/`；生产 Java=0、Kotlin=131，Java 测试文件共 7 个。
+- 证据：`.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/command-fix-20261124/`；详细红绿测试、命令、范围与限制见 [修复复核记录](../docs/superpowers/handoffs/2026-11-24-kotlin-migration-risk-review.md)。
+- 本轮未进游戏执行命令，解析测试不替代世界操作/权限/真实容器运行验证；此前 T4 记录保留为修复前的独立证据。26.3 专用世界/输入按用户决定仍不补做，桌宠 N/A。已确认的三项问题已修复，最终合并仍由负责人结合验证范围决定；不自动推送或合并。
+- 用户设计文档保持原有修改，未纳入提交。现有 Kotlin/弃用警告未扩展清理。
+
+
+## T4 终验记录（命令修复前，保留独立证据）
+
 
 - 两个旧入口 `tools/launch_game.py`、`tools/run_e2e_test.py` 已定向删除，README、开发计划和 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 指向 Wrapper / AutoTest / clienttest。未修改业务源码。
 - 删除后 26.2 `clean build`：用户普通 PowerShell 成功（54 秒），本机核对并归档 6 suites / 33 tests / 0 failures/errors/skips。随后通过 IDEA MCP 完整复跑 `verify_all.py --series 26.2`，A/B/C 全部通过，A 构建 53 秒；本轮 26.2 XML 亦为 6 suites / 33 tests / 全零失败、错误、跳过。

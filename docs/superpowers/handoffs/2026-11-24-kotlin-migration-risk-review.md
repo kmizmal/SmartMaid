@@ -1,5 +1,22 @@
 # Kotlin 迁移分支剩余风险审查
 
+## 修复复核（2026-11-24，基线 4516815）
+
+**R1、R2、R3 已关闭。** 命令兼容性修复提交 `4516815`；行尾规范化独立提交 `ae65347`。原始审查保留在后文，不能继续将其中已修复问题当作当前状态。
+
+- 恢复 10 个原有子命令及 attack target、mine range/count、farm range、craft/smelt count 路径，保留原默认值、参数边界和任务派发语义。与 main 的注册文本差集复核：28 个 literal（含根）及 30 个 argument 出现次数均一致；该静态比较不是树结构完整证明，另有真实 Brigadier 注册/解析回归覆盖。
+- 新增 `MaidTaskCommandTest.java` 的 4 项回归：全部原有子命令集合、恢复的原子命令解析、默认/可选任务参数、越界拒绝。修复前 4 项中 3 项失败（红灯），修复后 4/4 通过。测试使用实际生产 register 创建的节点；为脱离在线玩家，只在解析夹具中移除根权限上下文，未改生产权限规则，也不执行回调。
+- 双版本 `--offline --no-daemon --console=plain clean build` 均退出 0：26.2 用时 50 秒，26.3 用时 37 秒；各 **7 suites / 37 tests / 0 failures/errors/skips**。新增 1 个 suite、4 项测试，原 33 项保留。26.3 使用操作卡全部五个版本参数。两轮 XML 均在下一次构建覆盖前独立归档。
+- 修复后 `verify_all.py --series 26.2 --json ...` 退出 0，A/B/C 全 PASS；PAL 1.2.6 的 Mixin 0 fatal / 0 warning。此前 209 个依赖成员的详情证据仍保留，新总门的 C 也通过。
+- 16 个格式目标文件仅规范 CRLF 行尾；3 个 Markdown 文件将尾随两个空格的硬换行改为显式反斜杠硬换行。代码/配置的行内容等价已核对，crying.json 解析结果一致；Node 语法和 Python 编译检查通过。提交后 `git diff --check main...HEAD` 已退出 0。
+- 模块忽略规则新增 `.kotlin/`，防止本轮 Kotlin 构建缓存进入提交。生产源码仍为 Java=0、Kotlin=131；Java 测试文件由 6 个增至 7 个。
+- 本轮证据根目录：`.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/command-fix-20261124/`，含 red/green 日志和退出码、红灯 XML、26.2/26.3 XML 与 summary、构建日志/退出码、静态报告。原始日志和缓存不提交。
+- 仍有限制：本轮没有进游戏执行命令的运行时复测；Brigadier 测试不证明世界操作、真实女仆容器或玩家权限上下文的完整行为。此前 T4 AutoTest/GUI 仅作为修复前独立证据，不挪作本轮源码的全套真机验证。26.3 世界/实体按键仍按用户决定不补做，桌宠 N/A；弃用和现有 Kotlin 警告未作为本轮清理目标。
+- 合并决定仍交项目负责人；本轮明确回归已修复，不扩大为全部迁移源码等价或无风险保证。用户设计文档哈希保持原值，未提交、推送或合并用户改动。
+
+
+## 原始审查快照（c244b5f，修复前）
+
 日期：2026-11-24（北京时间）。审查基线：`main...c244b5f5ac59ac3df2b91fab01e3d329a22c5586`。本轮为风险审查，不修改业务代码；用户 `DESIGN_AI_INTERFACE.md` 工作区修改不属于本轮提交或审查差异。
 
 ## 结论
