@@ -213,7 +213,10 @@ object MaidAutoTest {
                 SmartMaid.LOGGER.info("AutoTest [$id] tp 失败：尚未设置 anchor")
                 return
             }
+            maid.maidTaskManager.cancel()
             maid.teleportTo(target.x + 0.5, target.y.toDouble(), target.z + 0.5)
+            maid.setDeltaMovement(0.0, 0.0, 0.0)
+            player.teleportTo(target.x + 0.5, target.y.toDouble(), target.z + 0.5)
             maid.getNavigation().stop()
             maid.getMoveControl().setWait()
             SmartMaid.LOGGER.info("AutoTest [$id] tp=$target")
