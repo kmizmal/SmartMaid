@@ -38,7 +38,7 @@
 - `MaidActionExecutor.kt`：`start()` 清掉 `MaidGroundPathNavigation.straightNav`；`tickJump()` 的空中前进输入由 `2.0f` 改为原版持续前进语义的 `1.0f`。
 - **本轮没有改 `MaidJumpTable.kt`、`JumpPhysics.kt` 或 `gen_jump_table.js`：** 观测到的偏差可归因于直线导航/原版路径覆盖跳跃定位，修复放在执行器与导航层；跳表数值保留原基线，不把未改表误报成已重新生成。
 
-这些改动解决了本轮实际观察到的“定位阶段被直线导航/原版路径拉过起跳边缘，60 tick 后才从沟内起跳”的问题。当前 26.2/26.3 `clean build` 均通过，测试均为 **8 suites / 40 tests / 0 failures / 0 errors / 0 skipped**（26.2、26.3 日志及 XML 见证据目录）；仍需继续回归既有移动场景并补安全断言。
+这些改动解决了本轮实际观察到的“定位阶段被直线导航/原版路径拉过起跳边缘，60 tick 后才从沟内起跳”的问题。当前 26.2/26.3 `clean build` 均通过，测试均为 **8 suites / 40 tests / 0 failures / 0 errors / 0 skipped**（26.2、26.3 日志及 XML 见证据目录）；本轮已补 record 断言、助跑、战斗石标和朝向冒烟，未覆盖项见第 4 节。
 
 ### 2.2 测试钩子与输入
 
@@ -50,6 +50,7 @@
 - `SmartMaid/tools/autotest.p3-boundary.json`：4 格边界单独安全复测，只断言 `minY`，本轮结果为 `PASS=2 FAIL=1`（`minY=65`），保留失败证据。
 - `SmartMaid/tools/autotest.p3-combat-safety.json`：攻击任务期间的石标保护复测。
 - `SmartMaid/tools/autotest.p3-runup.json`：从固定锚点先直行约 5 格再跨越 3 格短沟的助跑场景，重复 5 次。
+- `SmartMaid/tools/autotest.p3-orientation.json`：东向/北向各一次的同几何短沟朝向冒烟。
 - `run/config/smartmaid/main.json` 本轮设 `debug=true`、`debugVerbose=true`，原文件已备份；测试世界均从 `SmartMaid-T4-20261124-A` 复制并清空 `smartmaid/maids`。
 
 ## 3. 本轮真机记录
@@ -108,15 +109,19 @@
 
 `AutoTest 汇总: PASS=15 FAIL=0`（5 次移动 ×2 项断言 + 5 次 `check.record`）。5 次 `minTargetDist=0.686/0.393/0.630/0.809/0.688`，五次 `minY=66`、`maxY=67.252`；说明从锚点先直行约 5 格再进入 3 格短沟时，5/5 到达目标且未掉沟。该场景仍由固定锚点提供起跑距离，不宣称覆盖所有地形起跳速度。
 
-### 3.8 N1 命令回归（移动改动后）
+### 3.8 朝向冒烟（`autotest.p3-orientation.json`，世界 W）
+
+同一几何短沟分别向东、向北移动各一次：`AutoTest 汇总: PASS=5 FAIL=1`。东向 `minY=66`、`minTargetDist=0.078`，通过；北向 `minY=65`、`minTargetDist=0.209`，落入沟底，失败。该结果说明朝向/路径降级存在方向差异，不能把“不同朝向”写成一致；本轮不把它掺入 5/5 统计。
+
+### 3.9 N1 命令回归（移动改动后）
 
 在 P3 移动改动之后重跑 `SmartMaid/tools/autotest.n1-commands.json`（世界 `SmartMaid-P3-20261126-P`）：`AutoTest 汇总: PASS=41 FAIL=0`。这覆盖真实玩家命令源下的 10 个恢复子命令、参数拒绝和攻击/挖掘/耕作等路径，说明本轮 `MaidStraightNav`/`MaidGroundPathNavigation` 改动没有破坏既有命令执行；它不替代 P3 的专项到达/安全断言。
 
 ## 4. 当前结论与待办
 
 - 已建立离线基线和逐 tick 真机记录；已发现并修复“直线导航/原版路径覆盖跳跃定位”的问题；平地、1 格台阶、3 格短沟按上述几何标准各 **5/5**，R 世界正式 `check.record` 为 **47 PASS / 0 FAIL**；4 格边界记录为失败/未支持；坐下 60 tick 位移为 0。
-- **P3 仍需收尾：** 4 格边界的安全失败行为仍需负责人确认作为“不支持场景”保留，还是调整参数/替代路径；战斗只验证了攻击期间石标不被破坏，放置/搭路未单独探测；不同朝向未单独列 5/5 证据。R/V 的通过结果只覆盖已声明的平地、台阶、短沟、助跑和移动断言，不能扩大解释为 4 格边界或完整战斗约束通过。
-- 下一轮优先：确认 4 格边界策略；补战斗不挖不搭和助跑/不同朝向场景；继续跑 26.2/26.3 既有移动套件回归（双版本 `clean build` 已通过）。
+- **P3 仍需收尾：** 4 格边界的安全失败行为仍需负责人确认作为“不支持场景”保留，还是调整参数/替代路径；战斗只验证了攻击期间石标不被破坏，放置/搭路未单独探测；朝向冒烟显示北向会落沟，尚未修复。R/V 的通过结果只覆盖已声明的平地、台阶、短沟、助跑和移动断言，不能扩大解释为 4 格边界、完整战斗约束或所有朝向通过。
+- 下一轮优先：修正北向朝向落沟；补战斗放置/搭路探测；确认 4 格边界策略；继续跑 26.2/26.3 既有移动套件回归（双版本 `clean build` 已通过）。
 
 ## 5. 证据路径
 
@@ -128,5 +133,6 @@
 - `run-S.log`、`game-S.log`、`p3-boundary-summary-S.log`（4 格边界安全复测：`PASS=2 FAIL=1`，记录 `minY=65`，未修复）
 - `game-U.log`、`p3-combat-safety-summary-U.log`（战斗期间石标保护：`PASS=4 FAIL=0`）
 - `game-V.log`、`p3-runup-summary-V.log`（助跑 3 格短沟 5 次：`PASS=15 FAIL=0`）
+- `game-W.log`、`p3-orientation-summary-W.log`（东向通过、北向 `minY=65` 落沟的朝向冒烟：`PASS=5 FAIL=1`）
 - `final-clean-build-26.2-r2.log`、`final-clean-build-26.3-r2.log`、`final-test-26.2-r2.log`、`final-test-26.3-r2.log`、`final-test-results-26.2-r2/`、`final-test-results-26.3-r2/`、`verify-all-26.2-r3.log`（最终构建/测试/静态门证据；各 8 suites / 40 tests，0 failures/errors/skips）
 - `prior-main.json`（本轮修改前的 `main.json`）

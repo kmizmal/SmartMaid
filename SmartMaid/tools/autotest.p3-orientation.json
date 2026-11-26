@@ -1,0 +1,14 @@
+[
+  { "__comment": "P3 朝向冒烟：同一几何短沟分别向东、向北移动各一次；只作方向一致性冒烟，不替代 5 次重复。" },
+  { "id": "p3.o.anchor", "anchor": true },
+  { "id": "p3.o.east.tp", "tp": true },
+  { "id": "p3.o.east.setup", "run": "fill {x-6} {y-1} {z-3} {x+6} {y-1} {z+3} minecraft:stone" },
+  { "id": "p3.o.east.remove", "run": "fill {x+1} {y-1} {z-1} {x+3} {y-1} {z+1} minecraft:air" },
+  { "id": "p3.o.east.move", "run": "maidtasks move {x+4} {y} {z}", "source": "player", "expectResult": 1, "expectTask": "move", "recordTicks": 100 },
+  { "id": "p3.o.east.check", "check": { "record": { "minTargetDistMax": 2.0, "minYMin": 65.9 } } },
+  { "id": "p3.o.north.tp", "tp": true },
+  { "id": "p3.o.north.setup", "run": "fill {x-3} {y-1} {z-6} {x+3} {y-1} {z+6} minecraft:stone" },
+  { "id": "p3.o.north.remove", "run": "fill {x-1} {y-1} {z-3} {x+1} {y-1} {z-1} minecraft:air" },
+  { "id": "p3.o.north.move", "run": "maidtasks move {x} {y} {z-4}", "source": "player", "expectResult": 1, "expectTask": "move", "recordTicks": 100 },
+  { "id": "p3.o.north.check", "check": { "record": { "minTargetDistMax": 2.0, "minYMin": 65.9 } } }
+]
