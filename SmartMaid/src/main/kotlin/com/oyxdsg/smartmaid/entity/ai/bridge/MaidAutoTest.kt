@@ -1,6 +1,7 @@
 package com.oyxdsg.smartmaid.entity.ai.bridge
 
 import com.google.gson.*
+import com.mojang.brigadier.exceptions.CommandSyntaxException
 import com.oyxdsg.smartmaid.SmartMaid
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidActions
@@ -14,6 +15,7 @@ import net.minecraft.resources.Identifier
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.tags.TagKey
+import net.minecraft.world.Container
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
@@ -139,11 +141,11 @@ object MaidAutoTest {
             }
             return
         }
-        run(maid)
+        run(player, maid)
     }
 
     /** 状态机：每 STEP_TICKS tick 推进一条；任务型回执后等 TASK_WAIT_TICKS。 */
-    private fun run(maid: SmartMaidEntity) {
+    private fun run(player: ServerPlayer, maid: SmartMaidEntity) {
         if (LIST == null && !load()) {
             return // 配置不存在 / 加载失败（load 内已处理）
         }
@@ -166,7 +168,7 @@ object MaidAutoTest {
 
         // 纯注释条目（如 {"__comment": "..."}）跳过，不当作指令执行
         if (!req.has("cmd") && !req.has("give") && !req.has("run") && !req.has("check")
-            && !req.has("tidy") && !req.has("vetoNextBreak") && !req.has("expect")
+            && !req.has("tidy") && !req.has("vetoNextBreak") && !req.has("expect") && !req.has("wait")
         ) {
             return
         }
@@ -175,6 +177,13 @@ object MaidAutoTest {
         if (req.has("vetoNextBreak")) {
             vetoNextBreak = req.get("vetoNextBreak").asBoolean
             SmartMaid.LOGGER.info("AutoTest [$id] vetoNextBreak=$vetoNextBreak")
+            return
+        }
+
+        // wait：显式等待若干个状态机步（每步 STEP_TICKS tick），用于等任务/同步落定。
+        if (req.has("wait")) {
+            WAIT_TICKS = req.get("wait").asInt.coerceAtLeast(0)
+            SmartMaid.LOGGER.info("AutoTest [$id] wait=" + WAIT_TICKS + " 步")
             return
         }
 
@@ -195,11 +204,18 @@ object MaidAutoTest {
             return
         }
 
-        // run：执行一条命令（测试准备用，如 setblock 造环境）。
-        // 用服务器控制台源执行（权限最高），{x}/{y}/{z} 会替换为女仆方块坐标。
+        // run：执行一条命令（测试准备或命令执行回归用）。
+        // source 默认 server（控制台源，权限最高）；source=player 时使用真实玩家命令源，
+        // 走服务器 CommandDispatcher 与玩家权限上下文。{x}/{y}/{z} 会替换为女仆方块坐标。
         if (req.has("run")) {
             val cmd = req.get("run").asString
-            runCommand(maid, id, cmd)
+            val source = if (req.has("source")) req.get("source").asString.lowercase() else "server"
+            val expectResult = if (req.has("expectResult")) req.get("expectResult").asInt else null
+            val expectError = if (req.has("expectError")) req.get("expectError").asBoolean else null
+            val expectTask = if (req.has("expectTask")) req.get("expectTask").asString else null
+            val expectYaw = if (req.has("expectYaw")) req.get("expectYaw").asDouble else null
+            val yawTolerance = if (req.has("yawTolerance")) req.get("yawTolerance").asDouble else 2.0
+            runCommand(player, maid, id, cmd, source, expectResult, expectError, expectTask, expectYaw, yawTolerance)
             return
         }
 
@@ -310,16 +326,27 @@ object MaidAutoTest {
 
     /** 位置占位符：{@code {x}} / {@code {x+1}} / {@code {y-2}} …（相对女仆方块坐标，支持加减偏移） */
     private val POS_TOKEN = Pattern.compile("\\{([xyz])([+-]\\d+)?\\}")
+    /** 最近一次 setblock 的绝对坐标占位符：{@code {lx}} / {@code {ly+1}} / {@code {lz-2}} … */
+    private val LAST_POS_TOKEN = Pattern.compile("\\{l([xyz])([+-]\\d+)?\\}")
 
     private fun expandPos(maid: SmartMaidEntity, template: String): String {
         val p = maid.blockPosition()
         var s = template
-        // {lx}/{ly}/{lz}：最近一次 run 里 setblock 的坐标（不随女仆移动而变）
-        lastRunBlock?.let { last ->
-            s = s.replace("{lx}", last.x.toString())
-                .replace("{ly}", last.y.toString())
-                .replace("{lz}", last.z.toString())
+        // {lx}/{ly}/{lz}（可带偏移）：最近一次 run 里 setblock 的坐标（不随女仆移动而变）
+        val lm = LAST_POS_TOKEN.matcher(s)
+        val lsb = StringBuilder()
+        while (lm.find()) {
+            val base = lastRunBlock ?: continue
+            val delta = lm.group(2)?.toInt() ?: 0
+            val value = when (lm.group(1)) {
+                "x" -> base.x
+                "y" -> base.y
+                else -> base.z
+            } + delta
+            lm.appendReplacement(lsb, value.toString())
         }
+        lm.appendTail(lsb)
+        s = lsb.toString()
         val m = POS_TOKEN.matcher(s)
         val sb = StringBuilder()
         while (m.find()) {
@@ -335,8 +362,19 @@ object MaidAutoTest {
         return sb.toString()
     }
 
-    /** 执行一条命令（服务器控制台源，权限最高；位置占位符见 {@link #expandPos}） */
-    private fun runCommand(maid: SmartMaidEntity, id: String, cmdTemplate: String) {
+    /** 执行一条命令（server=控制台源；player=真实玩家源，含实际权限上下文） */
+    private fun runCommand(
+        player: ServerPlayer,
+        maid: SmartMaidEntity,
+        id: String,
+        cmdTemplate: String,
+        sourceKind: String,
+        expectResult: Int?,
+        expectError: Boolean?,
+        expectTask: String?,
+        expectYaw: Double?,
+        yawTolerance: Double
+    ) {
         val cmd = expandPos(maid, cmdTemplate)
         // 记录 setblock 坐标，供后续 check:{"at":"lastRun"} 与 {lx}/{ly}/{lz} 引用
         val sb = SETBLOCK_POS.matcher(cmd)
@@ -350,11 +388,52 @@ object MaidAutoTest {
             SmartMaid.LOGGER.info("AutoTest [$id] run: 无服务器")
             return
         }
+        val source = if (sourceKind == "player") player.createCommandSourceStack()
+        else server.createCommandSourceStack()
         try {
-            val r = server.commands.dispatcher.execute(cmd, server.createCommandSourceStack())
-            SmartMaid.LOGGER.info("AutoTest [$id] run: $cmd -> $r")
+            val r = server.commands.dispatcher.execute(cmd, source)
+            val ok = expectResult == null || r == expectResult
+            SmartMaid.LOGGER.info("AutoTest [$id] run($sourceKind): $cmd -> $r"
+                + (if (expectResult == null) "" else " 期望=$expectResult 断言=" + (if (ok) "PASS" else "FAIL")))
+            if (expectError == true) {
+                count(false)
+                SmartMaid.LOGGER.info("AutoTest [$id] 期望拒绝但执行成功")
+            } else if (expectResult != null) {
+                count(ok)
+            }
+            if (expectTask != null) {
+                val actual = maid.maidTaskManager.currentTask()?.taskId()
+                val taskOk = actual == expectTask
+                count(taskOk)
+                SmartMaid.LOGGER.info(
+                    "AutoTest [$id] 任务断言=" + (if (taskOk) "PASS" else "FAIL")
+                        + " 期望=$expectTask 实际=$actual"
+                )
+            }
+            if (expectYaw != null) {
+                val actual = maid.yHeadRot.toDouble()
+                val yawOk = angleDistance(actual, expectYaw) <= yawTolerance
+                count(yawOk)
+                SmartMaid.LOGGER.info(
+                    "AutoTest [$id] 朝向断言=" + (if (yawOk) "PASS" else "FAIL")
+                        + " 期望=$expectYaw±$yawTolerance 实际=$actual"
+                )
+            }
+        } catch (e: CommandSyntaxException) {
+            SmartMaid.LOGGER.info("AutoTest [$id] run($sourceKind) 拒绝: $cmd : " + e.message)
+            if (expectError == true) {
+                count(true)
+                SmartMaid.LOGGER.info("AutoTest [$id] 期望拒绝命中 PASS")
+            } else if (expectResult != null || expectError != null) {
+                count(false)
+            }
         } catch (e: Exception) {
-            SmartMaid.LOGGER.info("AutoTest [$id] run 失败: $cmd : " + e.message)
+            SmartMaid.LOGGER.info("AutoTest [$id] run($sourceKind) 异常: $cmd : " + e)
+            if (expectError == true) {
+                count(true)
+            } else if (expectResult != null || expectError != null) {
+                count(false)
+            }
         }
     }
 
@@ -395,6 +474,18 @@ object MaidAutoTest {
             if (check.has("freeSlots")) {
                 return checkFreeSlots(maid, check.getAsJsonObject("freeSlots"))
             }
+            if (check.has("slot")) {
+                return checkSlot(maid, check.getAsJsonObject("slot"))
+            }
+            if (check.has("container")) {
+                return checkContainer(maid, check.getAsJsonObject("container"))
+            }
+            if (check.has("look")) {
+                return checkLook(maid, check.getAsJsonObject("look"))
+            }
+            if (check.has("task")) {
+                return checkTask(maid, check.getAsJsonObject("task"))
+            }
         } catch (e: Exception) {
             SmartMaid.LOGGER.info("AutoTest check 异常: $e")
             return false
@@ -424,7 +515,12 @@ object MaidAutoTest {
             if (lastRunBlock == null) {
                 SmartMaid.LOGGER.info("AutoTest checkBlock: at=lastRun 但还没有 run 过 setblock")
             }
-            return lastRunBlock
+            val base = lastRunBlock ?: return null
+            if (c.has("offset") && c.get("offset").isJsonArray) {
+                val a = c.getAsJsonArray("offset")
+                return base.offset(a.get(0).asInt, a.get(1).asInt, a.get(2).asInt)
+            }
+            return base
         }
         if (c.has("offset") && c.get("offset").isJsonArray) {
             val a = c.getAsJsonArray("offset")
@@ -466,6 +562,121 @@ object MaidAutoTest {
         }
         SmartMaid.LOGGER.info("checkInv $itemId 实际=$total -> $ok")
         return ok
+    }
+
+    /** 女仆单槽断言（0-40）：{@code empty} / {@code item} / {@code count} / {@code min} / {@code max}。 */
+    private fun checkSlot(maid: SmartMaidEntity, c: JsonObject): Boolean {
+        val idx = if (c.has("slot")) c.get("slot").asInt else -1
+        val inv = maid.getMaidInventory()
+        if (idx < 0 || idx >= inv.containerSize) {
+            SmartMaid.LOGGER.info("checkSlot: 非法槽位 $idx（有效 0-" + (inv.containerSize - 1) + "）")
+            return false
+        }
+        val stack = inv.getItem(idx)
+        val ok = matchStack(stack, c)
+        SmartMaid.LOGGER.info(
+            "checkSlot #$idx 实际=" + itemName(stack) + " x" + stack.count + " 期望=$c -> $ok"
+        )
+        return ok
+    }
+
+    /** 容器方块单槽断言；位置支持 {@code at:lastRun} / {@code pos} / {@code offset}。 */
+    private fun checkContainer(maid: SmartMaidEntity, c: JsonObject): Boolean {
+        val pos = posOf(maid, c)
+        if (pos == null) {
+            SmartMaid.LOGGER.info("checkContainer: 缺少 pos / offset / at=lastRun")
+            return false
+        }
+        val container = maid.level().getBlockEntity(pos) as? Container
+        if (container == null) {
+            SmartMaid.LOGGER.info("checkContainer: $pos 不是容器方块实体")
+            return false
+        }
+        val idx = if (c.has("slot")) c.get("slot").asInt else 0
+        if (idx < 0 || idx >= container.containerSize) {
+            SmartMaid.LOGGER.info("checkContainer: 非法槽位 $idx（有效 0-" + (container.containerSize - 1) + "）")
+            return false
+        }
+        val stack = container.getItem(idx)
+        val ok = matchStack(stack, c)
+        SmartMaid.LOGGER.info(
+            "checkContainer $pos #$idx 实际=" + itemName(stack) + " x" + stack.count + " 期望=$c -> $ok"
+        )
+        return ok
+    }
+
+    /** 朝向断言：yaw/pitch 为角度，允许 {@code tolerance}（默认 2°）。 */
+    private fun checkLook(maid: SmartMaidEntity, c: JsonObject): Boolean {
+        val tolerance = if (c.has("tolerance")) c.get("tolerance").asDouble else 2.0
+        val useBody = c.has("part") && c.get("part").asString.equals("body", ignoreCase = true)
+        val yaw = if (useBody) maid.yRot.toDouble() else maid.yHeadRot.toDouble()
+        val pitch = maid.xRot.toDouble()
+        var ok = true
+        if (c.has("yaw")) {
+            ok = ok && angleDistance(yaw, c.get("yaw").asDouble) <= tolerance
+        }
+        if (c.has("pitch")) {
+            ok = ok && angleDistance(pitch, c.get("pitch").asDouble) <= tolerance
+        }
+        SmartMaid.LOGGER.info(
+            "checkLook part=" + (if (useBody) "body" else "head")
+                + " yaw=" + yaw + " pitch=" + pitch + " 期望=$c -> $ok"
+        )
+        return ok
+    }
+
+    /** 当前任务/队列规模断言：{@code current}（null 表示无任务）/ {@code shortSize} / {@code longSize}。 */
+    private fun checkTask(maid: SmartMaidEntity, c: JsonObject): Boolean {
+        val manager = maid.maidTaskManager
+        var ok = true
+        if (c.has("current")) {
+            val actual = manager.currentTask()?.taskId()
+            val want = if (c.get("current").isJsonNull) null else c.get("current").asString
+            ok = ok && actual == want
+            SmartMaid.LOGGER.info("checkTask current 实际=$actual 期望=$want")
+        }
+        if (c.has("shortSize")) {
+            val actual = manager.queue().shortSize()
+            ok = ok && actual == c.get("shortSize").asInt
+            SmartMaid.LOGGER.info("checkTask shortSize 实际=$actual 期望=" + c.get("shortSize").asInt)
+        }
+        if (c.has("longSize")) {
+            val actual = manager.queue().longSize()
+            ok = ok && actual == c.get("longSize").asInt
+            SmartMaid.LOGGER.info("checkTask longSize 实际=$actual 期望=" + c.get("longSize").asInt)
+        }
+        return ok
+    }
+
+    private fun matchStack(stack: ItemStack, c: JsonObject): Boolean {
+        var ok = true
+        if (c.has("empty")) {
+            ok = ok && (stack.isEmpty == c.get("empty").asBoolean)
+        }
+        if (c.has("item")) {
+            val item = resolveItem(c.get("item").asString) ?: return false
+            ok = ok && stack.`is`(item)
+        }
+        if (c.has("count")) {
+            ok = ok && stack.count == c.get("count").asInt
+        }
+        if (c.has("min")) {
+            ok = ok && stack.count >= c.get("min").asInt
+        }
+        if (c.has("max")) {
+            ok = ok && stack.count <= c.get("max").asInt
+        }
+        return ok
+    }
+
+    private fun itemName(stack: ItemStack): String =
+        if (stack.isEmpty) "empty" else BuiltInRegistries.ITEM.getKey(stack.item).toString()
+
+    private fun angleDistance(a: Double, b: Double): Double {
+        var d = (a - b) % 360.0
+        if (d > 180.0) d -= 360.0
+        if (d < -180.0) d += 360.0
+        return kotlin.math.abs(d)
     }
 
     /** 背包区（0-35）空槽数 */

@@ -1,13 +1,18 @@
-# Kotlin migration — 命令兼容与分支门禁已修复，待合并决定
+# Kotlin migration — N1/N2 本机验证完成，待合并决定
 
-## 当前状态（2026-11-24，命令兼容修复复核）
+## 当前状态（2026-11-26，N1/N2 本机验证完成）
 
-下一阶段见 [开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)：26.2 命令执行与权限回归、真实容器测试、复核后独立推进 P3。计划尚未实施；历史结果不移作新任务证据。
+下一阶段见 [开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)：N1/N2 已按计划完成本机验证，详细证据与限制见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)；N3 合并材料复核和 P3 尚未执行。
+
+- N1：`SmartMaid/tools/autotest.n1-commands.json` 在 26.2 真机世界 `SmartMaid-N1-20261126-F` 执行，`AutoTest 汇总: PASS=41 FAIL=0`；覆盖真实玩家命令源、transfer/chest/equip/store/look/break/place/use/attack/mine/farm 及拒绝路径。证据见临时目录 `C:\Users\zmal\AppData\Local\Temp\SmartMaid-N1-20261126-150236\runClient-N1-F-final-PASS.log`。
+- N2：`SmartMaid/tools/clienttest.inventory-live.json` 在 26.2 真机世界 `SmartMaid-N2-20261126-D` 执行，`clienttest.report.json` 为 37/37 PASS、0 FAIL/ERROR；真实 `MaidInventoryScreen`/`MaidInventoryMenu maidId=147`、装备同步、shift-click 数量守恒和关开重进均通过。证据见 `clienttest.report.N2-D-PASS.json` 和 `runClient-N2-D-final-PASS.log`。
+- 构建/测试：26.2、26.3 `clean build` 均成功，各 **8 suites / 40 tests / 0 failures/errors/skips**；26.2 `verify_all.py --series 26.2` A/B/C 全通过；工作树、暂存区、`main...HEAD` 的 `git diff --check` 均为 0。
+- 未验证：26.3 专用世界/实体键盘未补做，桌宠 N/A；专用服务端默认权限未单独搭建；N3 合并材料、PR/批准/必需检查未处理；不自动推送或合并。
 
 - 审查 R1/R2 已由 `4516815` 修复：恢复 /maidtasks 的 10 个子命令和可选目标/范围/数量参数；新增真实 Brigadier 注册/解析与越界拒绝回归。修复前 4 项中 3 项失败，修复后 4/4 通过。
 - 修复后 26.2、26.3 clean build 均成功（50 秒 / 37 秒），各 **7 suites / 37 tests / 0 failures/errors/skips**；新增 1 个 suite、4 项测试，原 33 项保留。XML 已分版本归档。
 - 修复后 26.2 静态总门 A/B/C 全通过，PAL 0 fatal / 0 warning，依赖成员检查通过。
-- R3 已由 `ae65347` 独立修复：限定 16 个文件规范行尾，保留 Markdown 硬换行语义；全分支 `git diff --check main...HEAD` 退出 0。模块新增忽略 `.kotlin/`；生产 Java=0、Kotlin=131，Java 测试文件共 7 个。
+- R3 已由 `ae65347` 独立修复：限定 16 个文件规范行尾，保留 Markdown 硬换行语义；全分支 `git diff --check main...HEAD` 退出 0。模块新增忽略 `.kotlin/`；生产 Java=0、Kotlin=131，Java 测试文件本轮前 7 个，新增 `SlotsTest` 后 8 个。
 - 证据：`.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/command-fix-20261124/`；详细红绿测试、命令、范围与限制见 [修复复核记录](../docs/superpowers/handoffs/2026-11-24-kotlin-migration-risk-review.md)。
 - 本轮未进游戏执行命令，解析测试不替代世界操作/权限/真实容器运行验证；此前 T4 记录保留为修复前的独立证据。26.3 专用世界/输入按用户决定仍不补做，桌宠 N/A。已确认的三项问题已修复，最终合并仍由负责人结合验证范围决定；不自动推送或合并。
 - 根目录 LICENSE 已替换为 GPLv3 完整正文，与 GPL-3.0.txt 一致；上游 MIT 原文保存在 LICENSE-MIT-upstream.txt，二者及 NOTICE 随 jar 打包，构建和包内字节核对通过。

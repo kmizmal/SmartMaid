@@ -49,7 +49,7 @@ object Slots {
         }
         if (s.startsWith("inv:")) {
             return try {
-                MaidSlot(s.substring(4).toInt())
+                maidSlot(s.substring(4).toInt())
             } catch (_: NumberFormatException) {
                 null
             }
@@ -57,13 +57,13 @@ object Slots {
         // 宽容写法：inv5 或纯数字 5（都指背包槽位 5）
         if (s.startsWith("inv")) {
             return try {
-                MaidSlot(s.substring(3).toInt())
+                maidSlot(s.substring(3).toInt())
             } catch (_: NumberFormatException) {
                 null
             }
         }
         try {
-            return MaidSlot(s.toInt())
+            return maidSlot(s.toInt())
         } catch (_: NumberFormatException) {
             // 继续尝试其他类型
         }
@@ -85,6 +85,10 @@ object Slots {
         }
         return null
     }
+
+    /** 女仆背包只有 0-40 共 41 格；越界在解析阶段拒绝，避免任务线程访问无效槽位。 */
+    private fun maidSlot(index: Int): ItemSlot? =
+        if (index in 0..40) MaidSlot(index) else null
 
     private fun parseXYZ(s: String): IntArray? {
         val parts = s.split(",")

@@ -22,7 +22,6 @@ import com.mojang.brigadier.arguments.StringArgumentType
 import com.oyxdsg.smartmaid.entity.ai.slot.Slots
 import net.minecraft.core.Direction
 import net.minecraft.world.Container
-import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.EntityType
 
 object MaidTaskCommand {
@@ -102,7 +101,14 @@ object MaidTaskCommand {
             .then(Commands.argument("pos", BlockPosArgument.blockPos()).executes {
                 val pos = BlockPosArgument.getBlockPos(it, "pos")
                 dispatch(it.source, OneShotTask("look", "已面朝目标") {
-                    withMaid(it.source) { maid -> maid.lookControl.setLookAt(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5) }
+                    withMaid(it.source) { maid ->
+                        maid.lookControl.setLookAt(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5)
+                        val dx = pos.x + 0.5 - maid.x
+                        val dz = pos.z + 0.5 - maid.z
+                        val yaw = (Math.toDegrees(kotlin.math.atan2(dz, dx)) - 90.0).toFloat()
+                        maid.yRot = yaw
+                        maid.yHeadRot = yaw
+                    }
                 })
             }))
         root.then(Commands.literal("break")
@@ -138,8 +144,11 @@ object MaidTaskCommand {
                 withMaid(it.source) { maid ->
                     val hand = maid.mainHandItem
                     if (!hand.isEmpty) {
-                        val left = MaidActions.storeToBackpack(maid, hand)
-                        maid.setItemInHand(InteractionHand.MAIN_HAND, left)
+                        val left = MaidActions.storeToBackpack(maid, hand, 1)
+                        // 主手槽 0 是女仆背包的一部分；setItemInHand 改的是实体装备栏，
+                        // 不会清掉背包源槽，会造成复制。这里直接写回背包槽位。
+                        maid.getMaidInventory().setItem(0, left)
+                        maid.getMaidInventory().setChanged()
                         maid.syncInventoryArmor()
                     }
                 }

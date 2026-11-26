@@ -2,6 +2,7 @@ package com.oyxdsg.smartmaid.client.test
 
 import com.google.gson.*
 import com.oyxdsg.smartmaid.client.SmartMaidClient
+import com.oyxdsg.smartmaid.client.gui.MaidInventoryScreen
 import com.oyxdsg.smartmaid.client.gui.MaidMenuScreen
 import com.oyxdsg.smartmaid.client.gui.MaidSubScreen
 import com.oyxdsg.smartmaid.compat.MaidCompat
@@ -10,6 +11,10 @@ import com.oyxdsg.smartmaid.test.MaidErrorSink
 import net.minecraft.client.Minecraft
 import net.minecraft.client.input.MouseButtonEvent
 import net.minecraft.client.input.MouseButtonInfo
+import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.world.entity.EquipmentSlot
+import net.minecraft.world.inventory.ContainerInput
+import net.minecraft.world.item.ItemStack
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -43,6 +48,15 @@ import java.util.*
  *   assertScreen      {"expect":"MaidTaskScreen"}          断言当前 Screen 的简单类名
  *   invokeOpenInventory {}                                 直接跑「Shift+E 开背包」的处理逻辑
  *   closeScreen       {}                                   关闭当前 Screen
+ *   sendCommand       {"command":"summonmaid"}             以真实玩家身份发送服务器命令
+ *   waitForScreen     {"expect":"MaidInventoryScreen","ticks":100}  等待 Screen（超时失败）
+ *   waitForMaid       {"min":0,"ticks":100}                等待最近女仆 id 达标（超时失败）
+ *   assertNearestMaid {"min":0}                            断言附近有女仆实体
+ *   assertMenuMaid    {"expect":"nearest"}                 断言 MaidInventoryMenu 的 maidId
+ *   assertSlot        {"slot":5,"item":"minecraft:diamond","count":5} 断言容器槽位
+ *   assertMenuTotal   {"item":"minecraft:diamond","count":5}          断言容器内物品总数
+ *   clickSlot         {"slot":5,"clickType":"QUICK_MOVE"}  走真实容器点击链路（含 shift-click）
+ *   assertMaidEquipment {"slot":"head","item":"minecraft:iron_helmet"} 断言女仆装备同步
  *   note              {"msg":"..."}                        写一条信息进报告
  * </pre>
  *
@@ -74,6 +88,9 @@ object MaidClientTest {
     private var pollTicks: Int = 0
     private val pollSeen: MutableMap<String, Boolean> = HashMap()
 
+    /** waitForScreen / waitForMaid 的等待状态。 */
+    private var waitCheck: WaitCheck? = null
+
     private var waitingNoted: Boolean = false
 
     private val GSON: Gson = GsonBuilder()
@@ -99,6 +116,18 @@ object MaidClientTest {
                 return
             }
             if (cases == null && !load()) {
+                return
+            }
+            waitCheck?.let { wc ->
+                if (waitSatisfied(mc, wc)) {
+                    wc.result.detail = "等待命中: " + waitDetail(mc, wc)
+                    addResult(wc.result)
+                    waitCheck = null
+                } else if (--wc.remaining <= 0) {
+                    wc.result.fail("等待超时: 期望 " + waitDetail(mc, wc) + "，实际 " + waitActual(mc, wc))
+                    addResult(wc.result)
+                    waitCheck = null
+                }
                 return
             }
             if (waitTicks > 0) {
@@ -233,6 +262,7 @@ object MaidClientTest {
         val op = str(c, "op", "?")!!
         val id = str(c, "id", op + "#" + index)!!
         val r = Result(id, op, "PASS")
+        var deferred = false
         try {
             when (op) {
                 "wait" -> {
@@ -318,6 +348,21 @@ object MaidClientTest {
                         r.detail = "已关闭 " + sc.javaClass.simpleName
                     }
                 }
+                "sendCommand" -> sendCommand(mc, c, r)
+                "waitForScreen" -> {
+                    startWait(mc, c, r, "screen")
+                    deferred = true
+                }
+                "waitForMaid" -> {
+                    startWait(mc, c, r, "maid")
+                    deferred = true
+                }
+                "assertNearestMaid" -> assertNearestMaid(mc, c, r)
+                "assertMenuMaid" -> assertMenuMaid(mc, c, r)
+                "assertSlot" -> assertSlot(mc, c, r)
+                "assertMenuTotal" -> assertMenuTotal(mc, c, r)
+                "clickSlot" -> clickSlot(mc, c, r)
+                "assertMaidEquipment" -> assertMaidEquipment(mc, c, r)
                 else -> r.fail("未知 op: " + op)
             }
         } catch (t: Throwable) {
@@ -326,7 +371,7 @@ object MaidClientTest {
         if (r.detail == null) {
             r.detail = ""
         }
-        if (pollTicks <= 0) {
+        if (!deferred && pollTicks <= 0) {
             addResult(r)
         }
     }
@@ -342,6 +387,213 @@ object MaidClientTest {
         if (expect != null && expect != actualName) {
             r.fail("期望键名 " + expect + "，实际 " + actualName + "（value=" + actualValue + "）")
         }
+    }
+
+    private fun sendCommand(mc: Minecraft, c: JsonObject, r: Result) {
+        val command = str(c, "command", "")!!.trim().removePrefix("/")
+        if (command.isEmpty()) {
+            r.fail("command 为空")
+            return
+        }
+        val connection = mc.player?.connection
+        if (connection == null) {
+            r.fail("客户端尚未连接")
+            return
+        }
+        connection.sendCommand(command)
+        r.detail = "sendCommand: $command"
+    }
+
+    private fun startWait(mc: Minecraft, c: JsonObject, r: Result, kind: String) {
+        val ticks = num(c, "ticks", 100).coerceAtLeast(1)
+        waitCheck = WaitCheck(kind, str(c, "expect", null), num(c, "min", 0), ticks, r)
+        r.detail = "等待 " + waitDetail(mc, waitCheck!!)
+    }
+
+    private fun waitSatisfied(mc: Minecraft, wc: WaitCheck): Boolean {
+        return when (wc.kind) {
+            "screen" -> screenName(mc) == wc.expect
+            "maid" -> nearestMaidId(mc) >= wc.min
+            else -> false
+        }
+    }
+
+    private fun waitActual(mc: Minecraft, wc: WaitCheck): String {
+        return when (wc.kind) {
+            "screen" -> "Screen=" + screenName(mc)
+            "maid" -> "nearestMaidId=" + nearestMaidId(mc)
+            else -> "?"
+        }
+    }
+
+    private fun waitDetail(mc: Minecraft, wc: WaitCheck): String {
+        return when (wc.kind) {
+            "screen" -> "Screen=" + wc.expect + "（最多 " + wc.remaining + " tick）"
+            "maid" -> "nearestMaidId>=" + wc.min + "（最多 " + wc.remaining + " tick）"
+            else -> "?"
+        }
+    }
+
+    private fun assertNearestMaid(mc: Minecraft, c: JsonObject, r: Result) {
+        val actual = nearestMaidId(mc)
+        val min = num(c, "min", 0)
+        if (actual < min) {
+            r.fail("期望最近女仆 id >= $min，实际=$actual")
+        } else {
+            r.detail = "nearestMaidId=$actual"
+        }
+    }
+
+    private fun assertMenuMaid(mc: Minecraft, c: JsonObject, r: Result) {
+        val screen = mc.gui.screen() as? MaidInventoryScreen
+        if (screen == null) {
+            r.fail("当前不是 MaidInventoryScreen，而是 " + screenName(mc))
+            return
+        }
+        val actual = screen.menu.getMaidId()
+        val expectText = str(c, "expect", "nearest")!!
+        val expected = if (expectText == "nearest") nearestMaidId(mc) else expectText.toIntOrNull()
+        if (expected == null || actual != expected) {
+            r.fail("菜单 maidId 期望=$expected（$expectText），实际=$actual")
+        } else {
+            r.detail = "MaidInventoryMenu maidId=$actual"
+        }
+    }
+
+    private fun assertSlot(mc: Minecraft, c: JsonObject, r: Result) {
+        val screen = mc.gui.screen() as? MaidInventoryScreen
+        if (screen == null) {
+            r.fail("当前不是 MaidInventoryScreen，而是 " + screenName(mc))
+            return
+        }
+        val idx = num(c, "slot", -1)
+        if (idx !in screen.menu.slots.indices) {
+            r.fail("槽位越界: $idx（0-" + (screen.menu.slots.size - 1) + "）")
+            return
+        }
+        val stack = screen.menu.slots[idx].item
+        val ok = matchClientStack(stack, c)
+        if (!ok) {
+            r.fail("槽位 $idx 实际=" + clientItemName(stack) + " x" + stack.count + "，期望=" + c)
+        } else {
+            r.detail = "槽位 $idx = " + clientItemName(stack) + " x" + stack.count
+        }
+    }
+
+    private fun assertMenuTotal(mc: Minecraft, c: JsonObject, r: Result) {
+        val screen = mc.gui.screen() as? MaidInventoryScreen
+        if (screen == null) {
+            r.fail("当前不是 MaidInventoryScreen，而是 " + screenName(mc))
+            return
+        }
+        val itemId = str(c, "item", "")!!
+        val want = num(c, "count", -1)
+        var total = 0
+        for (slot in screen.menu.slots) {
+            val stack = slot.item
+            if (!stack.isEmpty && clientItemName(stack) == itemId) {
+                total += stack.count
+            }
+        }
+        if (total != want) {
+            r.fail("$itemId 总数期望=$want，实际=$total")
+        } else {
+            r.detail = "$itemId 总数=$total"
+        }
+    }
+
+    private fun clickSlot(mc: Minecraft, c: JsonObject, r: Result) {
+        val screen = mc.gui.screen() as? MaidInventoryScreen
+        if (screen == null) {
+            r.fail("当前不是 MaidInventoryScreen，而是 " + screenName(mc))
+            return
+        }
+        val idx = num(c, "slot", -1)
+        if (idx !in screen.menu.slots.indices) {
+            r.fail("槽位越界: $idx（0-" + (screen.menu.slots.size - 1) + "）")
+            return
+        }
+        val button = num(c, "button", 0)
+        val clickType = str(c, "clickType", "PICKUP")!!.uppercase()
+        val input = try {
+            ContainerInput.valueOf(clickType)
+        } catch (_: IllegalArgumentException) {
+            r.fail("未知 clickType: $clickType")
+            return
+        }
+        val player = mc.player
+        if (player == null) {
+            r.fail("player 为空")
+            return
+        }
+        val gameMode = mc.gameMode
+        if (gameMode == null) {
+            r.fail("gameMode 为空")
+            return
+        }
+        gameMode.handleContainerInput(screen.menu.containerId, idx, button, input, player)
+        r.detail = "clickSlot slot=$idx button=$button input=$input"
+    }
+
+    private fun assertMaidEquipment(mc: Minecraft, c: JsonObject, r: Result) {
+        val maid = nearestMaidEntity(mc)
+        if (maid == null) {
+            r.fail("附近没有女仆实体")
+            return
+        }
+        val slotName = str(c, "slot", "head")!!.uppercase()
+        val slot = try {
+            EquipmentSlot.valueOf(slotName)
+        } catch (_: IllegalArgumentException) {
+            r.fail("未知装备槽: $slotName")
+            return
+        }
+        val stack = maid.getItemBySlot(slot)
+        if (!matchClientStack(stack, c)) {
+            r.fail("女仆 $slot 实际=" + clientItemName(stack) + " x" + stack.count + "，期望=" + c)
+        } else {
+            r.detail = "女仆 $slot = " + clientItemName(stack) + " x" + stack.count
+        }
+    }
+
+    private fun matchClientStack(stack: ItemStack, c: JsonObject): Boolean {
+        var ok = true
+        if (c.has("empty")) {
+            ok = ok && (stack.isEmpty == c.get("empty").asBoolean)
+        }
+        if (c.has("item")) {
+            ok = ok && clientItemName(stack) == c.get("item").asString
+        }
+        if (c.has("count")) {
+            ok = ok && stack.count == c.get("count").asInt
+        }
+        if (c.has("min")) {
+            ok = ok && stack.count >= c.get("min").asInt
+        }
+        if (c.has("max")) {
+            ok = ok && stack.count <= c.get("max").asInt
+        }
+        return ok
+    }
+
+    private fun clientItemName(stack: ItemStack): String =
+        if (stack.isEmpty) "minecraft:air" else BuiltInRegistries.ITEM.getKey(stack.item).toString()
+
+    private fun nearestMaidEntity(mc: Minecraft): SmartMaidEntity? {
+        val level = mc.level ?: return null
+        val player = mc.player ?: return null
+        var best: SmartMaidEntity? = null
+        var bestDist = Double.MAX_VALUE
+        for (e in level.entitiesForRendering()) {
+            if (e is SmartMaidEntity) {
+                val d = e.distanceToSqr(player)
+                if (d < bestDist) {
+                    bestDist = d
+                    best = e
+                }
+            }
+        }
+        return best
     }
 
     private fun clickAt(mc: Minecraft, rect: IntArray?, idx: Int, what: String): String? {
@@ -467,6 +719,15 @@ object MaidClientTest {
     private fun num(o: JsonObject, k: String, def: Int): Int {
         return if (o.has(k) && !o.get(k).isJsonNull) o.get(k).asInt else def
     }
+
+    /** 非阻塞等待：每客户端 tick 检查一次，命中或超时后写结果。 */
+    private class WaitCheck(
+        val kind: String,
+        val expect: String?,
+        val min: Int,
+        var remaining: Int,
+        val result: Result,
+    )
 
     /** 单条用例结果（序列化成报告里的一个元素）。 */
     private class Result(

@@ -1,0 +1,50 @@
+{
+  "name": "inventory-live",
+  "desc": "N2：真实女仆背包容器。要求已进入专用测试世界且允许命令；脚本会召唤/复用女仆，并通过 /maidtasks 准备真实库存。",
+  "_howto": "python tools/clienttest.py run inventory-live；进游戏后自动执行。全程合成容器点击，不碰真实鼠标键盘。",
+  "cases": [
+    { "id": "maid.summon", "op": "sendCommand", "command": "summonmaid", "_why": "没有女仆时召唤；已有女仆时该命令返回 0，后续 waitForMaid 仍通过" },
+    { "id": "maid.wait", "op": "waitForMaid", "min": 0, "ticks": 200 },
+    { "id": "maid.present", "op": "assertNearestMaid", "min": 0 },
+
+    { "id": "setup.chest", "op": "sendCommand", "command": "setblock ~2 ~-1 ~ minecraft:chest" },
+    { "id": "setup.chest.wait", "op": "wait", "ticks": 5 },
+    { "id": "setup.diamonds", "op": "sendCommand", "command": "item replace block ~2 ~-1 ~ container.0 with minecraft:diamond 5" },
+    { "id": "setup.helmet", "op": "sendCommand", "command": "item replace block ~2 ~-1 ~ container.1 with minecraft:iron_helmet 1" },
+    { "id": "setup.items.wait", "op": "wait", "ticks": 5 },
+
+    { "id": "maid.chestopen", "op": "sendCommand", "command": "maidtasks chestopen ~2 ~-1 ~" },
+    { "id": "maid.chestopen.wait", "op": "wait", "ticks": 80 },
+    { "id": "maid.take.helmet", "op": "sendCommand", "command": "maidtasks chesttake 1 1" },
+    { "id": "maid.take.helmet.wait", "op": "wait", "ticks": 40 },
+    { "id": "maid.equip.helmet", "op": "sendCommand", "command": "maidtasks transfer mainhand head 1" },
+    { "id": "maid.equip.helmet.wait", "op": "wait", "ticks": 40 },
+    { "id": "maid.take.diamonds", "op": "sendCommand", "command": "maidtasks chesttake 0 5" },
+    { "id": "maid.take.diamonds.wait", "op": "wait", "ticks": 40 },
+
+    { "id": "menu.open", "op": "openMenu" },
+    { "id": "menu.assert", "op": "assertScreen", "expect": "MaidMenuScreen" },
+    { "id": "menu.entry.inventory", "op": "clickEntry", "index": 1 },
+    { "id": "inventory.wait", "op": "waitForScreen", "expect": "MaidInventoryScreen", "ticks": 120 },
+    { "id": "inventory.maid", "op": "assertMenuMaid", "expect": "nearest" },
+    { "id": "inventory.diamonds", "op": "assertSlot", "slot": 32, "item": "minecraft:diamond", "count": 5 },
+    { "id": "inventory.helmet", "op": "assertSlot", "slot": 0, "item": "minecraft:iron_helmet", "count": 1 },
+    { "id": "inventory.equipment", "op": "assertMaidEquipment", "slot": "head", "item": "minecraft:iron_helmet", "count": 1 },
+    { "id": "inventory.total.before", "op": "assertMenuTotal", "item": "minecraft:diamond", "count": 5 },
+
+    { "id": "shift.click", "op": "clickSlot", "slot": 32, "clickType": "QUICK_MOVE" },
+    { "id": "shift.wait", "op": "wait", "ticks": 10 },
+    { "id": "shift.source.empty", "op": "assertSlot", "slot": 32, "empty": true },
+    { "id": "shift.target", "op": "assertSlot", "slot": 5, "item": "minecraft:diamond", "count": 5 },
+    { "id": "shift.total", "op": "assertMenuTotal", "item": "minecraft:diamond", "count": 5 },
+
+    { "id": "reopen.close", "op": "closeScreen" },
+    { "id": "reopen.wait", "op": "wait", "ticks": 5 },
+    { "id": "reopen.menu", "op": "openMenu" },
+    { "id": "reopen.entry", "op": "clickEntry", "index": 1 },
+    { "id": "reopen.screen", "op": "waitForScreen", "expect": "MaidInventoryScreen", "ticks": 120 },
+    { "id": "reopen.check", "op": "assertSlot", "slot": 5, "item": "minecraft:diamond", "count": 5 },
+
+    { "id": "done", "op": "note", "msg": "真实容器绑定、装备同步、shift-click 数量守恒与重开验证结束" }
+  ]
+}

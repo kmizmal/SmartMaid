@@ -129,19 +129,28 @@ object MaidActions {
      */
     @JvmStatic
     fun storeToBackpack(maid: SmartMaidEntity, stack: ItemStack): ItemStack {
+        return storeToBackpack(maid, stack, 0)
+    }
+
+    /**
+     * 把物品收纳进背包区（[startIndex]-35）：先同类堆叠，再找空槽；返回未放下的剩余。
+     * [startIndex]=1 用于 `/maidtasks store`：主手槽 0 本身是源，不能被当作目标，否则会原槽回填后又被清空。
+     */
+    @JvmStatic
+    fun storeToBackpack(maid: SmartMaidEntity, stack: ItemStack, startIndex: Int): ItemStack {
         val inv = maid.getMaidInventory()
-        var remaining = tryInsert(inv, stack)
+        var remaining = tryInsert(inv, stack, startIndex)
         if (!remaining.isEmpty && MaidInventoryTidy.tidyIfStuck(maid)) {
-            remaining = tryInsert(inv, remaining)
+            remaining = tryInsert(inv, remaining, startIndex)
         }
         inv.setChanged()
         return remaining
     }
 
     /** 单次放入尝试：先同类堆叠，再找空槽；返回未放下的剩余。 */
-    private fun tryInsert(inv: SimpleContainer, stack: ItemStack): ItemStack {
+    private fun tryInsert(inv: SimpleContainer, stack: ItemStack, startIndex: Int): ItemStack {
         var remaining = stack.copy()
-        for (i in 0 until 36) {
+        for (i in startIndex.coerceIn(0, 36) until 36) {
             if (remaining.isEmpty) {
                 break
             }

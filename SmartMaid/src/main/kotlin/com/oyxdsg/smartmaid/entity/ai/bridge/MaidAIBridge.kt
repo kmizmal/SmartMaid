@@ -34,7 +34,6 @@ import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.resources.Identifier
-import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
@@ -442,8 +441,10 @@ object MaidAIBridge {
             "store" -> OneShotTask("store", "已收纳主手物品") {
                 val hand = maid.mainHandItem
                 if (!hand.isEmpty) {
-                    val left = MaidActions.storeToBackpack(maid, hand)
-                    maid.setItemInHand(InteractionHand.MAIN_HAND, left)
+                    val left = MaidActions.storeToBackpack(maid, hand, 1)
+                    // 主手槽 0 属于女仆背包；setItemInHand 只改装备栏，源槽不清会造成复制。
+                    maid.getMaidInventory().setItem(0, left)
+                    maid.getMaidInventory().setChanged()
                     maid.syncInventoryArmor()
                 }
             }

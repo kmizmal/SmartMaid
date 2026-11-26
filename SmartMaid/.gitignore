@@ -14,5 +14,6 @@ tools/local_paths.json
 
 # 监测脚本运行时输出
 tools/logs/
+logs/
 .codegraph/
 .kotlin/

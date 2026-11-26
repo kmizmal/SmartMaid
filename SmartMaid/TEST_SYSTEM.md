@@ -1,6 +1,6 @@
 # SmartMaid 测试体系
 
-更新：2026-11-24。当前 Kotlin 构建/测试入口与 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 一致；完整运行和归档步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，后续工作见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。
+更新：2026-11-26。当前 Kotlin 构建/测试入口与 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 一致；完整运行和归档步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，N1/N2 本机证据见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)，后续工作见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。
 
 ## 0 当前执行入口
 
@@ -29,11 +29,11 @@ git diff --cached --check
 git diff --check main...HEAD
 ```
 
-- 当前双版本各 **7 suites / 37 tests / 0 failures/errors/skips**。新增测试须解释数量变化；6 suites / 33 tests 是新增命令 suite 前的历史基线。
+- 当前双版本各 **8 suites / 40 tests / 0 failures/errors/skips**（2026-11-26）；新增 `SlotsTest` 2 项，`MaidTaskCommandTest` 增加 1 项权限/回调用例。6 suites / 33 tests 是新增命令 suite 前的历史基线。
 - 双版本 clean build 的完整命令、版本参数及 XML 归档顺序见操作卡。Kotlin 发布包使用 Wrapper；旧纯 javac 的 `compile_check.py --package` 不是当前 Kotlin 编译/打包入口。
 - `SMARTMAID_MC_DIR` 已指向真实 `run`，clienttest 不传 `--series`。静态工具的 `--series 26.2` 是版本选择，需要保留；不能直接把它改为 26.3 就声称完成了该版本的所有静态验证。
 - AutoTest 在单机集成服务器执行：按轮部署至 `run/config/smartmaid/autotest.json`，确认入场和本轮断言后正常退出，不能用旧 done 文件签收。
-- gui-chain 29/29 只证明所覆盖的菜单链路；真实容器与命令回调验证列入下一阶段。`key-encoding` 需要操作人实际按键，不能宣称全程无需交互。26.3 游戏输入仍按用户决定不补做；桌宠 N/A。
+- gui-chain 29/29 只证明所覆盖的菜单链路；N1 命令执行由 `tools/autotest.n1-commands.json` 在真实玩家命令源验证，N2 真实容器由 `tools/clienttest.inventory-live.json` 验证（均见 2026-11-26 报告）。`key-encoding` 需要操作人实际按键，不能宣称全程无需交互。26.3 游戏输入仍按用户决定不补做；桌宠 N/A。
 - 错误通道按本轮新增记录判定；保留日志原字节，按实际编码读取，不统一强制 GBK。后文样例用于说明报告结构，不作为当前测试证据。
 
 ## 1 分层总览
@@ -91,6 +91,15 @@ git diff --check main...HEAD
 | `closeScreen` | — | 关闭当前 Screen |
 | `wait` | `ticks` | 等待（让包/状态刷新落定） |
 | `note` | `msg` | 往报告里写一条信息 |
+| `sendCommand` | `command` | 以真实玩家身份发送服务器命令 |
+| `waitForScreen` | `expect`、`ticks` | 等待指定 Screen 出现（超时失败） |
+| `waitForMaid` | `min`、`ticks` | 等待最近女仆 id 达标（超时失败） |
+| `assertNearestMaid` | `min` | 断言附近有女仆实体 |
+| `assertMenuMaid` | `expect` | 断言 `MaidInventoryMenu` 绑定同一女仆 |
+| `assertSlot` | `slot`、`item`、`count`/`empty` | 断言容器槽位实际物品 |
+| `assertMenuTotal` | `item`、`count` | 断言容器内物品总数 |
+| `clickSlot` | `slot`、`clickType` | 走真实容器点击链路（含 shift-click） |
+| `assertMaidEquipment` | `slot`、`item`、`count` | 断言女仆装备同步 |
 
 ### 结果报告 `clienttest.report.json`
 
@@ -116,6 +125,7 @@ git diff --check main...HEAD
 |---|---|---|
 | `tools/clienttest.gui-chain.json` | 否 | 主菜单 → 任务/设置/动作/对话页 → 返回 → 4 个高频动作 → 背包入口（29 用例） |
 | `tools/clienttest.key-encoding.json` | **是**（要求按住 Shift+E 约 5 秒） | 按键编码是否读得到 |
+| `tools/clienttest.inventory-live.json` | 否 | 真实女仆实体/容器绑定、装备同步、shift-click 数量守恒、关开重进（37 用例，2026-11-26 通过） |
 
 ---
 
@@ -174,18 +184,16 @@ python tools/clienttest.py errors --stack 8
 > 这条链路证明了一件事：**"既有自动化全绿而真机出问题"的根因是覆盖面缺口，不是自动化没用。**
 > 补上客户端那层之后，同一批问题在下一次改动里会被立刻抓住。
 
-> ⚠️ **"功能通过" ≠ "自动化覆盖"**。上表最后两行是**用户手工操作实测**（真鼠标、真键盘），
-> **不是 `clienttest` 跑出来的** —— 那两条路径**至今仍自动化覆盖不到**（`gui-chain` 跑时
-> `nearestMaid=-1`、菜单以 `state=null` 打开；`key-encoding` 需人工按住键）。详见 §6。
+> ⚠️ **"功能通过" ≠ "自动化覆盖"**。上表里的人工实测是**用户手工操作**（真鼠标、真键盘），
+> 不是自动生成的证据；真实容器路径后来已由 `clienttest.inventory-live.json` 补测，
+> `key-encoding` 仍需人工按住键。详见 §6。
 
 ---
 
 ## 6 待补（如实列出）
 
-- **有女仆的 GUI 路径**：功能已由**人工实测**通过（2026-10-07），但**自动化仍未覆盖** ——
-  `gui-chain` 目前跑在 `nearestMaid=-1`、菜单以 `state=null` 打开，
-  3D 预览 / 装备概览 / 任务队列里有数据这几个分支没走到。
-  要自动化覆盖，需给 `gui-chain` 加前置步骤：进世界后先 `summon`，再断言 `nearestMaid >= 0`。
+- **有女仆的真实容器路径**：2026-11-26 已由 `clienttest.inventory-live.json` 覆盖真实实体、`MaidInventoryScreen`、装备槽、shift-click 数量守恒和重开；`gui-chain` 仍是轻量菜单链路，不可替代该套件。
+- **N1 真实命令路径**：2026-11-26 AutoTest `autotest.n1-commands.json` 41/41 通过；权限仅在集成服真实玩家源与注册权限层级下验证，专用服务端默认权限仍未单独搭建。
 - **真实物理按键**：功能已由**人工实测**通过（Shift+E 能开背包），但 `key-encoding` 探针
   （需人工按住 Shift+E 约 5 秒）**尚未跑过**，物理键位 → 业务动作的完整闭环在自动化侧仍是空白。
 - `MaidAutoTest`（服务端）与 `clienttest`（客户端）目前是两套运行器、两种脚本格式，
@@ -193,5 +201,5 @@ python tools/clienttest.py errors --stack 8
   （例如：客户端点"背包入口" → 断言服务端真的开了容器）。
 - `verify_all.py` 只覆盖内嵌第三方 jar 与本模组编译；**没有**把 `clienttest` / `autotest`
   的真机结果纳入统一判定（那需要游戏跑过之后才能汇总）。
-- 26.2 线尚未在真机跑过 `gui-chain`（只验过 26.3）。
+- 26.3 专用世界/实体键盘仍未补做；26.2 线当前已有 N1/N2 真机证据。
 - 没有 CI。上面所有命令都是本机手动跑。
