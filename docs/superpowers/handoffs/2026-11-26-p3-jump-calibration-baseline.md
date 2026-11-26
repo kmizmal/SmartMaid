@@ -36,6 +36,7 @@
 - `MaidStraightNav.kt`：跳跃执行器处于 `POSITIONING/JUMP/COOLDOWN` 时立即清掉直线降级目标；当直线降级还在活动时，先尝试把 `from -> target` 交给 `MaidActionExecutor.tryHandle()`。
 - `MaidGroundPathNavigation.kt`：动作执行器活动期间不重新建立直线降级目标，`tick()` 不调用原版 `PathNavigation`，避免原版路径继续向 `MoveControl` 写入目标。
 - `MaidActionExecutor.kt`：`start()` 清掉 `MaidGroundPathNavigation.straightNav`；`tickJump()` 的空中前进输入由 `2.0f` 改为原版持续前进语义的 `1.0f`。
+- **本轮没有改 `MaidJumpTable.kt`、`JumpPhysics.kt` 或 `gen_jump_table.js`：** 观测到的偏差可归因于直线导航/原版路径覆盖跳跃定位，修复放在执行器与导航层；跳表数值保留原基线，不把未改表误报成已重新生成。
 
 这些改动解决了本轮实际观察到的“定位阶段被直线导航/原版路径拉过起跳边缘，60 tick 后才从沟内起跳”的问题。当前 26.2/26.3 `clean build` 均通过，测试均为 **8 suites / 40 tests / 0 failures / 0 errors / 0 skipped**（26.2、26.3 日志及 XML 见证据目录）；仍需继续回归既有移动场景并补安全断言。
 
