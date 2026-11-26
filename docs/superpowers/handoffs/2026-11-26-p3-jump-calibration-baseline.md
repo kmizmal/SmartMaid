@@ -84,6 +84,10 @@
 
 `AutoTest 汇总: PASS=3 FAIL=0`，三次命令分别是 `maidtasks sit`、再次 `maidtasks sit`（解除）和 `maidtasks stop`。`record` 的 60 个 tick 全部为 `82.739,66.000,90.261`，位移与速度均为 0；说明坐下期间 `MaidActionExecutor.tick()`/导航没有推动女仆。战斗状态下“不挖不搭”约束尚未在本轮单独测试。
 
+### 3.5 N1 命令回归（移动改动后）
+
+在 P3 移动改动之后重跑 `SmartMaid/tools/autotest.n1-commands.json`（世界 `SmartMaid-P3-20261126-P`）：`AutoTest 汇总: PASS=41 FAIL=0`。这覆盖真实玩家命令源下的 10 个恢复子命令、参数拒绝和攻击/挖掘/耕作等路径，说明本轮 `MaidStraightNav`/`MaidGroundPathNavigation` 改动没有破坏既有命令执行；它不替代 P3 的专项到达/安全断言。
+
 ## 4. 当前结论与待办
 
 - 已建立离线基线和逐 tick 真机记录；已发现并修复“直线导航/原版路径覆盖跳跃定位”的问题；平地、1 格台阶、3 格短沟按上述几何标准各 **5/5**，4 格边界记录为失败/未支持；坐下 60 tick 位移为 0。
@@ -95,5 +99,5 @@
 - 证据根目录：`C:\Users\zmal\AppData\Local\Temp\SmartMaid-P3-20261126-1700`
 - `baseline-sha256.txt`、`jump-sim-baseline.log`
 - `run-I.log`、`run-J.log`、`run-K.log`、`run-M.log`（Gradle 运行输出）
-- `game-K.log`、`game-M.log`、`game-N.log`（K/M/N 轮游戏日志副本）
+- `game-K.log`、`game-M.log`、`game-N.log`、`game-P.log`（K/M/N/P 轮游戏日志副本）
 - `prior-main.json`（本轮修改前的 `main.json`）
