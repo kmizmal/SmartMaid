@@ -49,6 +49,7 @@
 - `SmartMaid/tools/autotest.p3-repeat.json`：平地、1 格台阶、3 格短沟各 5 次并加 `check.record`；4 格边界只做记录，不把失败场景改写成 PASS。
 - `SmartMaid/tools/autotest.p3-boundary.json`：4 格边界单独安全复测，只断言 `minY`，本轮结果为 `PASS=2 FAIL=1`（`minY=65`），保留失败证据。
 - `SmartMaid/tools/autotest.p3-combat-safety.json`：攻击任务期间的石标保护复测。
+- `SmartMaid/tools/autotest.p3-runup.json`：从固定锚点先直行约 5 格再跨越 3 格短沟的助跑场景，重复 5 次。
 - `run/config/smartmaid/main.json` 本轮设 `debug=true`、`debugVerbose=true`，原文件已备份；测试世界均从 `SmartMaid-T4-20261124-A` 复制并清空 `smartmaid/maids`。
 
 ## 3. 本轮真机记录
@@ -103,14 +104,18 @@
 
 `AutoTest 汇总: PASS=4 FAIL=0`：成功向牛下发 `attack` 任务并等待攻击完成；攻击前后预先放置的 `minecraft:stone` 标记仍然完整（`check:block at=lastRun` 通过）。这覆盖了“战斗期间不挖方块”的最低证据，但尚未单独探测战斗路径的放置/搭路行为，不能扩大为完整“不挖不搭”结论。
 
-### 3.7 N1 命令回归（移动改动后）
+### 3.7 助跑场景（`autotest.p3-runup.json`，世界 V）
+
+`AutoTest 汇总: PASS=15 FAIL=0`（5 次移动 ×2 项断言 + 5 次 `check.record`）。5 次 `minTargetDist=0.686/0.393/0.630/0.809/0.688`，五次 `minY=66`、`maxY=67.252`；说明从锚点先直行约 5 格再进入 3 格短沟时，5/5 到达目标且未掉沟。该场景仍由固定锚点提供起跑距离，不宣称覆盖所有地形起跳速度。
+
+### 3.8 N1 命令回归（移动改动后）
 
 在 P3 移动改动之后重跑 `SmartMaid/tools/autotest.n1-commands.json`（世界 `SmartMaid-P3-20261126-P`）：`AutoTest 汇总: PASS=41 FAIL=0`。这覆盖真实玩家命令源下的 10 个恢复子命令、参数拒绝和攻击/挖掘/耕作等路径，说明本轮 `MaidStraightNav`/`MaidGroundPathNavigation` 改动没有破坏既有命令执行；它不替代 P3 的专项到达/安全断言。
 
 ## 4. 当前结论与待办
 
 - 已建立离线基线和逐 tick 真机记录；已发现并修复“直线导航/原版路径覆盖跳跃定位”的问题；平地、1 格台阶、3 格短沟按上述几何标准各 **5/5**，R 世界正式 `check.record` 为 **47 PASS / 0 FAIL**；4 格边界记录为失败/未支持；坐下 60 tick 位移为 0。
-- **P3 仍需收尾：** 4 格边界的安全失败行为仍需负责人确认作为“不支持场景”保留，还是调整参数/替代路径；战斗只验证了攻击期间石标不被破坏，放置/搭路未单独探测；助跑/不同朝向也未单独列 5/5 证据。R 的 47/0 只覆盖已声明的平地、台阶、短沟和移动断言，不能扩大解释为 4 格边界或完整战斗约束通过。
+- **P3 仍需收尾：** 4 格边界的安全失败行为仍需负责人确认作为“不支持场景”保留，还是调整参数/替代路径；战斗只验证了攻击期间石标不被破坏，放置/搭路未单独探测；不同朝向未单独列 5/5 证据。R/V 的通过结果只覆盖已声明的平地、台阶、短沟、助跑和移动断言，不能扩大解释为 4 格边界或完整战斗约束通过。
 - 下一轮优先：确认 4 格边界策略；补战斗不挖不搭和助跑/不同朝向场景；继续跑 26.2/26.3 既有移动套件回归（双版本 `clean build` 已通过）。
 
 ## 5. 证据路径
@@ -122,5 +127,6 @@
 - `run-R.log`、`game-R.log`、`p3-repeat-summary-R.log`（R 轮正式断言证据）
 - `run-S.log`、`game-S.log`、`p3-boundary-summary-S.log`（4 格边界安全复测：`PASS=2 FAIL=1`，记录 `minY=65`，未修复）
 - `game-U.log`、`p3-combat-safety-summary-U.log`（战斗期间石标保护：`PASS=4 FAIL=0`）
+- `game-V.log`、`p3-runup-summary-V.log`（助跑 3 格短沟 5 次：`PASS=15 FAIL=0`）
 - `final-clean-build-26.2-r2.log`、`final-clean-build-26.3-r2.log`、`final-test-26.2-r2.log`、`final-test-26.3-r2.log`、`final-test-results-26.2-r2/`、`final-test-results-26.3-r2/`、`verify-all-26.2-r3.log`（最终构建/测试/静态门证据；各 8 suites / 40 tests，0 failures/errors/skips）
 - `prior-main.json`（本轮修改前的 `main.json`）
