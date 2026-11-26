@@ -48,6 +48,8 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
         val maid = this.mob as SmartMaidEntity
         if (maid.isOrderedToSit) return null
         if (combatDisablesStraight(maid)) return super.createPath(pos, accuracy)
+        // 跳跃执行器定位/起跳期间不要重新启用直线降级，否则会覆盖 MoveControl 的起跳边缘目标。
+        if (maid.actionExecutor.active()) return super.createPath(pos, accuracy)
         if (this.straightNav.recentlyGaveUp(maid.tickCount)) return super.createPath(pos, accuracy)
         if (this.straightNav.isActive && maid.tickCount - this.lastStraightEval < STRAIGHT_EVAL_INTERVAL) {
             return null
@@ -79,6 +81,8 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
         val maid = this.mob as SmartMaidEntity
         if (maid.isOrderedToSit) return null
         if (combatDisablesStraight(maid)) return super.createPath(entity, accuracy)
+        // 跳跃执行器定位/起跳期间不要重新启用直线降级。
+        if (maid.actionExecutor.active()) return super.createPath(entity, accuracy)
         val target = entity.blockPosition()
         if (this.straightNav.recentlyGaveUp(maid.tickCount)) return super.createPath(entity, accuracy)
         if (this.straightNav.isActive && maid.tickCount - this.lastStraightEval < STRAIGHT_EVAL_INTERVAL) {
@@ -102,6 +106,11 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
         // 坐下 = 原地不动：清掉降级与原版路径，本 tick 不驱动任何移动
         if (maid.isOrderedToSit) {
             if (this.straightNav.isActive) this.straightNav.clear(maid)
+            this.stop()
+            return
+        }
+        // 跳跃执行器接管期间，原版 PathNavigation 不能再向 MoveControl 写路径目标。
+        if (maid.actionExecutor.active()) {
             this.stop()
             return
         }

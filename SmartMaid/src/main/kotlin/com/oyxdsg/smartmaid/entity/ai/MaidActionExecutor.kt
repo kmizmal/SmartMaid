@@ -78,6 +78,8 @@ open class MaidActionExecutor(private val maid: SmartMaidEntity) {
         val tz = to.z.toDouble() + 0.5 - this.edgePos.z
         this.yawRad = Mth.atan2(-tx, tz)
         this.maid.navigation.stop()
+        // 直线降级可能仍持有目标并持续改写 MoveControl；起跳定位前必须一并清掉。
+        (this.maid.navigation as? MaidGroundPathNavigation)?.straightNav?.clear(this.maid)
         val speed = if (this.sprint) 1.3 else 1.0
         this.maid.moveControl.setWantedPosition(this.edgePos.x, this.edgePos.y, this.edgePos.z, speed)
         this.maid.setSprinting(this.sprint)
@@ -126,7 +128,8 @@ open class MaidActionExecutor(private val maid: SmartMaidEntity) {
 
     private fun tickJump() {
         this.airTicks++
-        this.maid.setZza(2.0f)
+        // 1.0 才是原版“持续前进”输入；2.0 会让空中水平速度超出解表假设。
+        this.maid.setZza(1.0f)
         this.maid.setXxa(0.0f)
         if (this.maid.onGround() || this.airTicks >= MAX_AIR_TICKS) {
             this.state = State.COOLDOWN

@@ -86,6 +86,11 @@ class MaidStraightNav {
             this.placer.abort()
             return true
         }
+        // 跳跃执行器一旦接管，立即停掉直线降级，避免其 moveTo 覆盖起跳边缘目标。
+        if (maid.actionExecutor.active()) {
+            this.clear(maid)
+            return false
+        }
         // 到达（水平 + 垂直 + 视线）
         if (isArrived(maid, t)) {
             MaidDebug.log("StraightNav 到达 $t")
@@ -113,6 +118,12 @@ class MaidStraightNav {
         if (this.idleTicks > IDLE_LIMIT) return fail(maid, "无进展")
 
         val from = maid.blockPosition()
+        // 先交给跳跃执行器：直线降级会持续覆盖 MoveControl 的 wanted position，
+        // 若与执行器的定位阶段并行，会把女仆拉过起跳边缘。
+        if (maid.actionExecutor.tryHandle(from, t)) {
+            this.clear(maid)
+            return false
+        }
         val dx = Integer.signum(t.x - from.x)
         val dz = Integer.signum(t.z - from.z)
         val level = maid.level()

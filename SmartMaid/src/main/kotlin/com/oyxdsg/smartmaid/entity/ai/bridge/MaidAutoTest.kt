@@ -114,13 +114,40 @@ object MaidAutoTest {
     private var LIST: JsonArray? = null        // 已加载的测试序列
     private var IDX = 0                        // 当前执行到第几条
     private var WAIT_TICKS = 0                 // 任务型指令后的等待 tick
+    private var RECORD: RecordState? = null    // P3 标定：逐 tick 采样女仆位置
+    private var ANCHOR: BlockPos? = null       // P3 标定：重复场景的固定起点
 
     private const val STEP_TICKS = 10          // 状态机推进间隔
     private const val TASK_WAIT_TICKS = 40     // 任务型指令后等待（≈2 秒）
 
+    private data class RecordState(
+        val id: String,
+        var remaining: Int,
+        val samples: MutableList<String> = ArrayList()
+    )
+
     /** 由 ServerTickEvents.END_SERVER_TICK 注册调用（仅服务端触发） */
     @JvmStatic
     fun onServerTick(server: MinecraftServer) {
+        RECORD?.let { rec ->
+            val player = server.playerList.players.firstOrNull() ?: return
+            val maid = findMaid(player) ?: return
+            rec.samples.add(
+                String.format(
+                    java.util.Locale.ROOT,
+                    "%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%b",
+                    server.tickCount, maid.x, maid.y, maid.z,
+                    maid.deltaMovement.x, maid.deltaMovement.y, maid.deltaMovement.z,
+                    maid.onGround()
+                )
+            )
+            rec.remaining--
+            if (rec.remaining <= 0) {
+                SmartMaid.LOGGER.info("AutoTest [${rec.id}] record: ${rec.samples.joinToString(";")}")
+                RECORD = null
+            }
+            return
+        }
         if (EXECUTED.get() || server.tickCount % STEP_TICKS != 0) {
             return
         }
@@ -169,7 +196,27 @@ object MaidAutoTest {
         // 纯注释条目（如 {"__comment": "..."}）跳过，不当作指令执行
         if (!req.has("cmd") && !req.has("give") && !req.has("run") && !req.has("check")
             && !req.has("tidy") && !req.has("vetoNextBreak") && !req.has("expect") && !req.has("wait")
+            && !req.has("anchor") && !req.has("tp")
         ) {
+            return
+        }
+
+        // P3 标定：记录/回到固定起点，便于同一世界重复测量。
+        if (req.has("anchor")) {
+            ANCHOR = maid.blockPosition()
+            SmartMaid.LOGGER.info("AutoTest [$id] anchor=$ANCHOR")
+            return
+        }
+        if (req.has("tp")) {
+            val target = ANCHOR
+            if (target == null) {
+                SmartMaid.LOGGER.info("AutoTest [$id] tp 失败：尚未设置 anchor")
+                return
+            }
+            maid.teleportTo(target.x + 0.5, target.y.toDouble(), target.z + 0.5)
+            maid.getNavigation().stop()
+            maid.getMoveControl().setWait()
+            SmartMaid.LOGGER.info("AutoTest [$id] tp=$target")
             return
         }
 
@@ -216,6 +263,9 @@ object MaidAutoTest {
             val expectYaw = if (req.has("expectYaw")) req.get("expectYaw").asDouble else null
             val yawTolerance = if (req.has("yawTolerance")) req.get("yawTolerance").asDouble else 2.0
             runCommand(player, maid, id, cmd, source, expectResult, expectError, expectTask, expectYaw, yawTolerance)
+            if (req.has("recordTicks")) {
+                RECORD = RecordState(id, req.get("recordTicks").asInt.coerceAtLeast(1))
+            }
             return
         }
 
