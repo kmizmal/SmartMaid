@@ -111,7 +111,34 @@
 
 ### 3.8 朝向冒烟（`autotest.p3-orientation.json`，世界 W）
 
-同一几何短沟分别向东、向北移动各一次：`AutoTest 汇总: PASS=5 FAIL=1`。东向 `minY=66`、`minTargetDist=0.078`，通过；北向 `minY=65`、`minTargetDist=0.209`，落入沟底，失败。该结果说明朝向/路径降级存在方向差异，不能把“不同朝向”写成一致；本轮不把它掺入 5/5 统计。
+W 世界向东、向北各测一次：旧断言汇总 `PASS=5 FAIL=1`。东向 `minY=66`、`minTargetDist=0.078`；北向 `minY=65`、`minTargetDist=0.209`。整段最低高度不能说明去程是否跳短。原输入逐条按女仆当前位置展开坐标，且未核验对岸净空，不能当作等几何的方向对照。
+
+#### P0 接续：W 原始轨迹回放（基线 `5c77f97`）
+
+| 方向 | 首次离地 tick | 首次着地 tick / 位置 | 首次低于 `65.9` 的 tick / 位置 |
+|---|---|---|---|
+| 东 | 75 | 86 / `(88.522, 66, 89.684)` | 本窗口未观察到 |
+| 北 | 224 | 232 / `(82.666, 67, 85.373)` | 250 / `(82.409, 65.855, 87.369)` |
+
+北向先到对岸，之后才跌落；第 252 tick 落在沟底 `y=65`。调试日志另有目标回到 `BlockPos{x=82, y=66, z=90}` 的事件，但导航日志只有墙钟时间，不能与样本绑定到同一个精确 tick。北向首落地 `y=67` 也比预期平台 `y=66` 高一格，故此轮只定位到**落地后**，不能签为等高去程通过、认定是主人跟随造成跌落，或据此改跳表。
+
+在模块目录用 [回放工具](../../../SmartMaid/tools/p3_replay.py) 复算（`$w` 为证据目录下的 `game-W.log`）：
+
+```powershell
+python -B -m unittest discover -s tools -p test_p3_replay.py
+python -B tools/p3_replay.py $w p3.o.north.move --expected-samples 100 --platform-y 66 --takeoff-zone 81 89 84 92 --landing-zone 81 85 84 86
+python -B tools/p3_replay.py $w p3.o.east.move --expected-samples 100 --platform-y 66 --takeoff-zone 81 88 84 91 --landing-zone 87 88 90 91
+```
+
+区域参数顺序是 `minX minZ maxX maxZ`，上界不含。W 的区域依据日志中的实际沟位置，只用于历史回放，不是正式验收预设。退出码 `0` 表示首落地位置及落地后窗口的轨迹检查通过，`1` 表示观测到越界或跌落，`2` 表示证据或参数不足；三者都不替代地形或跟随状态检查。
+
+#### P0 固定场地工具（本轮新增，尚未真机验收）
+
+新增 [固定跑道生成器](../../../SmartMaid/tools/p3_course.py) 和 14 项离线测试。`python -B tools/p3_course.py east|north` 生成同一绝对起点 `(82,66,90)` 周围的旋转跑道：平台底板 `y=64..65`、三格沟的 `along=1..3`/`side=-1..1`、起跳与落地区 `y=66..69` 净空，并以 `execute if block ... run say p3-course-audit` 分批核对每个施工格。重复 fixture 会先重铺、清空、挖沟，再核验；故意在落地区放方块会被离线审计拒绝。
+
+本轮尝试把北向 fixture 部署到临时 gameDir `C:\Users\zmal\AppData\Local\Temp\SmartMaid-P3-Course-20261126-202733-244\game`，世界副本为 `SmartMaid-P3-Course-North`，输入 SHA256 为 `BF2C4C9E5337C5E0B8EA8B86B05207AC7FA6E300064657158A793AB4D0C1608D`。客户端进程启动但在该临时目录没有产出服务端 `latest.log` 或 AutoTest 证据，无法确认已进入世界；为避免残留进程已停止该实例。本次固定场地真机验收记为**未运行/未通过**，不替代 W 旧证据。
+
+**下一轮固定场地契约（待实现、待真机验证）：** 新专用世界中固定起步方块 `(82,66,90)`，铺等高石地 `y=65`，清空起跳、沟与落地区 `y=66..69`。三格沟从起步方块朝测试方向偏移 `1..3`，横向 `-1..1`，目标在同方向偏移 `4`；东向与北向只旋转这组偏移。全部施工使用同一组绝对坐标；连续两次重置并核验起点支撑、沟地板空气、等高对岸和净空后，才摆放不重叠的主人与女仆。正式记录还须逐 tick 对齐任务状态、导航目标和首次接手跟随的 tick，并分别出具去程与返程判定；缺失则标为无效或未验证。
 
 ### 3.9 N1 命令回归（移动改动后）
 
@@ -120,8 +147,8 @@
 ## 4. 当前结论与待办
 
 - 已建立离线基线和逐 tick 真机记录；已发现并修复“直线导航/原版路径覆盖跳跃定位”的问题；平地、1 格台阶、3 格短沟按上述几何标准各 **5/5**，R 世界正式 `check.record` 为 **47 PASS / 0 FAIL**；4 格边界记录为失败/未支持；坐下 60 tick 位移为 0。
-- **P3 仍需收尾：** 4 格边界的安全失败行为仍需负责人确认作为“不支持场景”保留，还是调整参数/替代路径；战斗只验证了攻击期间石标不被破坏，放置/搭路未单独探测；朝向冒烟显示北向会落沟，尚未修复。R/V 的通过结果只覆盖已声明的平地、台阶、短沟、助跑和移动断言，不能扩大解释为 4 格边界、完整战斗约束或所有朝向通过。
-- 下一轮优先：修正北向朝向落沟；补战斗放置/搭路探测；确认 4 格边界策略；继续跑 26.2/26.3 既有移动套件回归（双版本 `clean build` 已通过）。
+- **P3 仍需收尾：** 4 格边界失效；战斗只验证了攻击期间石标不被破坏，放置/搭路未单独探测；北向 W 试次的跌落在首落地之后，尚未在等高固定场地复现并确认触发路径。R/V 的通过结果不能扩大解释为 4 格边界、完整战斗约束或所有朝向通过。
+- 下一轮优先：修正临时 gameDir 的客户端启动/quick-play 入口并核验固定场地；真机分开复跑去程与返程，然后根据事件定位修复；另补 4 格边界安全退路和战斗放置/搭路探测。
 
 ## 5. 证据路径
 
@@ -134,5 +161,7 @@
 - `game-U.log`、`p3-combat-safety-summary-U.log`（战斗期间石标保护：`PASS=4 FAIL=0`）
 - `game-V.log`、`p3-runup-summary-V.log`（助跑 3 格短沟 5 次：`PASS=15 FAIL=0`）
 - `game-W.log`、`p3-orientation-summary-W.log`（东向通过、北向 `minY=65` 落沟的朝向冒烟：`PASS=5 FAIL=1`）
+- `p3_course.py`、`test_p3_course.py`（固定跑道生成器及 14 项离线审计测试）
+- `SmartMaid-P3-Course-20261126-202733-244/`（临时 gameDir 尝试；客户端启动但未产出 AutoTest/server log，未计真机通过）
 - `final-clean-build-26.2-r2.log`、`final-clean-build-26.3-r2.log`、`final-test-26.2-r2.log`、`final-test-26.3-r2.log`、`final-test-results-26.2-r2/`、`final-test-results-26.3-r2/`、`verify-all-26.2-r3.log`（最终构建/测试/静态门证据；各 8 suites / 40 tests，0 failures/errors/skips）
 - `prior-main.json`（本轮修改前的 `main.json`）
