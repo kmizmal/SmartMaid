@@ -96,6 +96,12 @@ object MaidAutoTest {
     private val SETBLOCK_POS =
         Pattern.compile("setblock\\s+(-?\\d+)\\s+(-?\\d+)\\s+(-?\\d+)")
 
+    /** 匹配 run 命令里的 maidtasks move 目标坐标（用于 record 轨迹判定） */
+    private val MOVE_POS =
+        Pattern.compile("maidtasks\\s+move\\s+(-?\\d+(?:\\.\\d+)?)\\s+(-?\\d+(?:\\.\\d+)?)\\s+(-?\\d+(?:\\.\\d+)?)")
+
+    private var LAST_RECORD: RecordSummary? = null
+
     init {
         // 注册"测试否决器"：只有配置显式打开 vetoNextBreak 时才拦一次，
         // 用来证明 PlayerBlockBreakEvents 链路真的接通（生产环境永远不影响。
@@ -123,7 +129,18 @@ object MaidAutoTest {
     private data class RecordState(
         val id: String,
         var remaining: Int,
+        val target: BlockPos?,
         val samples: MutableList<String> = ArrayList()
+    )
+
+    /** 一次 record 的几何摘要，供 check:{"record":...} 做正式断言。 */
+    private data class RecordSummary(
+        val id: String,
+        val samples: Int,
+        val minY: Double,
+        val maxY: Double,
+        val minTargetDist: Double?,
+        val target: BlockPos?
     )
 
     /** 由 ServerTickEvents.END_SERVER_TICK 注册调用（仅服务端触发） */
@@ -144,6 +161,7 @@ object MaidAutoTest {
             rec.remaining--
             if (rec.remaining <= 0) {
                 SmartMaid.LOGGER.info("AutoTest [${rec.id}] record: ${rec.samples.joinToString(";")}")
+                finishRecord(rec)
                 RECORD = null
             }
             return
@@ -214,6 +232,7 @@ object MaidAutoTest {
                 return
             }
             maid.maidTaskManager.cancel()
+            maid.actionExecutor.reset()
             maid.teleportTo(target.x + 0.5, target.y.toDouble(), target.z + 0.5)
             maid.setDeltaMovement(0.0, 0.0, 0.0)
             player.teleportTo(target.x + 0.5, target.y.toDouble(), target.z + 0.5)
@@ -267,7 +286,8 @@ object MaidAutoTest {
             val yawTolerance = if (req.has("yawTolerance")) req.get("yawTolerance").asDouble else 2.0
             runCommand(player, maid, id, cmd, source, expectResult, expectError, expectTask, expectYaw, yawTolerance)
             if (req.has("recordTicks")) {
-                RECORD = RecordState(id, req.get("recordTicks").asInt.coerceAtLeast(1))
+                val ticks = req.get("recordTicks").asInt.coerceAtLeast(1)
+                RECORD = RecordState(id, ticks, parseMoveTarget(maid, cmd))
             }
             return
         }
@@ -490,6 +510,84 @@ object MaidAutoTest {
         }
     }
 
+    /** 从 run 的 maidtasks move 命令取下目标，供 record 计算水平距离。 */
+    private fun parseMoveTarget(maid: SmartMaidEntity, template: String): BlockPos? {
+        val m = MOVE_POS.matcher(expandPos(maid, template))
+        if (!m.find()) {
+            return null
+        }
+        return BlockPos(
+            m.group(1).toDouble().toInt(),
+            m.group(2).toDouble().toInt(),
+            m.group(3).toDouble().toInt()
+        )
+    }
+
+    /** 将逐 tick 采样汇总成可断言的几何摘要。 */
+    private fun finishRecord(rec: RecordState) {
+        var minY = Double.MAX_VALUE
+        var maxY = -Double.MAX_VALUE
+        var minDist = Double.MAX_VALUE
+        var count = 0
+        val target = rec.target
+        for (line in rec.samples) {
+            val p = line.split(',')
+            if (p.size < 8) continue
+            val x = p[1].toDoubleOrNull() ?: continue
+            val y = p[2].toDoubleOrNull() ?: continue
+            val z = p[3].toDoubleOrNull() ?: continue
+            count++
+            minY = minOf(minY, y)
+            maxY = maxOf(maxY, y)
+            if (target != null) {
+                val dx = x - (target.x + 0.5)
+                val dz = z - (target.z + 0.5)
+                minDist = minOf(minDist, kotlin.math.sqrt(dx * dx + dz * dz))
+            }
+        }
+        val summary = RecordSummary(
+            rec.id,
+            count,
+            if (count == 0) Double.NaN else minY,
+            if (count == 0) Double.NaN else maxY,
+            if (minDist == Double.MAX_VALUE) null else minDist,
+            target
+        )
+        LAST_RECORD = summary
+        SmartMaid.LOGGER.info(
+            "AutoTest [${rec.id}] record-summary samples=$count minY=$minY maxY=$maxY "
+                + "minTargetDist=${summary.minTargetDist}"
+        )
+    }
+
+    /** 轨迹断言：minTargetDistMax / minYMin / maxYMin / maxYMax。 */
+    private fun checkRecord(c: JsonObject): Boolean {
+        val r = LAST_RECORD
+        if (r == null) {
+            SmartMaid.LOGGER.info("checkRecord: 尚无 record 数据")
+            return false
+        }
+        var ok = true
+        if (c.has("minTargetDistMax")) {
+            val max = c.get("minTargetDistMax").asDouble
+            ok = ok && r.minTargetDist != null && r.minTargetDist <= max
+        }
+        if (c.has("minYMin")) {
+            ok = ok && r.minY >= c.get("minYMin").asDouble
+        }
+        if (c.has("maxYMin")) {
+            ok = ok && r.maxY >= c.get("maxYMin").asDouble
+        }
+        if (c.has("maxYMax")) {
+            ok = ok && r.maxY <= c.get("maxYMax").asDouble
+        }
+        SmartMaid.LOGGER.info(
+            "checkRecord id=${r.id} samples=${r.samples} minY=${r.minY} maxY=${r.maxY} "
+                + "minTargetDist=${r.minTargetDist} 期望=$c -> $ok"
+        )
+        return ok
+    }
+
     /** 断言计数（结束输出汇总用） */
     private fun count(ok: Boolean) {
         if (ok) {
@@ -508,6 +606,7 @@ object MaidAutoTest {
      * {"check": {"freeSlots": {"min":1}}}                                      // 背包区空槽数
      * {"check": {"bridge": {"item":"minecraft:diamond_block","allowed":false}}} // 搭路白名单判定
      * {"check": {"tag":    {"tag":"smartmaid:never_target","entity":"minecraft:enderman","contains":true}}}
+     * {"check": {"record": {"minTargetDistMax":2.0,"minYMin":65.9}}}            // 最近一次 record 的几何摘要
      * }</pre>
      */
     private fun runCheck(maid: SmartMaidEntity, check: JsonObject): Boolean {
@@ -538,6 +637,9 @@ object MaidAutoTest {
             }
             if (check.has("task")) {
                 return checkTask(maid, check.getAsJsonObject("task"))
+            }
+            if (check.has("record")) {
+                return checkRecord(check.getAsJsonObject("record"))
             }
         } catch (e: Exception) {
             SmartMaid.LOGGER.info("AutoTest check 异常: $e")

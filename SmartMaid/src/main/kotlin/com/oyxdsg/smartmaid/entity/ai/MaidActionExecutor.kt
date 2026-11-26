@@ -35,6 +35,16 @@ open class MaidActionExecutor(private val maid: SmartMaidEntity) {
     /** 是否处于空中起跳阶段。 */
     open fun jumping(): Boolean = this.state == State.JUMP
 
+    /** 测试/传送重置：停止跳跃状态机并清掉直线降级目标。 */
+    open fun reset() {
+        this.state = State.IDLE
+        this.airTicks = 0
+        this.positioningTicks = 0
+        this.maid.setSprinting(false)
+        this.maid.navigation.stop()
+        (this.maid.navigation as? MaidGroundPathNavigation)?.straightNav?.clear(this.maid)
+    }
+
     /**
      * 尝试接管 from -> to 的跨格跳跃。成功返回 true（调用方应让出移动控制）。
      */

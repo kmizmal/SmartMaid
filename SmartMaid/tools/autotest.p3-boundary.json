@@ -1,0 +1,8 @@
+[
+  { "__comment": "P3 边界安全：4 格不可达沟；只断言不落入沟底，不把任务下发当成跨越成功。" },
+  { "id": "p3.b.anchor", "anchor": true },
+  { "id": "p3.b.setup", "run": "fill {x-8} {y-1} {z-3} {x+8} {y-1} {z+9} minecraft:stone" },
+  { "id": "p3.b.remove", "run": "fill {x-2} {y-1} {z+1} {x+2} {y-1} {z+4} minecraft:air" },
+  { "id": "p3.b.move", "run": "maidtasks move {x} {y} {z+5}", "source": "player", "expectResult": 1, "expectTask": "move", "recordTicks": 100 },
+  { "id": "p3.b.check", "check": { "record": { "minYMin": 65.9 } } }
+]
