@@ -1,6 +1,6 @@
 # SmartMaid 测试体系
 
-更新：2026-11-26。当前 Kotlin 构建/测试入口与 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 一致；完整运行和归档步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，N1/N2 本机证据见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)，后续工作见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。
+更新：2026-11-26。当前 Kotlin 构建/测试入口与 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 一致；完整运行和归档步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，N1/N2 本机证据见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)，N3 复核见 [N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md)，后续工作见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。
 
 ## 0 当前执行入口
 

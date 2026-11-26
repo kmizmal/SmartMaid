@@ -1,11 +1,12 @@
-# Kotlin migration — N1/N2 本机验证完成，待合并决定
+# Kotlin migration — N1/N2/N3 本机复核完成，待合并决定
 
-## 当前状态（2026-11-26，N1/N2 本机验证完成）
+## 当前状态（2026-11-26，N1/N2/N3 本机复核完成）
 
-下一阶段见 [开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)：N1/N2 已按计划完成本机验证，详细证据与限制见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)；N3 合并材料复核和 P3 尚未执行。
+下一阶段见 [开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)：N1/N2 已按计划完成本机验证，N3 已完成合并材料复核，详细证据与限制见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md) 与 [N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md)；P3 尚未执行。
 
 - N1：`SmartMaid/tools/autotest.n1-commands.json` 在 26.2 真机世界 `SmartMaid-N1-20261126-F` 执行，`AutoTest 汇总: PASS=41 FAIL=0`；覆盖真实玩家命令源、transfer/chest/equip/store/look/break/place/use/attack/mine/farm 及拒绝路径。证据见临时目录 `C:\Users\zmal\AppData\Local\Temp\SmartMaid-N1-20261126-150236\runClient-N1-F-final-PASS.log`。
 - N2：`SmartMaid/tools/clienttest.inventory-live.json` 在 26.2 真机世界 `SmartMaid-N2-20261126-D` 执行，`clienttest.report.json` 为 37/37 PASS、0 FAIL/ERROR；真实 `MaidInventoryScreen`/`MaidInventoryMenu maidId=147`、装备同步、shift-click 数量守恒和关开重进均通过。证据见 `clienttest.report.N2-D-PASS.json` 和 `runClient-N2-D-final-PASS.log`。
+- N3：基于 N1/N2 代码提交 `83047c4` 复核基础 AutoTest `PASS=6 FAIL=0`、`gui-chain` 29/29 PASS；双版本 `clean build` 各 8 suites/40 tests，静态 A/B/C 全通过；材料与未验证项见 [N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md)。
 - 构建/测试：26.2、26.3 `clean build` 均成功，各 **8 suites / 40 tests / 0 failures/errors/skips**；26.2 `verify_all.py --series 26.2` A/B/C 全通过；工作树、暂存区、`main...HEAD` 的 `git diff --check` 均为 0。
 - 未验证：26.3 专用世界/实体键盘未补做，桌宠 N/A；专用服务端默认权限未单独搭建；N3 合并材料、PR/批准/必需检查未处理；不自动推送或合并。
 
