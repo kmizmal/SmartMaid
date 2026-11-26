@@ -86,6 +86,12 @@ class P3CourseTest(unittest.TestCase):
         self.assertEqual(120, entries[-2]["recordTicks"])
         self.assertEqual({"record": {"minTargetDistMax": 2.0, "minYMin": 65.9}}, entries[-1]["check"])
 
+    def test_return_trip_appends_return_move_and_check(self):
+        entries = run_fixture("east", 1, return_trip=True)
+        self.assertEqual("maidtasks move 82 66 90", entries[-2]["run"])
+        self.assertEqual(120, entries[-2]["recordTicks"])
+        self.assertEqual({"record": {"minTargetDistMax": 2.0, "minYMin": 65.9}}, entries[-1]["check"])
+
     def test_gap_four_clears_four_columns_and_targets_after_them(self):
         entries = fixture("north", 1, gap_end=4)
         cells = {}
