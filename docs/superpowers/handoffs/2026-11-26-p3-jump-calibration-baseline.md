@@ -42,9 +42,12 @@
 
 ### 2.2 测试钩子与输入
 
-- `MaidAutoTest.kt`：新增可选 `recordTicks`，每次 server tick 记录 `tick,x,y,z,dx,dy,dz,onGround`，用于逐 tick 轨迹；只记录，不参与 PASS/FAIL 计数。
+- `MaidAutoTest.kt`：新增可选 `recordTicks`，每次 server tick 记录 `tick,x,y,z,dx,dy,dz,onGround`，用于逐 tick 轨迹；record 结束后生成 `record-summary`（samples/minY/maxY/minTargetDist），`check:{"record":...}` 可对 `minTargetDistMax`/`minYMin`/`maxYMin`/`maxYMax` 做正式断言。
+- `tp` 现在先取消任务并调用 `MaidActionExecutor.reset()`，清掉跳跃执行器和直线降级状态，避免重复场景起点漂移。
 - `SmartMaid/tools/autotest.p3-jump.json`：3 格短沟单场景（平台、移除沟、`maidtasks move` + `recordTicks`）。
 - `SmartMaid/tools/autotest.p3-scenarios.json`：平地、1 格台阶、3 格短沟、4 格边界四组场景；每组先构造地形再移动。
+- `SmartMaid/tools/autotest.p3-repeat.json`：平地、1 格台阶、3 格短沟各 5 次并加 `check.record`；4 格边界只做记录，不把失败场景改写成 PASS。
+- `SmartMaid/tools/autotest.p3-boundary.json`：4 格边界单独安全复测，只断言 `minY`，本轮结果为 `PASS=2 FAIL=1`（`minY=65`），保留失败证据。
 - `run/config/smartmaid/main.json` 本轮设 `debug=true`、`debugVerbose=true`，原文件已备份；测试世界均从 `SmartMaid-T4-20261124-A` 复制并清空 `smartmaid/maids`。
 
 ## 3. 本轮真机记录
@@ -81,19 +84,29 @@
 | 3 格短沟 | 0.13 / 1.25 / 0.13 / 0.07 / 0.08；五次 `minY=66` | **5/5** 跨沟且无掉落 |
 | 4 格边界 | 最小水平距离 0.80，但 `minY=65`（落入沟底） | **0/1：失败/未支持**，不能写 PASS |
 
-### 3.4 静止/坐下安全（`autotest.p3-safety.json`，世界 N）
+### 3.4 正式轨迹断言（R 世界）
+
+在修正 `tp` 重置并给 `autotest.p3-repeat.json` 加入 `check.record` 后，使用世界 `SmartMaid-P3-20261126-R` 执行同一套重复场景：
+
+- `AutoTest 汇总: PASS=47 FAIL=0 （全部通过）`。这 47 项由 16 次移动的 `expectResult`/`expectTask`（32 项）和 15 次 `check.record`（平地/台阶/短沟各 5 次）组成。
+- 平地 5 次：`minTargetDist=0.959/1.019/1.053/1.222/1.055`，五次 `minY=66`、`maxY=66`。
+- 1 格台阶 5 次：`minTargetDist=1.074/1.010/1.057/1.402/0.554`，五次 `minY=66`，`maxY=67.252` 或 `68.252`。
+- 3 格短沟 5 次：`minTargetDist=0.081/1.154/0.076/1.154/0.079`，五次 `minY=66`。
+- 4 格边界：`minY=65`、`minTargetDist=0.856`，未通过“不落入沟底”的安全判定；仍标记为失败/未支持，不把任务的 `expectResult`/`expectTask` 通过当成跳跃通过。
+
+### 3.5 静止/坐下安全（`autotest.p3-safety.json`，世界 N）
 
 `AutoTest 汇总: PASS=3 FAIL=0`，三次命令分别是 `maidtasks sit`、再次 `maidtasks sit`（解除）和 `maidtasks stop`。`record` 的 60 个 tick 全部为 `82.739,66.000,90.261`，位移与速度均为 0；说明坐下期间 `MaidActionExecutor.tick()`/导航没有推动女仆。战斗状态下“不挖不搭”约束尚未在本轮单独测试。
 
-### 3.5 N1 命令回归（移动改动后）
+### 3.6 N1 命令回归（移动改动后）
 
 在 P3 移动改动之后重跑 `SmartMaid/tools/autotest.n1-commands.json`（世界 `SmartMaid-P3-20261126-P`）：`AutoTest 汇总: PASS=41 FAIL=0`。这覆盖真实玩家命令源下的 10 个恢复子命令、参数拒绝和攻击/挖掘/耕作等路径，说明本轮 `MaidStraightNav`/`MaidGroundPathNavigation` 改动没有破坏既有命令执行；它不替代 P3 的专项到达/安全断言。
 
 ## 4. 当前结论与待办
 
-- 已建立离线基线和逐 tick 真机记录；已发现并修复“直线导航/原版路径覆盖跳跃定位”的问题；平地、1 格台阶、3 格短沟按上述几何标准各 **5/5**，4 格边界记录为失败/未支持；坐下 60 tick 位移为 0。
-- **P3 仍需收尾：** 上述 5/5 是逐 tick 轨迹几何判定，不是 AutoTest 内置正式断言；下一步需要把这些判定加入可重复的断言/报告器，补战斗不挖不搭/助跑等安全约束，并继续跑 26.2/26.3 既有移动套件回归（双版本 `clean build` 已通过）。不能仅凭 `PASS=32` 声称所有场景通过。
-- 下一轮优先：实现到达/未掉沟/未穿墙断言；补战斗不挖不搭和助跑场景；确认 4 格边界是否应作为不支持场景记录，或调整参数后重新测；对既有移动场景继续回归。
+- 已建立离线基线和逐 tick 真机记录；已发现并修复“直线导航/原版路径覆盖跳跃定位”的问题；平地、1 格台阶、3 格短沟按上述几何标准各 **5/5**，R 世界正式 `check.record` 为 **47 PASS / 0 FAIL**；4 格边界记录为失败/未支持；坐下 60 tick 位移为 0。
+- **P3 仍需收尾：** 4 格边界的安全失败行为仍需负责人确认作为“不支持场景”保留，还是调整参数/替代路径；战斗不挖不搭尚未单独测试，助跑/不同朝向也未单独列 5/5 证据。R 的 47/0 只覆盖已声明的平地、台阶、短沟和移动断言，不能扩大解释为 4 格边界或战斗约束通过。
+- 下一轮优先：确认 4 格边界策略；补战斗不挖不搭和助跑/不同朝向场景；继续跑 26.2/26.3 既有移动套件回归（双版本 `clean build` 已通过）。
 
 ## 5. 证据路径
 
@@ -101,4 +114,7 @@
 - `baseline-sha256.txt`、`jump-sim-baseline.log`
 - `run-I.log`、`run-J.log`、`run-K.log`、`run-M.log`（Gradle 运行输出）
 - `game-K.log`、`game-M.log`、`game-N.log`、`game-P.log`（K/M/N/P 轮游戏日志副本）
+- `run-R.log`、`game-R.log`、`p3-repeat-summary-R.log`（R 轮正式断言证据）
+- `run-S.log`、`game-S.log`、`p3-boundary-summary-S.log`（4 格边界安全复测：`PASS=2 FAIL=1`，记录 `minY=65`，未修复）
+- `final-clean-build-26.2-r2.log`、`final-clean-build-26.3-r2.log`、`final-test-26.2-r2.log`、`final-test-26.3-r2.log`、`final-test-results-26.2-r2/`、`final-test-results-26.3-r2/`、`verify-all-26.2-r3.log`（最终构建/测试/静态门证据；各 8 suites / 40 tests，0 failures/errors/skips）
 - `prior-main.json`（本轮修改前的 `main.json`）
