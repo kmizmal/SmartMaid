@@ -1,6 +1,6 @@
 import unittest
 
-from p3_course import fixture, to_world
+from p3_course import fixture, run_fixture, to_world
 
 
 def apply_and_check(entries, cells):
@@ -74,3 +74,25 @@ class P3CourseTest(unittest.TestCase):
         self.assertTrue(audits)
         for entry in audits:
             self.assertRegex(entry["run"], r"^execute if block -?\d+ -?\d+ -?\d+ minecraft:(?:air|stone) .* run say p3-course-audit$")
+
+    def test_run_fixture_anchors_teleports_moves_and_checks_one_direction(self):
+        entries = run_fixture("north", 1)
+        self.assertEqual([82.5, 66.0, 90.5], entries[0]["place"])
+        self.assertTrue(entries[-3].get("tp"))
+        self.assertEqual("maidtasks move 82 66 86", entries[-2]["run"])
+        self.assertEqual("player", entries[-2]["source"])
+        self.assertEqual(1, entries[-2]["expectResult"])
+        self.assertEqual("move", entries[-2]["expectTask"])
+        self.assertEqual(120, entries[-2]["recordTicks"])
+        self.assertEqual({"record": {"minTargetDistMax": 2.0, "minYMin": 65.9}}, entries[-1]["check"])
+
+    def test_gap_four_clears_four_columns_and_targets_after_them(self):
+        entries = fixture("north", 1, gap_end=4)
+        cells = {}
+        apply_and_check(entries, cells)
+        for side in range(-1, 2):
+            for along in range(1, 5):
+                self.assertEqual("minecraft:air", cells[to_world("north", along, 65, side)])
+            self.assertEqual("minecraft:stone", cells[to_world("north", 5, 65, side)])
+        move = run_fixture("north", 1, gap_end=4)[-2]
+        self.assertEqual("maidtasks move 82 66 85", move["run"])

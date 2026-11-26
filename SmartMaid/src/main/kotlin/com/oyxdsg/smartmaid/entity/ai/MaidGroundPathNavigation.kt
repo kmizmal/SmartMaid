@@ -12,6 +12,7 @@ import net.minecraft.world.level.pathfinder.Path
 import net.minecraft.world.level.pathfinder.PathFinder
 import net.minecraft.world.phys.HitResult
 import net.minecraft.world.phys.Vec3
+import kotlin.math.abs
 import kotlin.math.sqrt
 
 /**
@@ -35,6 +36,13 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
     /** 公开 val：Java 侧生成 getStraightNav()，Kotlin 侧可用 .straightNav（MaidMoveControl 依赖）。 */
     val straightNav = MaidStraightNav()
     private var lastStraightEval = -10000
+    private var lastUnsafeGapLogTick = -1000
+    var blockedByWideGap: Boolean = false
+        private set
+
+    fun clearGapBlock() {
+        blockedByWideGap = false
+    }
 
     override fun createPathFinder(maxVisitedNodes: Int): PathFinder {
         this.nodeEvaluator = MaidWalkNodeEvaluator()
@@ -47,6 +55,16 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
     override fun createPath(pos: BlockPos, accuracy: Int): Path? {
         val maid = this.mob as SmartMaidEntity
         if (maid.isOrderedToSit) return null
+        if (unsafeWideGap(maid, pos)) {
+            blockedByWideGap = true
+            this.straightNav.clear(maid)
+            if (maid.tickCount - lastUnsafeGapLogTick >= 20) {
+                MaidDebug.log("导航停止：前方四格以上深沟 $pos")
+                lastUnsafeGapLogTick = maid.tickCount
+            }
+            return null
+        }
+        blockedByWideGap = false
         if (combatDisablesStraight(maid)) return super.createPath(pos, accuracy)
         // 跳跃执行器定位/起跳期间不要重新启用直线降级，否则会覆盖 MoveControl 的起跳边缘目标。
         if (maid.actionExecutor.active()) return super.createPath(pos, accuracy)
@@ -80,10 +98,20 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
     override fun createPath(entity: Entity, accuracy: Int): Path? {
         val maid = this.mob as SmartMaidEntity
         if (maid.isOrderedToSit) return null
+        val target = entity.blockPosition()
+        if (unsafeWideGap(maid, target)) {
+            blockedByWideGap = true
+            this.straightNav.clear(maid)
+            if (maid.tickCount - lastUnsafeGapLogTick >= 20) {
+                MaidDebug.log("导航停止(追实体)：前方四格以上深沟 $target")
+                lastUnsafeGapLogTick = maid.tickCount
+            }
+            return null
+        }
+        blockedByWideGap = false
         if (combatDisablesStraight(maid)) return super.createPath(entity, accuracy)
         // 跳跃执行器定位/起跳期间不要重新启用直线降级。
         if (maid.actionExecutor.active()) return super.createPath(entity, accuracy)
-        val target = entity.blockPosition()
         if (this.straightNav.recentlyGaveUp(maid.tickCount)) return super.createPath(entity, accuracy)
         if (this.straightNav.isActive && maid.tickCount - this.lastStraightEval < STRAIGHT_EVAL_INTERVAL) {
             return null
@@ -131,6 +159,40 @@ class MaidGroundPathNavigation(mob: Mob, level: Level) : GroundPathNavigation(mo
             return true
         }
         return false
+    }
+
+    /** 四格以上宽沟：目标在沟对岸且与当前同高/更高时，不进入沟底。 */
+    private fun unsafeWideGap(maid: SmartMaidEntity, target: BlockPos): Boolean {
+        val from = maid.blockPosition()
+        if (target.y < from.y) return false
+        val dx = Integer.signum(target.x - from.x)
+        val dz = Integer.signum(target.z - from.z)
+        if (dx == 0 && dz == 0) return false
+        if (dx != 0 && dz != 0) return false
+        val steps = Math.max(abs(target.x - from.x), abs(target.z - from.z))
+        if (steps <= 4) return false
+        var lowerRun = 0
+        for (i in 1 until steps) {
+            val p = from.offset(dx * i, 0, dz * i)
+            if (floorLevel(maid.level(), p, from.y) < from.y) {
+                lowerRun++
+                if (lowerRun >= 4) return true
+            } else {
+                lowerRun = 0
+            }
+        }
+        return false
+    }
+
+    private fun floorLevel(level: Level, p: BlockPos, startY: Int): Int {
+        var y = startY + 1
+        while (y >= level.minY) {
+            val pos = BlockPos(p.x, y, p.z)
+            val state = level.getBlockState(pos)
+            if (!state.isAir && !state.getCollisionShape(level, pos).isEmpty) return y + 1
+            y--
+        }
+        return level.minY
     }
 
     /** 是否应该走直线模式：没路 / 部分路径（到不了目标） / 原版明显绕远。 */

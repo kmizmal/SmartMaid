@@ -214,8 +214,30 @@ object MaidAutoTest {
         // 纯注释条目（如 {"__comment": "..."}）跳过，不当作指令执行
         if (!req.has("cmd") && !req.has("give") && !req.has("run") && !req.has("check")
             && !req.has("tidy") && !req.has("vetoNextBreak") && !req.has("expect") && !req.has("wait")
-            && !req.has("anchor") && !req.has("tp")
+            && !req.has("anchor") && !req.has("tp") && !req.has("place")
         ) {
+            return
+        }
+
+        // P3 标定：把女仆和玩家放到固定位置并记录为起点（测试用）。
+        if (req.has("place")) {
+            val a = req.getAsJsonArray("place")
+            if (a.size() != 3) {
+                SmartMaid.LOGGER.info("AutoTest [$id] place 失败：需要 [x,y,z]")
+                return
+            }
+            val x = a[0].asDouble
+            val y = a[1].asDouble
+            val z = a[2].asDouble
+            ANCHOR = BlockPos.containing(x, y, z)
+            maid.maidTaskManager.cancel()
+            maid.actionExecutor.reset()
+            maid.teleportTo(x, y, z)
+            maid.setDeltaMovement(0.0, 0.0, 0.0)
+            player.teleportTo(x, y, z)
+            maid.getNavigation().stop()
+            maid.getMoveControl().setWait()
+            SmartMaid.LOGGER.info("AutoTest [$id] place=$ANCHOR")
             return
         }
 

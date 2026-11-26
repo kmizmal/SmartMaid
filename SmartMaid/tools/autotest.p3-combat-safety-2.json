@@ -1,0 +1,15 @@
+[
+  { "__comment": "P3 战斗约束：战斗期只走原版寻路，不挖墙、不搭路；给足石料也不能被消耗。" },
+  { "id": "p3.c2.place", "place": [82.5, 66.0, 90.5] },
+  { "id": "p3.c2.clear", "run": "fill 78 66 86 86 69 94 minecraft:air" },
+  { "id": "p3.c2.floor", "run": "fill 78 64 86 86 65 94 minecraft:stone" },
+  { "id": "p3.c2.wall", "run": "fill 84 66 86 84 67 94 minecraft:stone" },
+  { "id": "p3.c2.marker", "run": "setblock 84 66 90 minecraft:stone" },
+  { "id": "p3.c2.give", "give": { "minecraft:stone": 16 } },
+  { "id": "p3.c2.cow", "run": "summon minecraft:cow 86 66 90" },
+  { "id": "p3.c2.attack", "run": "maidtasks attack 60 cow", "source": "player", "expectResult": 1, "expectTask": "attack", "recordTicks": 80 },
+  { "id": "p3.c2.wait", "wait": 6 },
+  { "id": "p3.c2.wall-check", "check": { "block": { "at": "lastRun", "is": "minecraft:stone" } } },
+  { "id": "p3.c2.stone-check", "check": { "inv": { "item": "minecraft:stone", "is": 16 } } },
+  { "id": "p3.c2.stop", "run": "maidtasks stop", "source": "player", "expectResult": 1 }
+]

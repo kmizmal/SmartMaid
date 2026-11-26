@@ -3,6 +3,7 @@ package com.oyxdsg.smartmaid.entity.ai.maidtask
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidActions
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
+import com.oyxdsg.smartmaid.entity.ai.MaidGroundPathNavigation
 import net.minecraft.core.BlockPos
 
 /**
@@ -15,11 +16,13 @@ class MoveToTask(
 ) : MaidAITask("move") {
 
     private var done = false
+    private var stoppedForGap = false
 
     override fun canStart(maid: SmartMaidEntity): Boolean = true
 
     override fun start(maid: SmartMaidEntity) {
         MaidDebug.log("Move start -> $target")
+        (maid.navigation as? MaidGroundPathNavigation)?.clearGapBlock()
         done = MaidActions.isWithinReach(maid, target, arriveRange)
     }
 
@@ -31,6 +34,13 @@ class MoveToTask(
             MaidDebug.log("Move 到达 $target")
             return
         }
+        if ((maid.navigation as? MaidGroundPathNavigation)?.blockedByWideGap == true) {
+            maid.navigation.stop()
+            done = true
+            stoppedForGap = true
+            MaidDebug.log("Move 停止：前方四格以上深沟 $target")
+            return
+        }
         if (maid.navigation.isDone || maid.tickCount % 20 == 0) {
             MaidActions.navigateTo(maid, target, speed)
         }
@@ -38,5 +48,9 @@ class MoveToTask(
 
     override fun isDone(): Boolean = done
 
-    override fun result(): String = if (done) "已到达" else "移动中"
+    override fun result(): String = when {
+        stoppedForGap -> "已停止（前方四格以上深沟）"
+        done -> "已到达"
+        else -> "移动中"
+    }
 }
