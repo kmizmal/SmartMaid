@@ -1,0 +1,12 @@
+[
+  {"__comment":"Disposable creative superflat world only; start one op player in the Overworld with no maid. AutoTest itself performs the initial summon. Keep the maid’s chunk loaded for the duplicate check."},
+  {"id":"summon.place-overworld","place":[104,66,104]},
+  {"id":"summon.keep-overworld-loaded","run":"execute in minecraft:overworld run forceload add 104 104"},
+  {"id":"summon.move-real-player","run":"execute in minecraft:the_nether run tp @s 0 128 0","source":"player"},
+  {"id":"summon.player-in-nether","run":"execute if dimension minecraft:the_nether","source":"player","expectResult":1},
+  {"id":"summon.no-duplicate","run":"summonmaid","source":"player","expectResult":0},
+  {"id":"summon.one-original","run":"execute in minecraft:overworld if entity @e[type=smartmaid:smart_maid]","expectResult":1},
+  {"id":"summon.no-nether-maid","run":"execute in minecraft:the_nether unless entity @e[type=smartmaid:smart_maid]","expectResult":1},
+  {"id":"summon.return-player","run":"execute in minecraft:overworld run tp @s 104 66 104","source":"player"},
+  {"id":"summon.release-overworld-chunk","run":"execute in minecraft:overworld run forceload remove 104 104"}
+]

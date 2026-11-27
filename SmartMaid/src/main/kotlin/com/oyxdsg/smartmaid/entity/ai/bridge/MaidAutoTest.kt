@@ -3,6 +3,7 @@ package com.oyxdsg.smartmaid.entity.ai.bridge
 import com.google.gson.*
 import com.mojang.brigadier.exceptions.CommandSyntaxException
 import com.oyxdsg.smartmaid.SmartMaid
+import com.oyxdsg.smartmaid.data.MaidDataManager
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidActions
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
@@ -222,7 +223,8 @@ object MaidAutoTest {
             return
         }
         val player = server.playerList.players.firstOrNull() ?: return // 无玩家在线，等待
-        val maid = findMaid(player)
+        // A run fixture can move the real player to another dimension while keeping their maid loaded.
+        val maid = findMaid(player) ?: MaidDataManager.findOwnedMaid(server, player.uuid)
         if (maid == null) {
             // 无女仆：尝试召唤，下次 tick 再检测
             try {

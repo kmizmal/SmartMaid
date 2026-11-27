@@ -876,12 +876,12 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
         return super.mobInteract(player, hand)
     }
 
-    override fun remove(reason: RemovalReason) {
-        // 世界卸载/退出时也保存一次（含任务队列），保证 Q8 持久化不丢最后操作
+    override fun onRemoval(reason: RemovalReason) {
+        // 区块卸载直接调用 setRemoved，必须在 onRemoval 保存；死亡已在掉落后保存。
         if (!this.level().isClientSide && reason != RemovalReason.KILLED) {
             MaidDataManager.save(this)
         }
-        super.remove(reason)
+        super.onRemoval(reason)
     }
 
     override fun getBreedOffspring(level: ServerLevel, parent: AgeableMob): AgeableMob? {
