@@ -89,8 +89,11 @@ class ModNetworking private constructor() {
                         return@chat
                     }
                     // 26.2 客户端聊天组件为 private，这里用系统消息回显玩家发言
-                    player.sendSystemMessage(Component.literal("你：${payload.text}"))
-                    MaidWsClient.sendChat(maid, payload.text)
+                    if (MaidWsClient.sendChat(maid, payload.text)) {
+                        player.sendSystemMessage(Component.literal("你：${payload.text}"))
+                    } else if (payload.text.isNotBlank()) {
+                        player.sendSystemMessage(Component.literal("桌宠桥接未就绪或繁忙，消息未发送"))
+                    }
                 }
             }
 

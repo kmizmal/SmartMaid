@@ -88,6 +88,8 @@ object MaidWsClient {
     private var handshaken = false
     // Connection attempts and world access are confined to the owning server thread.
     private var pending: Listener? = null
+    private var wsConfig = BridgeConfig.WsConfig()
+    private var nextConfigPoll = 0L
     private var handshakeDeadline = 0L
     private var sending: CompletionStage<*>? = null
     private var nextAttemptAt = 0L
@@ -115,14 +117,9 @@ object MaidWsClient {
         server = srv
         nextAttemptAt = 0
         backoffMs = INITIAL_BACKOFF_MS
-        if (BridgeConfig.wsEnabled()) {
-            val rejection = configError()
-            if (rejection != null) {
-                SmartMaid.LOGGER.error("桌宠 WebSocket 配置被拒绝: {}", rejection)
-                return
-            }
-            SmartMaid.LOGGER.info("女仆 WebSocket 已启用")
-        }
+        BridgeConfig.load()
+        nextConfigPoll = 0
+        refreshConfig()
     }
 
     @JvmStatic
@@ -130,6 +127,7 @@ object MaidWsClient {
         if (server !== srv) return
         handleDisconnect("server stopping")
         server = null
+        wsConfig = BridgeConfig.WsConfig()
         CHANNELS.clear()
         SmartMaid.LOGGER.info("女仆 WebSocket 已停止")
     }
@@ -139,10 +137,7 @@ object MaidWsClient {
     @JvmStatic
     fun onServerTick(srv: MinecraftServer) {
         if (server !== srv) return
-        if (!BridgeConfig.wsEnabled() || configError() != null) {
-            if (open || pending != null) handleDisconnect("config disabled or rejected")
-            return
-        }
+        if (!refreshConfig()) return
         val now = System.currentTimeMillis()
         if (!open) {
             tryConnect(srv, now)
@@ -153,7 +148,7 @@ object MaidWsClient {
             return
         }
         // 心跳
-        if (now - lastPingAt >= BridgeConfig.heartbeatSec() * 1000L) {
+        if (now - lastPingAt >= wsConfig.heartbeatSec * 1000L) {
             lastPingAt = now
             val ping = JsonObject()
             ping.addProperty("type", "ping")
@@ -174,7 +169,7 @@ object MaidWsClient {
     /** 女仆侧注册（由 [SmartMaidEntity.aiStep] 调用），并把事件订阅挂到感知模块 */
     @JvmStatic
     fun onMaidTick(maid: SmartMaidEntity) {
-        if (maid.level().isClientSide || server == null || !BridgeConfig.wsEnabled()) {
+        if (maid.level().isClientSide || !handshaken) {
             return
         }
         val first = !CHANNELS.containsKey(maid)
@@ -211,16 +206,13 @@ object MaidWsClient {
 
     /** 玩家在聊天栏对女仆说的话 → 上行给桌宠 AI（服务端线程调用）。 */
     @JvmStatic
-    fun sendChat(maid: SmartMaidEntity?, text: String?) {
-        if (maid == null || text == null || text.isBlank()) {
-            return
-        }
+    fun sendChat(maid: SmartMaidEntity?, text: String?): Boolean {
+        if (maid == null || text.isNullOrBlank() || !handshaken || !refreshConfig()) return false
         val out = JsonObject()
         out.addProperty("type", "chat")
         out.addProperty("maid", maid.getUUID().toString())
         out.addProperty("text", text)
-        enqueue(out)
-        MaidDebug.log("已上行玩家对话: " + text)
+        return enqueue(out)
     }
 
     /**
@@ -228,6 +220,9 @@ object MaidWsClient {
      */
     @JvmStatic
     fun notifyPresence(maid: SmartMaidEntity?, online: Boolean) {
+        // The hello roster covers the period before the socket opens. Preserve transitions
+        // after hello, but do not send them until the peer acknowledges the handshake.
+        if (!open) return
         val out = JsonObject()
         out.addProperty("type", "maid_presence")
         if (maid != null) {
@@ -243,7 +238,7 @@ object MaidWsClient {
     // ---------- 上行 ----------
 
     private fun onMaidEvent(maid: SmartMaidEntity, ev: JsonObject) {
-        if (!open) {
+        if (!handshaken) {
             return
         }
         val out = JsonObject()
@@ -254,7 +249,7 @@ object MaidWsClient {
     }
 
     private fun sendPerception(maid: SmartMaidEntity, channel: Channel, now: Long) {
-        val interval = BridgeConfig.perceptionIntervalMs()
+        val interval = wsConfig.perceptionIntervalMs
         if (now - channel.lastPerceptionAt < interval) {
             return
         }
@@ -273,19 +268,19 @@ object MaidWsClient {
         // 增量 diff 的字段（seq/tick/full/snapshot 或 changed/removed）平铺到信封上
         channel.diff.next(perception).entrySet()
             .forEach { e -> message.add(e.key, e.value) }
-        enqueue(message)
+        if (!enqueue(message)) {
+            channel.diff.reset()
+            return
+        }
         if (channel.diff.seq() == 1L) {
             // 只打一次：证明感知上报链路真的跑起来了（后续每 750ms 一条，不宜逐条打日志）
             MaidDebug.log("开始上报感知: " + maid.baseName() +
-                "（间隔 " + BridgeConfig.perceptionIntervalMs() + "ms，首帧全量）")
+                "（间隔 " + wsConfig.perceptionIntervalMs + "ms，首帧全量）")
         }
     }
 
-    private fun enqueue(message: JsonObject) {
-        if (OUTBOX.size < 512) {
-            OUTBOX.add(GSON.toJson(message))
-        }
-    }
+    private fun enqueue(message: JsonObject): Boolean =
+        OUTBOX.size < 512 && OUTBOX.offer(GSON.toJson(message))
 
     private fun drainOutbox() {
         val ws = socket ?: return
@@ -313,18 +308,34 @@ object MaidWsClient {
 
     // ---------- 连接管理 ----------
 
-    private fun configError(): String? = MaidWsPolicy.validateConfig(
-        BridgeConfig.wsUrl(), BridgeConfig.wsToken(), BridgeConfig.wsAllowInsecure()
-    )
+    private fun refreshConfig(): Boolean {
+        val now = System.nanoTime()
+        if (nextConfigPoll == 0L || now - nextConfigPoll >= 0) {
+            nextConfigPoll = now + 1_000_000_000L
+            val updated = BridgeConfig.readWsConfig()
+            if (updated.transport != wsConfig.transport) {
+                if (open || pending != null) handleDisconnect("configuration changed")
+                nextAttemptAt = 0
+                backoffMs = INITIAL_BACKOFF_MS
+                if (updated.transport.enabled) {
+                    val error = updated.transport.rejection()
+                    if (error == null) SmartMaid.LOGGER.info("女仆 WebSocket 已启用")
+                    else SmartMaid.LOGGER.error("桌宠 WebSocket 配置被拒绝: {}", error)
+                }
+            }
+            wsConfig = updated
+        }
+        return wsConfig.transport.enabled && wsConfig.transport.rejection() == null
+    }
 
     private fun tryConnect(srv: MinecraftServer, now: Long) {
         if (pending != null || now < nextAttemptAt) return
-        val listener = Listener(srv)
+        val listener = Listener(srv, wsConfig.transport)
         pending = listener
         try {
-            HTTP.newWebSocketBuilder()
+            listener.connection = HTTP.newWebSocketBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
-                .buildAsync(URI.create(BridgeConfig.wsUrl()), listener)
+                .buildAsync(URI.create(listener.transport.url), listener)
                 .whenComplete { _, error ->
                     if (error != null) srv.execute {
                         if (server === srv && pending === listener) handleDisconnect("connection failed")
@@ -336,7 +347,7 @@ object MaidWsClient {
     }
 
     private fun onOpen(srv: MinecraftServer, listener: Listener, ws: WebSocket) {
-        if (server !== srv || pending !== listener || !BridgeConfig.wsEnabled() || configError() != null) {
+        if (server !== srv || pending !== listener || !refreshConfig() || pending !== listener) {
             ws.abort()
             if (server === srv && pending === listener) handleDisconnect("config disabled or rejected")
             return
@@ -352,7 +363,7 @@ object MaidWsClient {
         val hello = JsonObject()
         hello.addProperty("type", "hello")
         hello.addProperty("mod", SmartMaid.MOD_ID)
-        hello.addProperty("token", BridgeConfig.wsToken())
+        hello.addProperty("token", listener.transport.token)
         val maids = JsonArray()
         for (maid in aliveMaids()) {
             val m = JsonObject()
@@ -371,7 +382,9 @@ object MaidWsClient {
         open = false
         handshaken = false
         sending = null
+        val attempt = pending
         pending = null
+        attempt?.cancel()
         nextAttemptAt = System.currentTimeMillis() + backoffMs
         backoffMs = min(backoffMs * 2, MAX_BACKOFF_MS)
         OUTBOX.clear()
@@ -390,10 +403,7 @@ object MaidWsClient {
 
     private fun dispatch(srv: MinecraftServer, ws: WebSocket, text: String) {
         if (server !== srv || socket !== ws || !open) return
-        if (!BridgeConfig.wsEnabled() || configError() != null) {
-            handleDisconnect("config disabled or rejected")
-            return
-        }
+        if (!refreshConfig() || socket !== ws) return
         val msg: JsonObject
         try {
             msg = JsonParser.parseString(text).asJsonObject
@@ -412,8 +422,7 @@ object MaidWsClient {
                 if (handshaken) return
                 handshaken = true
                 backoffMs = INITIAL_BACKOFF_MS
-                // Pre-auth snapshots are discarded; the next tick sends a fresh full snapshot.
-                OUTBOX.clear()
+                // No pre-auth snapshots are generated; preserve presence changes since hello.
                 CHANNELS.values.forEach { it.diff.reset(); it.lastPerceptionAt = 0 }
                 MaidDebug.log("握手成功")
                 // 物品索引（当前语言的物品名 → id）：桌宠侧据此做中文/拼音模糊匹配，
@@ -633,10 +642,24 @@ object MaidWsClient {
     }
 
     /** WebSocket 监听：只做拼接与线程切换，不碰世界状态。 */
-    private class Listener(private val srv: MinecraftServer) : WebSocket.Listener {
+    private class Listener(private val srv: MinecraftServer, val transport: BridgeConfig.WsTransport) : WebSocket.Listener {
         private val buffer = StringBuilder()
+        var connection: java.util.concurrent.CompletableFuture<WebSocket>? = null
+        @Volatile private var cancelled = false
+        @Volatile private var opened: WebSocket? = null
+
+        fun cancel() {
+            cancelled = true
+            opened?.abort()
+            connection?.cancel(true)
+        }
 
         override fun onOpen(ws: WebSocket) {
+            opened = ws
+            if (cancelled || server !== srv) {
+                ws.abort()
+                return
+            }
             srv.execute { MaidWsClient.onOpen(srv, this, ws) }
         }
 

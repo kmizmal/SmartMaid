@@ -36,7 +36,7 @@ import kotlin.math.max
  * 并持续空连 {@code ws://127.0.0.1:21420}（指数退避）。已有配置文件不会被覆盖，
  * 旧配置也必须明确启用通道并提供非空 token。</p>
  *
- * <p>加载时机：首次访问任意 getter 时懒加载一次（服务端线程调用）。</p>
+ * <p>遥测配置懒加载一次；WebSocket 配置由服务端定期重新读取。</p>
  */
 object BridgeConfig {
     private val GSON = Gson()
@@ -49,12 +49,45 @@ object BridgeConfig {
     private var deskpetDir: Path? = null
     private var windowTicks = DEFAULT_WINDOW_TICKS
     private const val DEFAULT_WS_URL = "ws://127.0.0.1:21420"
-    private var wsEnabled = false
-    private var wsAllowInsecure = false
-    private var wsUrl = DEFAULT_WS_URL
-    private var wsToken = ""
-    private var heartbeatSec = 5
-    private var perceptionIntervalMs = 750
+
+    internal data class WsTransport(
+        val enabled: Boolean = false,
+        val url: String = DEFAULT_WS_URL,
+        val token: String = "",
+        val allowInsecure: Boolean = false,
+    ) {
+        fun rejection(): String? = MaidWsPolicy.validateConfig(url, token, allowInsecure)
+        override fun toString(): String = "WsTransport(enabled=$enabled)"
+    }
+
+    internal data class WsConfig(
+        val transport: WsTransport = WsTransport(),
+        val heartbeatSec: Int = 5,
+        val perceptionIntervalMs: Int = 750,
+    )
+
+    internal fun readWsConfig(file: Path): WsConfig {
+        val ws = try {
+            val root = JsonParser.parseString(Files.readString(file, StandardCharsets.UTF_8))
+            root.asJsonObject.get("ws")?.takeIf { it.isJsonObject }?.asJsonObject
+        } catch (_: IOException) {
+            null
+        } catch (_: RuntimeException) {
+            null
+        } ?: return WsConfig()
+        return WsConfig(
+            WsTransport(
+                MaidWsPolicy.explicitTrue(ws, "enabled"),
+                if (ws.has("url")) string(ws, "url").orEmpty() else DEFAULT_WS_URL,
+                string(ws, "token").orEmpty(),
+                MaidWsPolicy.explicitTrue(ws, "allowInsecure"),
+            ),
+            max(1, integer(ws, "heartbeatSec", 5)),
+            max(100, integer(ws, "perceptionIntervalMs", 750)),
+        )
+    }
+
+    internal fun readWsConfig(): WsConfig = readWsConfig(FabricLoader.getInstance().configDir.resolve(FILE_NAME))
 
     /** 懒加载配置（幂等） */
     @JvmStatic
@@ -73,10 +106,10 @@ object BridgeConfig {
                     .asJsonObject
             } catch (e: IOException) {
                 SmartMaid.LOGGER.warn("bridge.json 解析失败:IOException，使用默认配置: {}", e.toString())
-            } catch (e: JsonSyntaxException) {
-                SmartMaid.LOGGER.warn("bridge.json 解析失败:JsonSyntaxException，使用默认配置: {}", e.toString())
-            } catch (e: IllegalStateException) {
-                SmartMaid.LOGGER.warn("bridge.json 解析失败:IllegalStateException，使用默认配置: {}", e.toString())
+            } catch (_: JsonSyntaxException) {
+                SmartMaid.LOGGER.warn("bridge.json JSON 格式无效，使用默认配置")
+            } catch (_: IllegalStateException) {
+                SmartMaid.LOGGER.warn("bridge.json 必须是 JSON 对象，使用默认配置")
             }
             cfg = parsed ?: defaults()
         } else {
@@ -127,13 +160,6 @@ object BridgeConfig {
             }
         } ?: FabricLoader.getInstance().gameDir.resolve("deskpet").resolve("maid")
 
-        val ws = cfg.get("ws")?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
-        wsEnabled = MaidWsPolicy.explicitTrue(ws, "enabled")
-        wsAllowInsecure = MaidWsPolicy.explicitTrue(ws, "allowInsecure")
-        wsUrl = if (ws.has("url")) string(ws, "url").orEmpty() else DEFAULT_WS_URL
-        wsToken = string(ws, "token").orEmpty()
-        heartbeatSec = max(1, integer(ws, "heartbeatSec", 5))
-        perceptionIntervalMs = max(100, integer(ws, "perceptionIntervalMs", 750))
     }
 
     private fun string(obj: JsonObject, key: String): String? = obj.get(key)
@@ -142,12 +168,6 @@ object BridgeConfig {
     private fun integer(obj: JsonObject, key: String, fallback: Int): Int =
         obj.get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
             ?.asString?.toIntOrNull() ?: fallback
-
-    @JvmStatic
-    fun wsAllowInsecure(): Boolean {
-        load()
-        return wsAllowInsecure
-    }
 
     @JvmStatic
     fun enabled(): Boolean {
@@ -167,33 +187,4 @@ object BridgeConfig {
         return windowTicks
     }
 
-    @JvmStatic
-    fun wsEnabled(): Boolean {
-        load()
-        return wsEnabled
-    }
-
-    @JvmStatic
-    fun wsUrl(): String {
-        load()
-        return wsUrl
-    }
-
-    @JvmStatic
-    fun wsToken(): String {
-        load()
-        return wsToken
-    }
-
-    @JvmStatic
-    fun heartbeatSec(): Int {
-        load()
-        return heartbeatSec
-    }
-
-    @JvmStatic
-    fun perceptionIntervalMs(): Int {
-        load()
-        return perceptionIntervalMs
-    }
 }
