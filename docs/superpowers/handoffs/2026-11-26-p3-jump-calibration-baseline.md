@@ -158,12 +158,13 @@ python -B tools/p3_replay.py $w p3.o.east.move --expected-samples 100 --platform
 - 四格边界：世界 `SmartMaid-P3-Course-NorthGap4-1` 修复前 `PASS=31 FAIL=1`，`minY=65.0 minTargetDist=1.300`，实际落入沟底，已复现。
   - 修复：`MaidGroundPathNavigation.unsafeWideGap()` 在目标同高/更高、轴向距离 >4 且连续 4 格以上地面低于当前脚底时返回 null，并设置 `blockedByWideGap`；`MoveToTask` 检测到该标志后停止任务并返回原因“已停止（前方四格以上深沟）”。修复后世界 `SmartMaid-P3-Course-NorthGap4-2`：`PASS=32 FAIL=0`，`record-summary samples=120 minY=66.0 maxY=66.0 minTargetDist=5.216249323028946`；日志出现 `导航停止：前方四格以上深沟` 与 `Move 停止：前方四格以上深沟`，女仆停在起点侧，没有落入沟底。**结论是安全停止，不是跨过四格沟。**
 - 战斗约束补充（`SmartMaid/tools/autotest.p3-combat-safety-2.json`，SHA256 `CA7C54514BBBE88507EDBFED500661AFF34F96A45BE06EEC455118A141A58CCD`，世界 `SmartMaid-P3-Combat2-1`）：`PASS=5 FAIL=0`；石墙标记仍为 `minecraft:stone`，女仆背包石料 `16 -> 16` 未消耗；`p3.c2.attack` 记录 `samples=80 minY=66 maxY=66`。但该窗口的感知快照 `status.combat=false`，因此只能作为“攻击任务期间未改变石墙/未消耗石料”的补充负面检查，不能据此宣称完整战斗激活态的“不挖不搭”；既有 U 世界仍只覆盖石标保护。该场景的 `setblock` 因墙已在同一格而返回“无法放置方块”，不影响 `lastRun` 坐标记录和石墙检查。
+- 战斗激活补强（`SmartMaid/tools/autotest.p3-combat-safety-3.json`，SHA256 `1a6de11d34b7339c5df74c7749d4f68e770aa8b7d92627854fdc167c782eb79c`，世界 `SmartMaid-P3-Combat3-1`）：`PASS=5 FAIL=0`；`p3.c3.attack` 真实下发 `attack` 任务并出现 `task_started/task_done`，牛 health `10 -> 6 -> 2`，石墙 marker 仍为 `minecraft:stone`，背包石料 `16 -> 16` 未消耗；记录 `samples=80`（minY=63 maxY=66，因追击牛离开平台，不影响方块保护检查）。`status.combat=false` 是该感知字段的语义限制，不能把它当作“没有攻击”；但“不挖不搭”仍按石墙/石料不变作负向验证。证据目录 `C:\Users\zmal\AppData\Local\Temp\SmartMaid-P3-Combat3-20261127-123000`。
 
 ## 4. 当前结论与待办
 
 - 已建立离线基线和逐 tick 真机记录；已发现并修复“直线导航/原版路径覆盖跳跃定位”的问题；平地、1 格台阶、3 格短沟按上述几何标准各 **5/5**，R 世界正式 `check.record` 为 **47 PASS / 0 FAIL**；4 格边界已复现并修复为安全停止（`minY=66`，不跨沟）；坐下 60 tick 位移为 0。
 - 最终门禁：26.2/26.3 `clean build` 均成功，各 **8 suites / 40 tests / 0 failures / 0 errors / 0 skipped**；26.2 `verify_all.py --series 26.2` A/B/C 全部通过（PAL 1.2.6 致命 0/警告 0，依赖成员通过）。测试 XML 已分别归档到 `final-test-results-26.2/`、`final-test-results-26.3/`。
-- **仍需注意：** 四格边界现在安全停止而非跨过；战斗补充场景只证明攻击任务期间石墙/石料未变，采样 `status.combat=false`，不能宣称完整战斗激活态；北向 W 旧试次跌落原因仍未完全确认；120 tick 窗口不替代无限返程/跟随证明。R/V/固定跑道结果不能扩大解释为所有地形或所有朝向。
+- **仍需注意：** 四格边界现在安全停止而非跨过；战斗约束有攻击任务真实造成伤害期间石墙/石料不变的证据，但 `status.combat` 字段始终为 false，且没有独立的“挖掘/放置动作”断言；北向 W 旧试次跌落原因仍未完全确认；120 tick 窗口不替代无限返程/跟随证明。R/V/固定跑道结果不能扩大解释为所有地形或所有朝向。
 - 下一步：在等高固定场地补正式“未跌出”断言与连续多次重复；补完整战斗激活态的挖/搭证据；复核 26.2/26.3 clean build、26.2 verify_all 和既有 N1 命令回归；未推送/未合并。
 
 ## 5. 证据路径
@@ -178,7 +179,7 @@ python -B tools/p3_replay.py $w p3.o.east.move --expected-samples 100 --platform
 - `game-V.log`、`p3-runup-summary-V.log`（助跑 3 格短沟 5 次：`PASS=15 FAIL=0`）
 - `game-W.log`、`p3-orientation-summary-W.log`（东向通过、北向 `minY=65` 落沟的朝向冒烟：`PASS=5 FAIL=1`）
 - `p3_course.py`、`test_p3_course.py`（固定跑道生成器及 16 项离线审计测试）
-- `SmartMaid-P3-Course-North3-Final-20261126-230800/`、`SmartMaid-P3-Course-East3-Final-20261126-231000/`、`SmartMaid-P3-Course-NorthReturn2-Final-20261126-232100/`、`SmartMaid-P3-Course-EastReturn-Final-20261126-232300/`、`SmartMaid-P3-Course-NorthGap4-Final-20261126-230500/`、`SmartMaid-P3-Combat2-20261126-230000/`（固定跑道去返程、四格安全停止与战斗补充；含 client-output 与 replay-north/east）
+- `SmartMaid-P3-Course-North3-Final-20261126-230800/`、`SmartMaid-P3-Course-East3-Final-20261126-231000/`、`SmartMaid-P3-Course-NorthReturn2-Final-20261126-232100/`、`SmartMaid-P3-Course-EastReturn-Final-20261126-232300/`、`SmartMaid-P3-Course-NorthGap4-Final-20261126-230500/`、`SmartMaid-P3-Combat2-20261126-230000/`、`SmartMaid-P3-Combat3-20261127-123000/`（固定跑道去返程、四格安全停止与战斗补充；含 client-output、game-log、input 与 replay-north/east）
 - `SmartMaid-P3-Course-20261126-202733-244/`（临时 gameDir 尝试；客户端启动但未产出 AutoTest/server log，未计真机通过）
 - `final-clean-build-26.2.log`、`final-clean-build-26.3.log`、`final-test-results-26.2/`、`final-test-results-26.3/`、`verify-all-26.2.log`（最终构建/测试/静态门证据；各 8 suites / 40 tests，0 failures/errors/skips）
 - `prior-main.json`（本轮修改前的 `main.json`）
