@@ -100,8 +100,14 @@ class ModNetworking private constructor() {
                 player.level().server.execute menuAction@{
                     val level: Level = player.level()
                     if (level !is ServerLevel) return@menuAction
+                    val decision = MaidMenuPolicy.classify(payload.op, payload.cmd)
+                    if (!decision.isAllowed) {
+                        SmartMaid.LOGGER.warn("拒绝菜单 payload: player={} op={} cmd={}",
+                            player.uuid, payload.op.take(32), payload.cmd.take(32))
+                        return@menuAction
+                    }
                     val maid = findOwnerMaid(level, player) ?: return@menuAction
-                    val json = if (payload.op == "enqueue" && payload.cmd.isNotEmpty()) {
+                    val json = if (decision.isQueue) {
                         // 菜单下发新任务：主人显式（P2）→ 插队首
                         val req = JsonObject()
                         req.addProperty("id", "menu")
