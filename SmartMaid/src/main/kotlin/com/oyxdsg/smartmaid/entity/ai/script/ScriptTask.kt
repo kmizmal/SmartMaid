@@ -15,12 +15,12 @@ import com.oyxdsg.smartmaid.entity.ai.structure.StructureRegistry
 import com.oyxdsg.smartmaid.entity.ai.structure.StructureScan
 import com.oyxdsg.smartmaid.entity.ai.structure.StructureType
 import net.minecraft.core.BlockPos
+import java.math.BigDecimal
 import java.util.ArrayDeque
 import java.util.ArrayList
 import java.util.Collections
 import java.util.Deque
 import java.util.function.Predicate
-import kotlin.math.max
 
 /**
  * 脚本任务（Atomic Command Protocol §3）：AI 一次性规划的指令流执行器。
@@ -58,11 +58,7 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
     private var stepStartTick = 0
 
     init {
-        this.maxSteps = if (script.has("max_steps")) {
-            max(1, script.get("max_steps").asInt)
-        } else {
-            64
-        }
+        this.maxSteps = boundedInt(script, "max_steps", 64, MAX_STEPS_LIMIT)
         this.reportEach = script.has("report_each") && script.get("report_each").asBoolean
         this.ctx.scriptName = if (script.has("name")) script.get("name").asString else "script"
         if (script.has("vars") && script.get("vars").isJsonObject) {
@@ -216,13 +212,14 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
             } else {
                 JsonArray()
             }
-            val maxIter = if (l.has("max_iter")) Math.max(1, l.get("max_iter").asInt) else 20
+            val maxIter = boundedInt(l, "max_iter", 20, MAX_ITER_LIMIT)
             val whileCond: JsonObject? = if (l.has("while") && l.get("while").isJsonObject) {
                 l.getAsJsonObject("while")
             } else {
                 null
             }
-            this.stack.push(Frame(whileCond, jsonArrayToList(body), maxIter))
+            val loopSteps = jsonArrayToList(body)
+            if (loopSteps.isNotEmpty()) this.stack.push(Frame(whileCond, loopSteps, maxIter))
             this.ctx.logStep("loop", true, null)
             return true
         }
@@ -306,16 +303,12 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
             val produce = if (params.has("produce")) params.get("produce").asString else null
             val matcher: Predicate<net.minecraft.world.level.block.state.BlockState>? =
                 ProduceFilter.compile(produce).matcher
-            var count = 0
-            if (params.has("count")) {
-                val ce: JsonElement = params.get("count")
-                if (ce.isJsonPrimitive && ce.asJsonPrimitive.isNumber) {
-                    count = ce.asInt
-                } else {
+            val count = if (params.has("count")) {
+                MaidAIBridge.numericParam(params, "count") ?: run {
                     this.lastSubError = "harvest 的 count 参数不是数字"
                     return null
                 }
-            }
+            } else 0 // 缺省保留 HarvestTask 自身的结构规模上限。
             // 结构类型：显式 structure 参数 > 从 produce 推断（矿石 tag → ore）> 缺省 tree
             val structId = if (params.has("structure")) params.get("structure").asString else null
             val st: StructureType? = if (structId != null) {
@@ -459,6 +452,59 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
     }
 
     companion object {
+        private const val MAX_SCRIPT_STEPS = 512
+        private const val MAX_STEPS_LIMIT = 512
+        private const val MAX_ITER_LIMIT = 256
+        private const val MAX_DEPTH = 64
+        private val CHILD_STEP_KEYS = listOf("steps", "then", "else")
+
+        @JvmStatic
+        fun validate(script: JsonObject): String? {
+            val steps = script.get("steps")?.takeIf { it.isJsonArray }?.asJsonArray
+                ?: return "script 缺少 steps 数组"
+            if (steps.size() !in 1..MAX_SCRIPT_STEPS) return "script steps 数量必须在 1..$MAX_SCRIPT_STEPS"
+            validateLimit(script, "max_steps", MAX_STEPS_LIMIT)?.let { return it }
+            return validateSteps(steps, 0)
+        }
+
+        private fun validateSteps(steps: JsonArray, depth: Int): String? {
+            if (depth > MAX_DEPTH) return "脚本嵌套过深（上限 $MAX_DEPTH 层）"
+            for (element in steps) {
+                if (!element.isJsonObject) continue
+                val step = element.asJsonObject
+                step.get("loop")?.let { raw ->
+                    if (!raw.isJsonObject) return "loop 必须是对象"
+                    val loop = raw.asJsonObject
+                    validateLimit(loop, "max_iter", MAX_ITER_LIMIT, "loop.max_iter")?.let { return it }
+                    validateChildSteps(loop.get("body"), "loop.body", depth)?.let { return it }
+                }
+                for (key in CHILD_STEP_KEYS) {
+                    validateChildSteps(step.get(key), key, depth)?.let { return it }
+                }
+            }
+            return null
+        }
+
+        private fun validateChildSteps(raw: JsonElement?, key: String, depth: Int): String? {
+            if (raw == null) return null
+            if (!raw.isJsonArray) return "$key 必须是数组"
+            val steps = raw.asJsonArray
+            if (steps.size() > MAX_SCRIPT_STEPS) return "$key 数量超过上限 $MAX_SCRIPT_STEPS"
+            return validateSteps(steps, depth + 1)
+        }
+
+        private fun validateLimit(obj: JsonObject, key: String, max: Int, label: String = key): String? {
+            if (!obj.has(key)) return null
+            val value = MaidAIBridge.decimalParam(obj.get(key)) ?: return "$label 必须是整数"
+            if (value < BigDecimal.ONE || value > BigDecimal.valueOf(max.toLong())) return "$label 必须在 1..$max"
+            if (value.stripTrailingZeros().scale() > 0) return "$label 必须是整数"
+            return null
+        }
+
+        private fun boundedInt(obj: JsonObject, key: String, default: Int, max: Int): Int =
+            MaidAIBridge.decimalParam(obj.get(key))?.coerceIn(BigDecimal.ONE, BigDecimal.valueOf(max.toLong()))?.toInt()
+                ?: default
+
         private const val FAIL_ABORT = 0
         private const val FAIL_CONTINUE = 1
 
@@ -470,7 +516,8 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
         private fun jsonArrayToList(arr: JsonArray?): List<JsonObject> {
             val out: MutableList<JsonObject> = ArrayList()
             if (arr == null) return out
-            for (e in arr) {
+            for (index in 0 until minOf(arr.size(), MAX_SCRIPT_STEPS)) {
+                val e = arr[index]
                 if (e.isJsonObject) {
                     out.add(e.asJsonObject)
                 }

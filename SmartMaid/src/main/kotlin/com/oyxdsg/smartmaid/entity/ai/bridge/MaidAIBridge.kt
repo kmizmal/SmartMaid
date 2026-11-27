@@ -37,6 +37,7 @@ import net.minecraft.resources.Identifier
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
+import java.math.BigDecimal
 
 /**
  * AI 指令桥接层（M4）：把外部 AI 的统一 JSON 指令解析成女仆可执行任务，并返回协议回执。
@@ -118,11 +119,7 @@ object MaidAIBridge {
             }
             "script" -> {
                 // 原子层指令协议：AI 一次性规划的多步指令流，模组侧 ScriptTask 顺序执行。
-                if (!params.has("steps") || !params.get("steps").isJsonArray ||
-                    params.getAsJsonArray("steps").size() == 0
-                ) {
-                    return MaidCommandResult.fail(id, "script 缺少非空 steps 数组")
-                }
+                ScriptTask.validate(params)?.let { return MaidCommandResult.fail(id, it) }
                 // script 也可入队（Q9）：queue:true 时与普通任务同样处理（script 不参与 mutex 互斥）
                 if (req.has("queue") && req.get("queue").asBoolean) {
                     val kind = if (req.has("long_term") && req.get("long_term").asBoolean) QueueKind.LONG else QueueKind.SHORT
@@ -529,12 +526,28 @@ object MaidAIBridge {
 
     // ---------- 参数解析 ----------
 
-    private fun intParam(params: JsonObject, key: String, def: Int): Int =
-        if (params.has(key) && params.get(key).isJsonPrimitive && params.get(key).asJsonPrimitive.isNumber) {
-            params.get(key).asInt
-        } else {
-            def
+    private val INT_BOUNDS = mapOf("range" to 1..32, "count" to 1..64, "height" to 1..32, "to" to 0..64, "slot" to -1..53)
+
+    @JvmStatic
+    fun clampParam(key: String, value: Int): Int = INT_BOUNDS[key]?.let(value::coerceIn) ?: value
+
+    @JvmStatic
+    fun intParam(params: JsonObject, key: String, def: Int): Int = numericParam(params, key) ?: def
+
+    internal fun numericParam(params: JsonObject, key: String): Int? {
+        val value = decimalParam(params.get(key)) ?: return null
+        val bounds = INT_BOUNDS[key] ?: (Int.MIN_VALUE..Int.MAX_VALUE)
+        return value.coerceIn(BigDecimal.valueOf(bounds.first.toLong()), BigDecimal.valueOf(bounds.last.toLong())).toInt()
+    }
+
+    internal fun decimalParam(element: com.google.gson.JsonElement?): BigDecimal? {
+        if (element == null || !element.isJsonPrimitive || !element.asJsonPrimitive.isNumber) return null
+        return try {
+            element.asBigDecimal
+        } catch (_: NumberFormatException) {
+            null
         }
+    }
 
     private fun boolParam(params: JsonObject, key: String, def: Boolean): Boolean =
         if (params.has(key) && params.get(key).isJsonPrimitive && params.get(key).asJsonPrimitive.isBoolean) {
