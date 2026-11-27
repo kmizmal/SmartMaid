@@ -5,6 +5,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonNull
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.oyxdsg.smartmaid.SmartMaid
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
 import com.oyxdsg.smartmaid.entity.ai.maidtask.QueuedTask.PauseReason
@@ -267,16 +268,25 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
             this.longFailStreak++
             if (this.longFailStreak >= 2) {
                 MaidDebug.log("长期队列连续失败，放弃")
-                this.queue.clear(QueueKind.LONG)
+                clearFailedQueue(QueueKind.LONG)
                 this.longFailStreak = 0
             }
         } else {
             this.shortFailStreak++
             if (this.shortFailStreak >= 2) {
                 MaidDebug.log("短期队列连续失败，放弃")
-                this.queue.clear(QueueKind.SHORT)
+                clearFailedQueue(QueueKind.SHORT)
                 this.shortFailStreak = 0
             }
+        }
+    }
+
+    private fun clearFailedQueue(kind: QueueKind) {
+        val abandoned = if (kind == QueueKind.SHORT) this.queue.shortItems() else this.queue.longItems()
+        this.queue.clear(kind)
+        for (entry in abandoned) {
+            val task = this.runtimeTasks.remove(entry.id())
+            if (this.startedIds.remove(entry.id())) stopSafely(task, entry)
         }
     }
 
@@ -294,8 +304,17 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
         MaidDebug.log("任务取消: " + cur.cmd())
         val task = this.runtimeTasks.remove(cur.id())
         this.startedIds.remove(cur.id())
-        task?.forceStop(this.maid)
+        stopSafely(task, cur)
         this.queue.cancelCurrent()
+    }
+
+    private fun stopSafely(task: MaidAITask?, entry: QueuedTask) {
+        try {
+            task?.forceStop(this.maid)
+        } catch (stop: Throwable) {
+            if (stop is VirtualMachineError || stop is ThreadDeath) throw stop
+            SmartMaid.LOGGER.error("女仆任务 forceStop 异常: cmd={} queue={} id={}", entry.cmd(), entry.queue(), entry.id(), stop)
+        }
     }
 
     /** 暂停当前项并回队首（对象保留，不 forceStop、不丢引用）—— 战斗打断用（§五.2 / §六.1）。 */
@@ -331,7 +350,8 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
 
         // 战斗高于任务：当前项暂停 + 保留对象并回队首，战斗结束自动继续（§五.2）
         if (this.maid?.isCombatActive() == true) {
-            pauseCurrent(PauseReason.COMBAT)
+            val cur = this.queue.current() ?: return
+            isolateTask(this.runtimeTasks[cur.id()], cur) { pauseCurrent(PauseReason.COMBAT) }
             return
         }
         // 坐下 / 死亡 → 强制终止当前（不启动新任务；保持旧行为）
@@ -355,49 +375,78 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
 
         this.ticks++
         val maid = this.maid ?: return
-        task.tick(maid)
-        // 资源阻塞（如无空闲熔炉）：暂停 + 让出队头，等资源空出再恢复（§8.8b）
-        if (task.isBlocked() && !task.isDone()) {
-            blockCurrent()
-            return
-        }
-        // 长期任务无进展检测（§十一）：仅对提供进度令牌的任务生效（guard 等不提供 → 不误判）
-        val token = task.progressToken()
-        if (token != null) {
-            if (token != this.lastToken) {
-                this.lastToken = token
-                this.noProgressTicks = 0
-            } else {
-                this.noProgressTicks++
-                if (this.noProgressTicks > NO_PROGRESS_LIMIT) {
-                    MaidDebug.log("长任务无进展，暂停: " + task.taskId())
+        var finished = false
+        executeTaskTick(task, cur) {
+            task.tick(maid)
+            // 资源阻塞（如无空闲熔炉）：暂停 + 让出队头，等资源空出再恢复（§8.8b）
+            if (task.isBlocked() && !task.isDone()) {
+                blockCurrent()
+                return@executeTaskTick
+            }
+            // 长期任务无进展检测（§十一）：仅对提供进度令牌的任务生效（guard 等不提供 → 不误判）
+            val token = task.progressToken()
+            if (token != null) {
+                if (token != this.lastToken) {
+                    this.lastToken = token
                     this.noProgressTicks = 0
-                    pauseCurrent(PauseReason.BLOCKED)
-                    return
+                } else {
+                    this.noProgressTicks++
+                    if (this.noProgressTicks > NO_PROGRESS_LIMIT) {
+                        MaidDebug.log("长任务无进展，暂停: " + task.taskId())
+                        this.noProgressTicks = 0
+                        pauseCurrent(PauseReason.BLOCKED)
+                        return@executeTaskTick
+                    }
                 }
             }
-        }
-        val timedOut = !task.isContinuous() && this.ticks > this.maxTicks
-        if (task.isDone() || timedOut) {
-            val result = if (timedOut) "超时" else task.result()
-            val end = if (timedOut) State.FAILED else State.DONE
-            MaidDebug.log("任务结束: " + task.taskId() + " result=$result ticks=" + this.ticks)
-            // try/finally 保证推进一定可达（§八：否则"当前项没了、队列还有、站着不动"）
-            try {
+            val timedOut = !task.isContinuous() && this.ticks > this.maxTicks
+            if (task.isDone() || timedOut) {
+                val result = if (timedOut) "超时" else task.result()
+                val end = if (timedOut) State.FAILED else State.DONE
+                MaidDebug.log("任务结束: " + task.taskId() + " result=$result ticks=" + this.ticks)
                 task.forceStop(this.maid)
                 this.queue.finishCurrent(end, result)
+                forgetRuntime(cur)
                 if (end == State.FAILED) {
                     noteFail(cur.queue())
                 } else {
                     noteSuccess(cur.queue())
                 }
-            } finally {
-                this.runtimeTasks.remove(cur.id())
-                this.startedIds.remove(cur.id())
-                this.ticks = 0
-                startNextLoop()
+                finished = true
             }
         }
+        if (finished) startNextLoop()
+    }
+
+    internal fun hasRuntimeTask(id: String): Boolean = this.runtimeTasks.containsKey(id)
+
+    internal fun executeTaskTick(task: MaidAITask, cur: QueuedTask, action: () -> Unit) {
+        if (!isolateTask(task, cur, action)) startNextLoop()
+    }
+
+    private inline fun isolateTask(task: MaidAITask?, cur: QueuedTask, action: () -> Unit): Boolean {
+        try {
+            action()
+            return true
+        } catch (cause: Throwable) {
+            if (cause is VirtualMachineError || cause is ThreadDeath) throw cause
+            SmartMaid.LOGGER.error("女仆任务 tick 异常: task={} queue={} id={}", task?.taskId() ?: cur.cmd(), cur.queue(), cur.id(), cause)
+            if (this.queue.current() === cur) {
+                stopSafely(task, cur)
+                this.queue.finishCurrent(State.FAILED, "任务异常: " + (cause.message ?: cause.javaClass.simpleName))
+                forgetRuntime(cur)
+                noteFail(cur.queue())
+            }
+            return false
+        }
+    }
+
+    private fun forgetRuntime(cur: QueuedTask) {
+        this.runtimeTasks.remove(cur.id())
+        this.startedIds.remove(cur.id())
+        this.ticks = 0
+        this.lastToken = null
+        this.noProgressTicks = 0
     }
 
     /**
@@ -427,7 +476,9 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
                     continue
                 }
                 val m = this.maid ?: return
-                if (!task.canStart(m)) {
+                var canStart = false
+                if (!isolateTask(task, next) { canStart = task.canStart(m) }) continue
+                if (!canStart) {
                     MaidDebug.log("跳过无法开始的任务: " + next.cmd())
                     this.runtimeTasks.remove(next.id())
                     this.queue.finishCurrent(State.SKIPPED, "前置条件不满足")
@@ -437,13 +488,15 @@ open class MaidTaskManager(private val maid: SmartMaidEntity?) {
                 this.lastToken = null
                 this.noProgressTicks = 0
                 this.ticks = 0
-                task.start(m)
-                this.startedIds.add(next.id())
-                // 跨会话回溯：有快照且环境校验通过 → 灌回中间状态（§6.2 回溯为默认、校验为兜底）
-                val progress = next.progress()
-                if (progress != null && task is Resumable && task.validateState(m, progress)) {
-                    task.restoreState(progress)
-                }
+                if (!isolateTask(task, next) {
+                        task.start(m)
+                        this.startedIds.add(next.id())
+                        // 跨会话回溯：有快照且环境校验通过才恢复（§6.2）。
+                        val progress = next.progress()
+                        if (progress != null && task is Resumable && task.validateState(m, progress)) {
+                            task.restoreState(progress)
+                        }
+                    }) continue
                 MaidDebug.log("任务开始: " + task.taskId() + " (" + next.queue() + ")")
             } else {
                 // 恢复：对象完整，直接接着 tick（挂起期间未销毁）

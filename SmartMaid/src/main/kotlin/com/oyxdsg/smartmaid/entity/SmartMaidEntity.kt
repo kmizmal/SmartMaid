@@ -1,5 +1,7 @@
 package com.oyxdsg.smartmaid.entity
 
+import com.oyxdsg.smartmaid.SmartMaid
+
 import com.oyxdsg.smartmaid.data.MaidDataManager
 import com.oyxdsg.smartmaid.data.MaidSettings
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity.Companion.TELEPORT_FALLBACK_DISTANCE_SQR
@@ -636,7 +638,13 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
                 this.actionExecutor.tick()
             }
             // AI 任务调度器：驱动当前 AI 任务（攻击/挖矿/耕作/建造/制作）
-            this.maidTaskManager.tick()
+            try {
+                this.maidTaskManager.tick()
+            } catch (cause: Throwable) {
+                if (cause is VirtualMachineError || cause is ThreadDeath) throw cause
+                SmartMaid.LOGGER.error("女仆任务管理器 tick 异常", cause)
+                this.maidTaskManager.cancel()
+            }
             // 感知模块：采样"玩家视角"快照 + 事件队列
             this.perceptionModule.tick()
             // 遥测下行（M5-a）：把女仆事件按窗口写入 deskpet/maid/，供桌面宠物读取
