@@ -141,7 +141,7 @@ $env:JAVA_HOME = '<本机 JDK 25 安装目录>'
 .\gradlew.bat --offline --no-daemon --console=plain clean build '-Pmc_series=26.3' '-Pminecraft_version=26.3' '-Ploader_version=0.19.5' '-Ploom_version=1.18.4' '-Pfabric_api_version=0.161.0+26.3'
 ```
 
-双版本 Wrapper 构建均已实跑，当前各 7 suites / 37 tests 全通过。Kotlin 生产代码统一使用 Gradle 构建，旧 `compile_check.py --package` 的纯 javac 流程不是当前发布入口。离线执行需本机已有依赖缓存；首次下载按本机网络环境准备。
+26.2 与 26.3 的离线 `clean build` 均已通过，各 15 suites / 61 tests，无失败、错误或跳过。构建不代替游戏内手工验收；本轮范围见[可用性修复报告](../docs/PROJECT_USABILITY_ANALYSIS_2026-11-27.md#修复与验收2026-11-27)。Kotlin 生产代码统一使用 Gradle 构建，旧 `compile_check.py --package` 的纯 javac 流程不是当前发布入口。离线执行需本机已有依赖缓存；首次下载按本机网络环境准备。
 
 产物在 `build/libs/`；两个版本的文件名可能相同，下一轮 clean 前分别归档 jar 和测试 XML，避免覆盖。玩家安装时选择对应版本的 jar，并安装上表声明的外部依赖。客户端开发验收使用模块下 `run`，完整归档及门禁步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)。
 
@@ -219,8 +219,8 @@ $env:JAVA_HOME = '<本机 JDK 25 安装目录>'
 
 ## 数据存储
 
-- **女仆装备 / 物品栏 / 任务队列**：`<存档>/smartmaid/maids/<玩家UUID>.dat`（NBT 压缩文件，自动读写）
-  —— **按存档隔离**，多存档互不串档；旧版 `config/smartmaid/maids/` 下的同名文件**首次读取时自动迁移**过来
+- **女仆装备 / 物品栏 / 任务队列**：`<存档>/smartmaid/maids/<玩家UUID>-<女仆UUID>.dat`（NBT 压缩快照）。`<玩家UUID>.latest` 记录重召时应恢复的快照，不是召唤锁。当前女仆尚未移除时，同一玩家不能跨维度重复召唤；正常移除后仍可重召并恢复数据。
+  —— **按存档隔离**。首次迁移优先复制世界目录中的旧 `<玩家UUID>.dat`，其次才读旧版 `config/smartmaid/maids/`；复制失败可只读回退，旧文件不会被覆盖或删除。
 - **女仆设置**（与玩家绑定）：`<游戏目录>/config/smartmaid/settings/<玩家UUID>.json`（菜单修改自动保存）
 - **AI 任务配置**：`<游戏目录>/config/smartmaid/maids/<玩家UUID>.cfg`
 - **模组配置**：`<游戏目录>/config/smartmaid/main.json`（调试开关、命令权限、背包自动整理等；首次运行自动生成）
@@ -325,8 +325,15 @@ config/smartmaid/
 ├── clienttest.json        ★客户端自动化测试脚本（GUI / 键位，进世界后自动执行）
 ├── settings/<UUID>.json   ★玩家绑定设置（女仆菜单修改自动保存）
 └── maids/<UUID>.cfg         AI 任务配置（持久化任务）
-<存档>/smartmaid/maids/<UUID>.dat   ★背包 / 装备 / 任务队列存档（按存档隔离；旧 config 位置自动迁移）
+<存档>/smartmaid/maids/<玩家UUID>-<女仆UUID>.dat   ★背包 / 装备 / 任务队列快照
+<存档>/smartmaid/maids/<玩家UUID>.latest         ★重召恢复用的快照指针
 ```
+
+### 桌宠 WebSocket 配置
+
+- 文件遥测的 `enabled` 与 WebSocket 的 `ws.enabled` 是独立开关，默认均为 `false`。旧配置缺失相应开关或整个 `ws` 对象时，不会自动启用；只接受 JSON 布尔值 `true`。
+- 启用 WebSocket 时必须设置非空 `ws.token`，并与桌宠端一致。回环地址（例如 `ws://127.0.0.1:21420`）可使用 `ws://`。非回环地址默认必须用 `wss://`；只有明确设为 `ws.allowInsecure: true` 才开放远端明文。该选项默认关闭，且不豁免 token 要求。
+- 桌宠必须返回带布尔值 `"ok": true` 的 `hello_ack` 后才能下发指令。游戏服务端定期重读 WebSocket 设置；禁用、轮换 token、变更地址或传输策略都会撤销旧连接。文件遥测配置仍在启动时加载。
 
 ## 工具脚本
 
