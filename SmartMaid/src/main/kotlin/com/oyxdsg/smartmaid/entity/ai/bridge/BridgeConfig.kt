@@ -23,7 +23,8 @@ import kotlin.math.max
  *   "ws": {
  *     "enabled": false,                   // 上行通道总开关；默认关
  *     "url": "ws://127.0.0.1:21420",      // 桌宠侧 WebSocket Server
- *     "token": "",                        // 握手 token，与桌宠配置一致（留空 = 不校验）
+ *     "token": "",                        // 启用时必填，与桌宠配置一致
+ *     "allowInsecure": false,             // 仅在明确接受风险时允许非回环 ws://
  *     "heartbeatSec": 5,
  *     "perceptionIntervalMs": 750         // 感知快照上报间隔
  *   }
@@ -33,7 +34,7 @@ import kotlin.math.max
  * <p><b>默认关闭的理由</b>（2026-09-29）：桥接只对"本机跑着桌宠"的用户有意义。
  * 默认开启会导致：没有桌宠的整合包/服务器每次启动都白建 {@code deskpet/} 目录写文件、
  * 并持续空连 {@code ws://127.0.0.1:21420}（指数退避）。已有配置文件不会被覆盖，
- * 所以老用户升级后行为不变；新装用户需要联动时手动改 true。</p>
+ * 旧配置也必须明确启用通道并提供非空 token。</p>
  *
  * <p>加载时机：首次访问任意 getter 时懒加载一次（服务端线程调用）。</p>
  */
@@ -47,8 +48,10 @@ object BridgeConfig {
     private var enabled = false
     private var deskpetDir: Path? = null
     private var windowTicks = DEFAULT_WINDOW_TICKS
+    private const val DEFAULT_WS_URL = "ws://127.0.0.1:21420"
     private var wsEnabled = false
-    private var wsUrl = "ws://127.0.0.1:21420"
+    private var wsAllowInsecure = false
+    private var wsUrl = DEFAULT_WS_URL
     private var wsToken = ""
     private var heartbeatSec = 5
     private var perceptionIntervalMs = 750
@@ -92,8 +95,9 @@ object BridgeConfig {
         cfg.addProperty("windowTicks", DEFAULT_WINDOW_TICKS)
         val ws = JsonObject()
         ws.addProperty("enabled", false)
-        ws.addProperty("url", "ws://127.0.0.1:21420")
+        ws.addProperty("url", DEFAULT_WS_URL)
         ws.addProperty("token", "")
+        ws.addProperty("allowInsecure", false)
         ws.addProperty("heartbeatSec", 5)
         ws.addProperty("perceptionIntervalMs", 750)
         cfg.add("ws", ws)
@@ -111,34 +115,38 @@ object BridgeConfig {
     }
 
     private fun apply(cfg: JsonObject) {
-        enabled = !cfg.has("enabled") || cfg.get("enabled").asBoolean
-        if (cfg.has("windowTicks") && cfg.get("windowTicks").isJsonPrimitive) {
-            windowTicks = max(20, cfg.get("windowTicks").asInt)
-        }
-        // 遥测目录：留空则用 <游戏目录>/deskpet/maid（桌宠按 <mc>/.minecraft/deskpet 推导，天然对齐）
-        val custom: String? = if (cfg.has("deskpetDir")) cfg.get("deskpetDir").asString else ""
-        deskpetDir = if (!custom.isNullOrBlank()) {
-            Path.of(custom)
-        } else {
-            FabricLoader.getInstance().gameDir.resolve("deskpet").resolve("maid")
-        }
+        enabled = MaidWsPolicy.explicitTrue(cfg, "enabled")
+        windowTicks = max(20, integer(cfg, "windowTicks", DEFAULT_WINDOW_TICKS))
+        // 遥测目录：留空则用 <游戏目录>/deskpet/maid。
+        val custom = string(cfg, "deskpetDir")
+        deskpetDir = custom?.takeUnless { it.isBlank() }?.let {
+            try {
+                Path.of(it)
+            } catch (_: java.nio.file.InvalidPathException) {
+                null
+            }
+        } ?: FabricLoader.getInstance().gameDir.resolve("deskpet").resolve("maid")
 
-        if (cfg.has("ws") && cfg.get("ws").isJsonObject) {
-            val ws = cfg.getAsJsonObject("ws")
-            wsEnabled = !ws.has("enabled") || ws.get("enabled").asBoolean
-            if (ws.has("url")) {
-                wsUrl = ws.get("url").asString
-            }
-            if (ws.has("token")) {
-                wsToken = ws.get("token").asString
-            }
-            if (ws.has("heartbeatSec") && ws.get("heartbeatSec").isJsonPrimitive) {
-                heartbeatSec = max(1, ws.get("heartbeatSec").asInt)
-            }
-            if (ws.has("perceptionIntervalMs") && ws.get("perceptionIntervalMs").isJsonPrimitive) {
-                perceptionIntervalMs = max(100, ws.get("perceptionIntervalMs").asInt)
-            }
-        }
+        val ws = cfg.get("ws")?.takeIf { it.isJsonObject }?.asJsonObject ?: JsonObject()
+        wsEnabled = MaidWsPolicy.explicitTrue(ws, "enabled")
+        wsAllowInsecure = MaidWsPolicy.explicitTrue(ws, "allowInsecure")
+        wsUrl = if (ws.has("url")) string(ws, "url").orEmpty() else DEFAULT_WS_URL
+        wsToken = string(ws, "token").orEmpty()
+        heartbeatSec = max(1, integer(ws, "heartbeatSec", 5))
+        perceptionIntervalMs = max(100, integer(ws, "perceptionIntervalMs", 750))
+    }
+
+    private fun string(obj: JsonObject, key: String): String? = obj.get(key)
+        ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+
+    private fun integer(obj: JsonObject, key: String, fallback: Int): Int =
+        obj.get(key)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+            ?.asString?.toIntOrNull() ?: fallback
+
+    @JvmStatic
+    fun wsAllowInsecure(): Boolean {
+        load()
+        return wsAllowInsecure
     }
 
     @JvmStatic

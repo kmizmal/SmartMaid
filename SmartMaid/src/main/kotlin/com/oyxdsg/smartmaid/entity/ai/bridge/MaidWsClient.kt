@@ -69,7 +69,7 @@ object MaidWsClient {
     /** 单次 tick 最多发送的消息数，避免异常情况下刷屏 */
     private const val MAX_SEND_PER_TICK = 64
 
-    private val LOCK = Any()
+    private const val HANDSHAKE_TIMEOUT_MS = 10_000L
     private val HTTP: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(3))
         .build()
@@ -86,7 +86,10 @@ object MaidWsClient {
 
     @Volatile
     private var handshaken = false
-    private var connecting = false
+    // Connection attempts and world access are confined to the owning server thread.
+    private var pending: Listener? = null
+    private var handshakeDeadline = 0L
+    private var sending: CompletionStage<*>? = null
     private var nextAttemptAt = 0L
     private var backoffMs = INITIAL_BACKOFF_MS
     private var lastPingAt = 0L
@@ -110,32 +113,24 @@ object MaidWsClient {
             return
         }
         server = srv
-        synchronized(LOCK) {
-            nextAttemptAt = 0
-            backoffMs = INITIAL_BACKOFF_MS
-            connecting = false
-        }
+        nextAttemptAt = 0
+        backoffMs = INITIAL_BACKOFF_MS
         if (BridgeConfig.wsEnabled()) {
-            SmartMaid.LOGGER.info("女仆 WebSocket 已启用: {}", BridgeConfig.wsUrl())
+            val rejection = configError()
+            if (rejection != null) {
+                SmartMaid.LOGGER.error("桌宠 WebSocket 配置被拒绝: {}", rejection)
+                return
+            }
+            SmartMaid.LOGGER.info("女仆 WebSocket 已启用")
         }
     }
 
     @JvmStatic
     fun onServerStopping(srv: MinecraftServer) {
-        val ws = socket
-        socket = null
-        open = false
-        handshaken = false
+        if (server !== srv) return
+        handleDisconnect("server stopping")
         server = null
-        OUTBOX.clear()
         CHANNELS.clear()
-        if (ws != null) {
-            try {
-                ws.sendClose(WebSocket.NORMAL_CLOSURE, "server stopping")
-            } catch (ignored: Exception) {
-                // 连接可能已断开，忽略
-            }
-        }
         SmartMaid.LOGGER.info("女仆 WebSocket 已停止")
     }
 
@@ -143,12 +138,18 @@ object MaidWsClient {
 
     @JvmStatic
     fun onServerTick(srv: MinecraftServer) {
-        if (!BridgeConfig.wsEnabled()) {
+        if (server !== srv) return
+        if (!BridgeConfig.wsEnabled() || configError() != null) {
+            if (open || pending != null) handleDisconnect("config disabled or rejected")
             return
         }
         val now = System.currentTimeMillis()
         if (!open) {
-            tryConnect(now)
+            tryConnect(srv, now)
+            return
+        }
+        if (!handshaken) {
+            if (now >= handshakeDeadline) handleDisconnect("hello_ack timeout")
             return
         }
         // 心跳
@@ -173,7 +174,7 @@ object MaidWsClient {
     /** 女仆侧注册（由 [SmartMaidEntity.aiStep] 调用），并把事件订阅挂到感知模块 */
     @JvmStatic
     fun onMaidTick(maid: SmartMaidEntity) {
-        if (maid.level().isClientSide || !BridgeConfig.wsEnabled()) {
+        if (maid.level().isClientSide || server == null || !BridgeConfig.wsEnabled()) {
             return
         }
         val first = !CHANNELS.containsKey(maid)
@@ -287,75 +288,66 @@ object MaidWsClient {
     }
 
     private fun drainOutbox() {
-        val ws = socket
-        if (ws == null || !open) {
-            return
+        val ws = socket ?: return
+        val srv = server ?: return
+        repeat(MAX_SEND_PER_TICK) {
+            if (sending?.toCompletableFuture()?.isDone == false) return
+            val text = OUTBOX.poll() ?: return
+            if (!send(srv, ws, text)) return
         }
-        var sent = 0
-        while (sent < MAX_SEND_PER_TICK) {
-            val text = OUTBOX.poll() ?: break
-            try {
-                ws.sendText(text, true).exceptionally { err ->
-                    handleDisconnect("发送失败 " + err)
-                    null
+    }
+
+    private fun send(srv: MinecraftServer, ws: WebSocket, text: String): Boolean {
+        return try {
+            sending = ws.sendText(text, true).whenComplete { _, error ->
+                if (error != null) srv.execute {
+                    if (server === srv && socket === ws) handleDisconnect("send failed")
                 }
-                sent++
-            } catch (e: Exception) {
-                // 连接已失效：把消息放回队首，等重连后重发
-                OUTBOX.add(text)
-                handleDisconnect("发送异常 " + e)
-                return
             }
+            true
+        } catch (_: Exception) {
+            if (socket === ws) handleDisconnect("send failed")
+            false
         }
     }
 
     // ---------- 连接管理 ----------
 
-    private fun tryConnect(now: Long) {
-        synchronized(LOCK) {
-            if (connecting || now < nextAttemptAt) {
-                return
-            }
-            connecting = true
-        }
-        val uri: URI
+    private fun configError(): String? = MaidWsPolicy.validateConfig(
+        BridgeConfig.wsUrl(), BridgeConfig.wsToken(), BridgeConfig.wsAllowInsecure()
+    )
+
+    private fun tryConnect(srv: MinecraftServer, now: Long) {
+        if (pending != null || now < nextAttemptAt) return
+        val listener = Listener(srv)
+        pending = listener
         try {
-            uri = URI.create(BridgeConfig.wsUrl())
-        } catch (e: IllegalArgumentException) {
-            synchronized(LOCK) {
-                connecting = false
-                nextAttemptAt = now + MAX_BACKOFF_MS
-            }
-            SmartMaid.LOGGER.warn("ws.url 非法，跳过本次连接: {}", BridgeConfig.wsUrl())
-            return
-        }
-        HTTP.newWebSocketBuilder()
-            .connectTimeout(Duration.ofSeconds(3))
-            .buildAsync(uri, Listener())
-            .whenComplete { _, err ->
-                if (err != null) {
-                    synchronized(LOCK) {
-                        connecting = false
-                        nextAttemptAt = System.currentTimeMillis() + backoffMs
-                        backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS)
+            HTTP.newWebSocketBuilder()
+                .connectTimeout(Duration.ofSeconds(3))
+                .buildAsync(URI.create(BridgeConfig.wsUrl()), listener)
+                .whenComplete { _, error ->
+                    if (error != null) srv.execute {
+                        if (server === srv && pending === listener) handleDisconnect("connection failed")
                     }
-                    // 连接失败在单机下很常见（没开桌宠），只在 debug 级提示
-                    MaidDebug.log("桌宠 WebSocket 连接失败: " + err)
                 }
-            }
+        } catch (_: Exception) {
+            handleDisconnect("connection failed")
+        }
     }
 
-    private fun onOpen(ws: WebSocket) {
-        synchronized(LOCK) {
-            socket = ws
-            open = true
-            handshaken = false
-            connecting = false
-            backoffMs = INITIAL_BACKOFF_MS
-            lastPingAt = 0
-            pongLogged = false
+    private fun onOpen(srv: MinecraftServer, listener: Listener, ws: WebSocket) {
+        if (server !== srv || pending !== listener || !BridgeConfig.wsEnabled() || configError() != null) {
+            ws.abort()
+            if (server === srv && pending === listener) handleDisconnect("config disabled or rejected")
+            return
         }
-        MaidDebug.log("桌宠 WebSocket 已连接: " + BridgeConfig.wsUrl())
+        pending = null
+        socket = ws
+        open = true
+        handshaken = false
+        handshakeDeadline = System.currentTimeMillis() + HANDSHAKE_TIMEOUT_MS
+        lastPingAt = 0
+        pongLogged = false
         OUTBOX.clear()
         val hello = JsonObject()
         hello.addProperty("type", "hello")
@@ -370,31 +362,38 @@ object MaidWsClient {
             maids.add(m)
         }
         hello.add("maids", maids)
-        enqueue(hello)
+        if (send(srv, ws, GSON.toJson(hello))) ws.request(1)
     }
 
     private fun handleDisconnect(reason: String) {
-        val wasOpen: Boolean
-        synchronized(LOCK) {
-            wasOpen = open
-            open = false
-            handshaken = false
-            socket = null
-            connecting = false
-            nextAttemptAt = System.currentTimeMillis() + backoffMs
-            backoffMs = min(backoffMs * 2, MAX_BACKOFF_MS)
+        val ws = socket
+        socket = null
+        open = false
+        handshaken = false
+        sending = null
+        pending = null
+        nextAttemptAt = System.currentTimeMillis() + backoffMs
+        backoffMs = min(backoffMs * 2, MAX_BACKOFF_MS)
+        OUTBOX.clear()
+        CHANNELS.values.forEach { it.diff.reset(); it.lastPerceptionAt = 0 }
+        if (ws != null) {
+            MaidDebug.log("桌宠 WebSocket 断开（$reason），稍后重连")
+            try {
+                ws.sendClose(WebSocket.NORMAL_CLOSURE, reason).whenComplete { _, _ -> ws.abort() }
+            } catch (_: Exception) {
+                ws.abort()
+            }
         }
-        if (wasOpen) {
-            MaidDebug.log("桌宠 WebSocket 断开（" + reason + "），稍后重连")
-        }
-        // 重连后接收方状态已丢失：下次感知必须发全量
-        val srv = server
-        srv?.execute { CHANNELS.values.forEach { c -> c.diff.reset() } }
     }
 
     // ---------- 下行分发（服务端线程） ----------
 
-    private fun dispatch(text: String) {
+    private fun dispatch(srv: MinecraftServer, ws: WebSocket, text: String) {
+        if (server !== srv || socket !== ws || !open) return
+        if (!BridgeConfig.wsEnabled() || configError() != null) {
+            handleDisconnect("config disabled or rejected")
+            return
+        }
         val msg: JsonObject
         try {
             msg = JsonParser.parseString(text).asJsonObject
@@ -402,10 +401,21 @@ object MaidWsClient {
             MaidDebug.log("桌宠下发了非法 JSON: " + e)
             return
         }
-        when (val type = str(msg, "type", "")) {
+        val type = msg.get("type")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString ?: return
+        if (!handshaken && !MaidWsPolicy.allowsBeforeHandshake(type)) return
+        when (type) {
             "hello_ack" -> {
+                if (!MaidWsPolicy.isHandshakeAccepted(msg)) {
+                    handleDisconnect("hello_ack rejected")
+                    return
+                }
+                if (handshaken) return
                 handshaken = true
-                MaidDebug.log("握手成功" + if (ok(msg)) "" else "（对方标记 ok=false）")
+                backoffMs = INITIAL_BACKOFF_MS
+                // Pre-auth snapshots are discarded; the next tick sends a fresh full snapshot.
+                OUTBOX.clear()
+                CHANNELS.values.forEach { it.diff.reset(); it.lastPerceptionAt = 0 }
+                MaidDebug.log("握手成功")
                 // 物品索引（当前语言的物品名 → id）：桌宠侧据此做中文/拼音模糊匹配，
                 // 专用服务端拿不到语言资源时为 null，跳过即可。
                 val index = ItemIndexPayload.build()
@@ -439,6 +449,7 @@ object MaidWsClient {
     }
 
     private fun handleCommand(msg: JsonObject) {
+        if (!handshaken) return
         val maid = resolveMaid(str(msg, "maid", ""))
         if (maid == null) {
             SmartMaid.LOGGER.warn("桌宠指令找不到目标女仆: {}", msg)
@@ -615,44 +626,44 @@ object MaidWsClient {
         return if (o.has(key) && !o.get(key).isJsonNull) o.get(key).asString else def
     }
 
-    private fun ok(o: JsonObject): Boolean {
-        return !o.has("ok") || o.get("ok").asBoolean
-    }
-
     /** 每女仆的通道状态 */
     private class Channel {
         val diff = PerceptionDiff()
         var lastPerceptionAt = 0L
     }
 
-    /** WebSocket 监听：只做拼接与线程切换，不碰世界状态 */
-    private class Listener : WebSocket.Listener {
+    /** WebSocket 监听：只做拼接与线程切换，不碰世界状态。 */
+    private class Listener(private val srv: MinecraftServer) : WebSocket.Listener {
         private val buffer = StringBuilder()
 
         override fun onOpen(ws: WebSocket) {
-            MaidWsClient.onOpen(ws)
-            ws.request(1)
+            srv.execute { MaidWsClient.onOpen(srv, this, ws) }
         }
 
         override fun onText(ws: WebSocket, data: CharSequence, last: Boolean): CompletionStage<*>? {
-            this.buffer.append(data)
+            buffer.append(data)
             if (last) {
-                val text = this.buffer.toString()
-                this.buffer.setLength(0)
-                val srv = server
-                srv?.execute { dispatch(text) }
+                val text = buffer.toString()
+                buffer.setLength(0)
+                srv.execute { dispatch(srv, ws, text) }
             }
             ws.request(1)
             return null
         }
 
+        private fun disconnected(ws: WebSocket, reason: String) {
+            srv.execute {
+                if (server === srv && socket === ws) handleDisconnect(reason)
+            }
+        }
+
         override fun onClose(ws: WebSocket, statusCode: Int, reason: String): CompletionStage<*>? {
-            handleDisconnect("对方关闭 " + statusCode + " " + reason)
+            disconnected(ws, "peer closed ($statusCode)")
             return null
         }
 
         override fun onError(ws: WebSocket, error: Throwable) {
-            handleDisconnect("异常 " + error)
+            disconnected(ws, "socket error")
         }
     }
 }
