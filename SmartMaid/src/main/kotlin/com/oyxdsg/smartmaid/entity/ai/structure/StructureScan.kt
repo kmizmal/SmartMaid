@@ -4,6 +4,7 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
+import com.oyxdsg.smartmaid.entity.ai.bridge.MaidAIBridge
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.core.registries.BuiltInRegistries
@@ -44,9 +45,9 @@ object StructureScan {
         val produce = str(params, "produce", null)
         val filter = ProduceFilter.compile(produce)
         val matcher: Predicate<BlockState> = filter.matcher ?: Predicate<BlockState> { true }
-        val range = maxOf(1, intParam(params, "range", DEFAULT_RANGE))
-        val maxRange = maxOf(range, intParam(params, "max_range", DEFAULT_MAX_RANGE))
-        val expand = maxOf(1, intParam(params, "expand", DEFAULT_EXPAND))
+        val range = MaidAIBridge.intParam(params, "range", DEFAULT_RANGE)
+        val maxRange = maxOf(range, MaidAIBridge.intParam(params, "max_range", DEFAULT_MAX_RANGE))
+        val expand = MaidAIBridge.intParam(params, "expand", DEFAULT_EXPAND)
 
         val level: Level = maid.level()
         val center = maid.blockPosition()
@@ -266,15 +267,6 @@ object StructureScan {
 
     private fun str(o: JsonObject, key: String, def: String?): String? {
         return if (o.has(key) && o.get(key).isJsonPrimitive) o.get(key).asString else def
-    }
-
-    private fun intParam(o: JsonObject, key: String, def: Int): Int {
-        return if (o.has(key) && o.get(key).isJsonPrimitive && o.get(key).asJsonPrimitive.isNumber
-        ) {
-            o.get(key).asInt
-        } else {
-            def
-        }
     }
 
     private fun fail(reason: String): JsonObject {

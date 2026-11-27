@@ -47,6 +47,7 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
 
     private val stack: Deque<Frame> = ArrayDeque()
     private var current: MaidAITask? = null
+
     // 非 null：current != null 时必已在 runStep 赋值为具体 cmd（字符串拼接语义不受影响）
     private var currentCmd: String = ""
     private var currentAs: String? = null
@@ -136,7 +137,9 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
 
     /** 从执行栈取下一步并推进（含控制原语就地处理 / 子任务构造） */
     private fun advance(maid: SmartMaidEntity) {
-        while (!this.done && !this.cancelled) {
+        // Include loop/frame bookkeeping as well as synchronous queries in the tick budget.
+        var workLeft = MAX_WORK_PER_TICK
+        while (workLeft-- > 0 && !this.done && !this.cancelled) {
             if (this.ctx.terminated) {
                 this.done = true
                 return
@@ -246,7 +249,7 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
         if (task == null) {
             MaidDebug.log(
                 "Script 步失败: $cmd（${this.lastSubError}） fail=" +
-                    (if (this.failPolicy == FAIL_ABORT) "abort" else "continue")
+                        (if (this.failPolicy == FAIL_ABORT) "abort" else "continue")
             )
             val rec = JsonObject()
             rec.addProperty("cmd", cmd)
@@ -356,7 +359,7 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
         this.ctx.terminateResult = result
         MaidDebug.log(
             "Script 终止: " + this.ctx.scriptName + " → " + reason +
-                "（已执行 " + this.ctx.stepLog.size + " 步）"
+                    "（已执行 " + this.ctx.stepLog.size + " 步）"
         )
     }
 
@@ -456,6 +459,7 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
         private const val MAX_STEPS_LIMIT = 512
         private const val MAX_ITER_LIMIT = 256
         private const val MAX_DEPTH = 64
+        private const val MAX_WORK_PER_TICK = 8
         private val CHILD_STEP_KEYS = listOf("steps", "then", "else")
 
         @JvmStatic
@@ -464,33 +468,39 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
                 ?: return "script 缺少 steps 数组"
             if (steps.size() !in 1..MAX_SCRIPT_STEPS) return "script steps 数量必须在 1..$MAX_SCRIPT_STEPS"
             validateLimit(script, "max_steps", MAX_STEPS_LIMIT)?.let { return it }
-            return validateSteps(steps, 0)
+            return StepValidation().validateSteps(steps, 0)
         }
 
-        private fun validateSteps(steps: JsonArray, depth: Int): String? {
-            if (depth > MAX_DEPTH) return "脚本嵌套过深（上限 $MAX_DEPTH 层）"
-            for (element in steps) {
-                if (!element.isJsonObject) continue
-                val step = element.asJsonObject
-                step.get("loop")?.let { raw ->
-                    if (!raw.isJsonObject) return "loop 必须是对象"
-                    val loop = raw.asJsonObject
-                    validateLimit(loop, "max_iter", MAX_ITER_LIMIT, "loop.max_iter")?.let { return it }
-                    validateChildSteps(loop.get("body"), "loop.body", depth)?.let { return it }
+        private class StepValidation {
+            private var remaining = MAX_SCRIPT_STEPS
+
+            fun validateSteps(steps: JsonArray, depth: Int): String? {
+                if (depth > MAX_DEPTH) return "脚本嵌套过深（上限 $MAX_DEPTH 层）"
+                if (steps.size() > remaining) return "脚本总步骤数量超过上限 $MAX_SCRIPT_STEPS"
+                remaining -= steps.size()
+                for (element in steps) {
+                    if (!element.isJsonObject) continue
+                    val step = element.asJsonObject
+                    step.get("loop")?.let { raw ->
+                        if (!raw.isJsonObject) return "loop 必须是对象"
+                        val loop = raw.asJsonObject
+                        validateLimit(loop, "max_iter", MAX_ITER_LIMIT, "loop.max_iter")?.let { return it }
+                        validateChildSteps(loop.get("body"), "loop.body", depth)?.let { return it }
+                    }
+                    for (key in CHILD_STEP_KEYS) {
+                        validateChildSteps(step.get(key), key, depth)?.let { return it }
+                    }
                 }
-                for (key in CHILD_STEP_KEYS) {
-                    validateChildSteps(step.get(key), key, depth)?.let { return it }
-                }
+                return null
             }
-            return null
-        }
 
-        private fun validateChildSteps(raw: JsonElement?, key: String, depth: Int): String? {
-            if (raw == null) return null
-            if (!raw.isJsonArray) return "$key 必须是数组"
-            val steps = raw.asJsonArray
-            if (steps.size() > MAX_SCRIPT_STEPS) return "$key 数量超过上限 $MAX_SCRIPT_STEPS"
-            return validateSteps(steps, depth + 1)
+            private fun validateChildSteps(raw: JsonElement?, key: String, depth: Int): String? {
+                if (raw == null) return null
+                if (!raw.isJsonArray) return "$key 必须是数组"
+                val steps = raw.asJsonArray
+                if (steps.size() > MAX_SCRIPT_STEPS) return "$key 数量超过上限 $MAX_SCRIPT_STEPS"
+                return validateSteps(steps, depth + 1)
+            }
         }
 
         private fun validateLimit(obj: JsonObject, key: String, max: Int, label: String = key): String? {
@@ -510,6 +520,7 @@ open class ScriptTask(script: JsonObject) : MaidAITask("script") {
 
         /** 整个脚本最大运行 tick（10 分钟，含移动/收割等耗时段）。 */
         private const val MAX_SCRIPT_TICKS = 20 * 60 * 10
+
         /** 单个子任务（一步）最大运行 tick（60 秒，防止 move/attack 等卡死）。 */
         private const val MAX_STEP_TICKS = 20 * 60
 

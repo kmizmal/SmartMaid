@@ -34,10 +34,19 @@ class ScriptTaskLimitsTest {
 
     @Test
     void acceptsWithinLimits() {
-        JsonObject script = script(steps(512));
+        JsonObject script = script(steps(511));
         script.addProperty("max_steps", 512);
         loop(script).addProperty("max_iter", 256);
         assertNull(ScriptTask.validate(script));
+    }
+
+    @Test
+    void rejectsTooManyStepsAcrossIndividuallyValidBranches() {
+        JsonObject script = script(steps(1));
+        JsonObject root = script.getAsJsonArray("steps").get(0).getAsJsonObject();
+        root.add("then", steps(256));
+        root.add("else", steps(256));
+        assertNotNull(ScriptTask.validate(script));
     }
 
     @Test

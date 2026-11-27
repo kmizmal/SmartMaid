@@ -128,7 +128,7 @@ object ScriptQueries {
         } else {
             null
         }
-        val range = intParam(params, "range", 16)
+        val range = MaidAIBridge.intParam(params, "range", 16)
         val nearest: LivingEntity? = MaidActions.findEntities(
             maid,
             LivingEntity::class.java,
@@ -155,7 +155,7 @@ object ScriptQueries {
     /** find_item：item? / range → {found, pos, count} */
     private fun findItem(maid: SmartMaidEntity, params: JsonObject): JsonObject {
         val itemSpec = if (params.has("item")) params.get("item").asString else null
-        val range = intParam(params, "range", 8)
+        val range = MaidAIBridge.intParam(params, "range", 8)
         val item: ItemEntity? = MaidActions.findNearestItem(maid, range.toDouble(), itemFilter(itemSpec))
         val out = JsonObject()
         if (item == null) {
@@ -183,10 +183,4 @@ object ScriptQueries {
     private fun pos(maid: SmartMaidEntity, params: JsonObject, err: StringBuilder): BlockPos? =
         MaidAIBridge.parsePos(maid, params, "pos", err)
 
-    private fun intParam(o: JsonObject, key: String, def: Int): Int =
-        if (o.has(key) && o.get(key).isJsonPrimitive && o.get(key).asJsonPrimitive.isNumber) {
-            o.get(key).asInt
-        } else {
-            def
-        }
 }

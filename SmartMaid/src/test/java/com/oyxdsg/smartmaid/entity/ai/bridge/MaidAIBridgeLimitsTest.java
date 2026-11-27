@@ -12,6 +12,8 @@ class MaidAIBridgeLimitsTest {
     void clampsKnownIntegerParams() {
         assertEquals(32, MaidAIBridge.clampParam("range", 999));
         assertEquals(1, MaidAIBridge.clampParam("range", -5));
+        assertEquals(32, MaidAIBridge.clampParam("max_range", 999));
+        assertEquals(1, MaidAIBridge.clampParam("expand", 0));
         assertEquals(64, MaidAIBridge.clampParam("count", 1_000_000_000));
         assertEquals(32, MaidAIBridge.clampParam("height", 999));
         assertEquals(-1, MaidAIBridge.clampParam("slot", -1));

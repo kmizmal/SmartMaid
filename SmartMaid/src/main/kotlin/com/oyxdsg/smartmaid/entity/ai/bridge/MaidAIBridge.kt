@@ -526,7 +526,10 @@ object MaidAIBridge {
 
     // ---------- 参数解析 ----------
 
-    private val INT_BOUNDS = mapOf("range" to 1..32, "count" to 1..64, "height" to 1..32, "to" to 0..64, "slot" to -1..53)
+    private val INT_BOUNDS = mapOf(
+        "range" to 1..32, "max_range" to 1..32, "expand" to 1..32,
+        "count" to 1..64, "height" to 1..32, "to" to 0..64, "slot" to -1..53,
+    )
 
     @JvmStatic
     fun clampParam(key: String, value: Int): Int = INT_BOUNDS[key]?.let(value::coerceIn) ?: value
