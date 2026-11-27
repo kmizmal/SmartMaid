@@ -30,6 +30,14 @@ class MaidStraightNav {
     private val breaker = MaidBlockBreaker()
     private val placer = MaidBlockPlacer()
 
+    /** 累计挖掘尝试次数（只读，供 AutoTest 观测；不参与导航决策）。 */
+    var breakAttempts: Int = 0
+        private set
+
+    /** 累计搭路尝试次数（只读，供 AutoTest 观测；不参与导航决策）。 */
+    var placeAttempts: Int = 0
+        private set
+
     private var target: BlockPos? = null
     private var idleTicks = 0
     private var lastPos: BlockPos? = null
@@ -72,6 +80,12 @@ class MaidStraightNav {
 
     /** 最近是否刚放弃过（触发侧冷却，防止立刻重新降级）。 */
     fun recentlyGaveUp(currentTick: Int): Boolean = currentTick - this.giveUpTick < GIVE_UP_COOLDOWN
+
+    /** 清零累计尝试计数（测试用；不影响导航状态）。 */
+    fun resetAttempts() {
+        this.breakAttempts = 0
+        this.placeAttempts = 0
+    }
 
     /**
      * 每服务端 tick 驱动直线移动 + 破坏/搭路。
@@ -133,6 +147,7 @@ class MaidStraightNav {
             if (t.y > from.y) {
                 val head = from.above()
                 if (isSolid(level, head)) {
+                    this.breakAttempts++
                     if (this.breaker.begin(maid, head)) {
                         MaidDebug.log("StraightNav 挖头顶 $head")
                         return false
@@ -161,6 +176,7 @@ class MaidStraightNav {
         // 1) 前方 2 格以上墙
         if (aheadSolid && headSolid) {
             val dig = if (needUp) ahead.above() else ahead
+            this.breakAttempts++
             if (this.breaker.begin(maid, dig)) {
                 MaidDebug.log("StraightNav " + (if (needUp) "挖上方爬升 " else "挖 ") + dig + " (目标 $t)")
                 return false
@@ -169,6 +185,7 @@ class MaidStraightNav {
         }
         // 2) 前方头顶被挡 → 挖上方
         if (headSolid) {
+            this.breakAttempts++
             if (this.breaker.begin(maid, ahead.above())) {
                 MaidDebug.log("StraightNav 挖上方 ${ahead.above()} (目标 $t)")
                 return false
@@ -183,6 +200,7 @@ class MaidStraightNav {
         }
         // 4) 前方脚下是深沟/水面 → 搭方块垫脚
         if (!belowSolid && !below2Solid) {
+            this.placeAttempts++
             if (this.placer.begin(maid, below)) {
                 MaidDebug.log("StraightNav 搭 $below (目标 $t)")
                 return false

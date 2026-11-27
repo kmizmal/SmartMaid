@@ -5,6 +5,8 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException
 import com.oyxdsg.smartmaid.SmartMaid
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidActions
+import com.oyxdsg.smartmaid.entity.ai.MaidDebug
+import com.oyxdsg.smartmaid.entity.ai.MaidGroundPathNavigation
 import com.oyxdsg.smartmaid.entity.ai.MaidInventoryTidy
 import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents
 import net.fabricmc.loader.api.FabricLoader
@@ -17,6 +19,7 @@ import net.minecraft.server.level.ServerPlayer
 import net.minecraft.tags.TagKey
 import net.minecraft.world.Container
 import net.minecraft.world.entity.EntityType
+import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.Items
@@ -122,6 +125,8 @@ object MaidAutoTest {
     private var WAIT_TICKS = 0                 // 任务型指令后的等待 tick
     private var RECORD: RecordState? = null    // P3 标定：逐 tick 采样女仆位置
     private var ANCHOR: BlockPos? = null       // P3 标定：重复场景的固定起点
+    private var COMBAT_RECORD: CombatRecordState? = null  // C1：逐 tick 采样战斗观测
+    private var LAST_COMBAT: CombatSummary? = null        // C1：最近一次 recordCombat 汇总
 
     private const val STEP_TICKS = 10          // 状态机推进间隔
     private const val TASK_WAIT_TICKS = 40     // 任务型指令后等待（≈2 秒）
@@ -141,6 +146,31 @@ object MaidAutoTest {
         val maxY: Double,
         val minTargetDist: Double?,
         val target: BlockPos?
+    )
+
+    /** 一次 recordCombat 的逐 tick 采样状态。 */
+    private data class CombatRecordState(
+        val id: String,
+        var remaining: Int,
+        val samples: MutableList<String> = ArrayList(),
+        /** 在记录到第 N 个样本时注入一次 setHealth（测试专用，用于复现半血动作切换）。 */
+        val healthAtSample: Int = -1,
+        val healthValue: Float = 0f
+    )
+
+    /** recordCombat 汇总，供 check:{"combat":...} 断言。 */
+    private data class CombatSummary(
+        val id: String,
+        val samples: Int,
+        val engagedSamples: Int,
+        /** null = tickCalls 增加次数不足 2，无法计算 */
+        val maxGoalCallGapTicks: Int?,
+        val targetChanges: Int,
+        val blockingTicks: Int,
+        val modes: List<String>,
+        val digAttempts: Int,
+        val placeAttempts: Int,
+        val usedItems: Set<String>
     )
 
     /** 由 ServerTickEvents.END_SERVER_TICK 注册调用（仅服务端触发） */
@@ -163,6 +193,25 @@ object MaidAutoTest {
                 SmartMaid.LOGGER.info("AutoTest [${rec.id}] record: ${rec.samples.joinToString(";")}")
                 finishRecord(rec)
                 RECORD = null
+            }
+            return
+        }
+        COMBAT_RECORD?.let { rec ->
+            val player = server.playerList.players.firstOrNull() ?: return
+            val maid = findMaid(player) ?: return
+            if (rec.healthAtSample >= 0 && rec.samples.size == rec.healthAtSample) {
+                val applied = rec.healthValue.coerceIn(1.0f, maid.maxHealth)
+                maid.health = applied
+                SmartMaid.LOGGER.info(
+                    "AutoTest [${rec.id}] recordCombat 注入 setHealth=$applied at sample=${rec.samples.size}"
+                )
+            }
+            rec.samples.add(combatSample(server, maid))
+            rec.remaining--
+            if (rec.remaining <= 0) {
+                SmartMaid.LOGGER.info("AutoTest [${rec.id}] combat: ${rec.samples.joinToString(";")}")
+                finishCombatRecord(rec)
+                COMBAT_RECORD = null
             }
             return
         }
@@ -215,6 +264,8 @@ object MaidAutoTest {
         if (!req.has("cmd") && !req.has("give") && !req.has("run") && !req.has("check")
             && !req.has("tidy") && !req.has("vetoNextBreak") && !req.has("expect") && !req.has("wait")
             && !req.has("anchor") && !req.has("tp") && !req.has("place")
+            && !req.has("setHealth") && !req.has("setFood") && !req.has("clearInv")
+            && !req.has("setTarget")
         ) {
             return
         }
@@ -278,6 +329,38 @@ object MaidAutoTest {
             return
         }
 
+        // clearInv：清空女仆背包，给需要精确库存基线的夹具使用（AutoTest 专用，非指令）
+        if (req.has("clearInv")) {
+            val inv = maid.getMaidInventory()
+            for (i in 0 until inv.containerSize) {
+                inv.setItem(i, ItemStack.EMPTY)
+            }
+            inv.setChanged()
+            SmartMaid.LOGGER.info("AutoTest [$id] clearInv: size=" + inv.containerSize)
+            return
+        }
+
+        // setTarget：把最近的指定类型实体设为女仆目标（AutoTest 专用，仅用于把 W5 的
+        // 「战斗 Goal 激活后的移动安全」与 W3 的「自主索敌」分开验证；不改变目标选择规则）
+        if (req.has("setTarget")) {
+            val cfg = req.getAsJsonObject("setTarget")
+            val typeId = if (cfg.has("type")) cfg.get("type").asString else ""
+            val maxDistance = if (cfg.has("maxDistance")) cfg.get("maxDistance").asDouble else 32.0
+            val target = maid.level().getEntitiesOfClass(
+                LivingEntity::class.java,
+                maid.boundingBox.inflate(maxDistance)
+            ) { e ->
+                e.isAlive && BuiltInRegistries.ENTITY_TYPE.getKey(e.type).toString() == typeId
+            }.minByOrNull { it.distanceToSqr(maid) }
+            if (target == null) {
+                SmartMaid.LOGGER.info("AutoTest [$id] setTarget: 未找到 $typeId（maxDistance=$maxDistance）")
+            } else {
+                maid.target = target
+                SmartMaid.LOGGER.info("AutoTest [$id] setTarget=$typeId -> ${target.type} id=${target.id}")
+            }
+            return
+        }
+
         // give：预置女仆背包（AutoTest 专用，非指令）
         if (req.has("give")) {
             giveItems(maid, req.getAsJsonObject("give"))
@@ -292,6 +375,24 @@ object MaidAutoTest {
                 "AutoTest [$id] tidy: 合并=" + r.merged
                     + " 丢弃=" + r.dropped + " 空槽=" + freeSlots(maid)
             )
+            return
+        }
+
+        // setHealth / setFood：测试夹具专用，直接改女仆状态（不产生指令回执）。
+        if (req.has("setHealth")) {
+            val wanted = req.get("setHealth").asDouble
+            val applied = wanted.coerceIn(1.0, maid.maxHealth.toDouble())
+            maid.health = applied.toFloat()
+            SmartMaid.LOGGER.info(
+                "AutoTest [$id] setHealth=$applied (请求=$wanted 上限=${maid.maxHealth})"
+            )
+            return
+        }
+        if (req.has("setFood")) {
+            val wanted = req.get("setFood").asInt
+            val applied = wanted.coerceIn(0, 20)
+            setMaidFoodLevel(maid, applied)
+            SmartMaid.LOGGER.info("AutoTest [$id] setFood=$applied (请求=$wanted)")
             return
         }
 
@@ -310,6 +411,13 @@ object MaidAutoTest {
             if (req.has("recordTicks")) {
                 val ticks = req.get("recordTicks").asInt.coerceAtLeast(1)
                 RECORD = RecordState(id, ticks, parseMoveTarget(maid, cmd))
+            } else if (req.has("recordCombat")) {
+                // 与 recordTicks 同生命周期；两者同时存在时 recordTicks 优先，recordCombat 忽略。
+                val ticks = req.get("recordCombat").asInt.coerceAtLeast(1)
+                val healthAt = if (req.has("setHealthAt")) req.get("setHealthAt").asInt else -1
+                val healthValue = if (req.has("setHealthValue")) req.get("setHealthValue").asFloat else 0f
+                (maid.navigation as? MaidGroundPathNavigation)?.straightNav?.resetAttempts()
+                COMBAT_RECORD = CombatRecordState(id, ticks, healthAtSample = healthAt, healthValue = healthValue)
             }
             return
         }
@@ -610,6 +718,167 @@ object MaidAutoTest {
         return ok
     }
 
+    /** 单条战斗采样（CSV，列顺序是 c-record-schema.md 的契约）。 */
+    private fun combatSample(server: MinecraftServer, maid: SmartMaidEntity): String {
+        val obs = maid.combatObservation()
+        val nav = (maid.navigation as? MaidGroundPathNavigation)?.straightNav
+        val sb = StringBuilder()
+        sb.append(maid.tickCount).append(',')
+        sb.append(server.tickCount).append(',')
+        sb.append(maid.id).append(',')
+        if (obs == null) {
+            // targetId,maidTargetId,engaged,mode,cooldown,lostTicks,eatRetreatTicks,
+            // blockStartTick,blockHoldTicks,tickCalls 的 null 契约值
+            sb.append("-1,-1,0,NONE,0,0,0,-1,-1,0")
+        } else {
+            sb.append(obs.targetId).append(',')
+            sb.append(obs.maidTargetId).append(',')
+            sb.append(if (obs.engaged) 1 else 0).append(',')
+            sb.append(obs.mode).append(',')
+            sb.append(obs.actionCooldown).append(',')
+            sb.append(obs.lostTicks).append(',')
+            sb.append(obs.eatRetreatTicks).append(',')
+            sb.append(obs.blockStartTick).append(',')
+            sb.append(obs.blockHoldTicks).append(',')
+            sb.append(obs.tickCalls)
+        }
+        sb.append(',').append(String.format(java.util.Locale.ROOT, "%.1f", maid.health))
+        sb.append(',').append(String.format(java.util.Locale.ROOT, "%.1f", maid.maxHealth))
+        sb.append(',').append(maid.maidFood.getFoodLevel())
+        sb.append(',').append(if (maid.isUsingItem) 1 else 0)
+        sb.append(',').append(MaidDebug.itemName(maid.useItem))
+        sb.append(',').append(if (maid.isBlocking) 1 else 0)
+        sb.append(',').append(String.format(java.util.Locale.ROOT, "%.3f", maid.x))
+        sb.append(',').append(String.format(java.util.Locale.ROOT, "%.3f", maid.y))
+        sb.append(',').append(String.format(java.util.Locale.ROOT, "%.3f", maid.z))
+        sb.append(',').append(nav?.breakAttempts ?: 0)
+        sb.append(',').append(nav?.placeAttempts ?: 0)
+        return sb.toString()
+    }
+
+    /**
+     * 汇总逐 tick 战斗采样并输出 combat-summary。
+     *
+     * [CombatSummary.digAttempts]/[CombatSummary.placeAttempts] 是窗口内累计计数器的正增量
+     * （与 tools/combat_replay.py 的 `_attempt_delta` 一致），不是窗口结束时的累计绝对值。
+     */
+    private fun finishCombatRecord(rec: CombatRecordState) {
+        var samples = 0
+        var engaged = 0
+        var targetChanges = 0
+        var blocking = 0
+        var dig = 0
+        var place = 0
+        var prevTargetId = Int.MIN_VALUE
+        var prevCalls: Long? = null
+        var prevDig = 0
+        var prevPlace = 0
+        val increaseTicks = ArrayList<Int>()
+        val modes = LinkedHashSet<String>()
+        val usedItems = LinkedHashSet<String>()
+        for (line in rec.samples) {
+            val p = line.split(',')
+            if (p.size < 24) continue
+            val gameTick = p[1].toIntOrNull() ?: continue
+            val targetId = p[3].toIntOrNull() ?: continue
+            val engagedFlag = p[5].toIntOrNull() ?: continue
+            val tickCalls = p[12].toLongOrNull() ?: continue
+            val blockingFlag = p[18].toIntOrNull() ?: continue
+            val digNow = p[22].toIntOrNull() ?: continue
+            val placeNow = p[23].toIntOrNull() ?: continue
+            samples++
+            if (engagedFlag == 1) engaged++
+            if (prevTargetId != Int.MIN_VALUE && targetId != prevTargetId) targetChanges++
+            prevTargetId = targetId
+            if (blockingFlag == 1) blocking++
+            if (p[6] != "NONE") modes.add(p[6])
+            if (p[17] != "empty") usedItems.add(p[17])
+            val lastCalls = prevCalls
+            if (lastCalls != null && tickCalls > lastCalls) increaseTicks.add(gameTick)
+            prevCalls = tickCalls
+            if (samples > 1) {
+                dig += maxOf(0, digNow - prevDig)
+                place += maxOf(0, placeNow - prevPlace)
+            }
+            prevDig = digNow
+            prevPlace = placeNow
+        }
+        var maxGap: Int? = null
+        if (increaseTicks.size >= 2) {
+            var m = 0
+            for (i in 1 until increaseTicks.size) {
+                m = maxOf(m, increaseTicks[i] - increaseTicks[i - 1])
+            }
+            maxGap = m
+        }
+        val summary = CombatSummary(
+            rec.id, samples, engaged, maxGap, targetChanges, blocking,
+            modes.toList(), dig, place, usedItems
+        )
+        LAST_COMBAT = summary
+        SmartMaid.LOGGER.info(
+            "AutoTest [${rec.id}] combat-summary samples=$samples engaged=$engaged"
+                + " maxGoalGap=" + (maxGap ?: "无法计算")
+                + " targetChanges=$targetChanges blockingTicks=$blocking"
+                + " modes=" + (if (modes.isEmpty()) "NONE" else modes.joinToString(","))
+                + " digAttempts=$dig placeAttempts=$place"
+        )
+    }
+
+    /** 战斗观测断言：所有键可选，出现即必须通过；无 recordCombat 数据直接 FAIL。 */
+    private fun checkCombat(c: JsonObject): Boolean {
+        val s = LAST_COMBAT
+        if (s == null) {
+            SmartMaid.LOGGER.info("checkCombat: 尚无 recordCombat 数据（FAIL）")
+            return false
+        }
+        var ok = true
+        if (c.has("minSamples")) ok = ok && s.samples >= c.get("minSamples").asInt
+        if (c.has("engagedSamplesMin")) ok = ok && s.engagedSamples >= c.get("engagedSamplesMin").asInt
+        if (c.has("engagedSamplesMax")) ok = ok && s.engagedSamples <= c.get("engagedSamplesMax").asInt
+        if (c.has("maxGoalCallGapTicksMax")) {
+            val gap = s.maxGoalCallGapTicks
+            if (gap == null) {
+                SmartMaid.LOGGER.info("checkCombat maxGoalCallGapTicks 无法计算（tickCalls 增加次数 < 2）")
+                ok = false
+            } else {
+                ok = ok && gap <= c.get("maxGoalCallGapTicksMax").asInt
+            }
+        }
+        if (c.has("targetChangesMax")) ok = ok && s.targetChanges <= c.get("targetChangesMax").asInt
+        if (c.has("blockingTicksMin")) ok = ok && s.blockingTicks >= c.get("blockingTicksMin").asInt
+        if (c.has("digAttemptsMin")) ok = ok && s.digAttempts >= c.get("digAttemptsMin").asInt
+        if (c.has("digAttemptsMax")) ok = ok && s.digAttempts <= c.get("digAttemptsMax").asInt
+        if (c.has("placeAttemptsMin")) ok = ok && s.placeAttempts >= c.get("placeAttemptsMin").asInt
+        if (c.has("placeAttemptsMax")) ok = ok && s.placeAttempts <= c.get("placeAttemptsMax").asInt
+        if (c.has("modesSeenAny")) {
+            val want = c.getAsJsonArray("modesSeenAny").map { it.asString }
+            ok = ok && want.any { s.modes.contains(it) }
+        }
+        if (c.has("modesSeenAll")) {
+            val want = c.getAsJsonArray("modesSeenAll").map { it.asString }
+            ok = ok && want.all { s.modes.contains(it) }
+        }
+        if (c.has("usedItemAny")) {
+            val want = c.getAsJsonArray("usedItemAny").map { it.asString }
+            ok = ok && want.any { s.usedItems.contains(it) }
+        }
+        SmartMaid.LOGGER.info(
+            "checkCombat id=${s.id} samples=${s.samples} engaged=${s.engagedSamples}"
+                + " maxGoalGap=${s.maxGoalCallGapTicks ?: "无法计算"} targetChanges=${s.targetChanges}"
+                + " blockingTicks=${s.blockingTicks} modes=${s.modes.joinToString(",")}"
+                + " digAttempts=${s.digAttempts} placeAttempts=${s.placeAttempts} 期望=$c -> $ok"
+        )
+        return ok
+    }
+
+    /** 测试夹具：写入 MaidFoodData 的私有 foodLevel（不新增生产 API）。 */
+    private fun setMaidFoodLevel(maid: SmartMaidEntity, value: Int) {
+        val field = maid.maidFood.javaClass.getDeclaredField("foodLevel")
+        field.isAccessible = true
+        field.setInt(maid.maidFood, value)
+    }
+
     /** 断言计数（结束输出汇总用） */
     private fun count(ok: Boolean) {
         if (ok) {
@@ -629,6 +898,7 @@ object MaidAutoTest {
      * {"check": {"bridge": {"item":"minecraft:diamond_block","allowed":false}}} // 搭路白名单判定
      * {"check": {"tag":    {"tag":"smartmaid:never_target","entity":"minecraft:enderman","contains":true}}}
      * {"check": {"record": {"minTargetDistMax":2.0,"minYMin":65.9}}}            // 最近一次 record 的几何摘要
+     * {"check": {"combat": {"minSamples":60,"engagedSamplesMin":1}}}            // 最近一次 recordCombat 的战斗摘要
      * }</pre>
      */
     private fun runCheck(maid: SmartMaidEntity, check: JsonObject): Boolean {
@@ -662,6 +932,9 @@ object MaidAutoTest {
             }
             if (check.has("record")) {
                 return checkRecord(check.getAsJsonObject("record"))
+            }
+            if (check.has("combat")) {
+                return checkCombat(check.getAsJsonObject("combat"))
             }
         } catch (e: Exception) {
             SmartMaid.LOGGER.info("AutoTest check 异常: $e")

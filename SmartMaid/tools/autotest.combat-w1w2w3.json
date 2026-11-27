@@ -1,0 +1,1129 @@
+[
+  {
+    "id": "w1.clear",
+    "run": "fill 136 66 84 176 72 100 minecraft:air"
+  },
+  {
+    "id": "w1.floor",
+    "run": "fill 136 64 84 176 65 100 minecraft:stone"
+  },
+  {
+    "id": "w1.spawn-off",
+    "run": "gamerule doMobSpawning false"
+  },
+  {
+    "id": "w1.day",
+    "run": "time set day"
+  },
+  {
+    "id": "w1.peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w1.kill0",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w1.kill-skeleton",
+    "run": "kill @e[type=minecraft:skeleton]"
+  },
+  {
+    "id": "w1.kill-creeper",
+    "run": "kill @e[type=minecraft:creeper]"
+  },
+  {
+    "id": "w1.kill-spider",
+    "run": "kill @e[type=minecraft:spider]"
+  },
+  {
+    "id": "w1.kill-other",
+    "run": "kill @e[type=minecraft:enderman]"
+  },
+  {
+    "id": "w1.normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w1.wait-world",
+    "wait": 2
+  },
+  {
+    "id": "w1.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w1.stop0",
+    "run": "maidtasks stop",
+    "source": "player"
+  },
+  {
+    "id": "w1.1.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w1.1.give",
+    "give": {
+      "minecraft:iron_sword": 1
+    }
+  },
+  {
+    "id": "w1.1.zombie",
+    "run": "summon minecraft:zombie 154 66 90 {NoAI:1b,Tags:[\"W1MELEE\"]}"
+  },
+  {
+    "id": "w1.1.resist",
+    "run": "effect give @e[type=minecraft:zombie,tag=W1MELEE] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w1.1.wait",
+    "wait": 2
+  },
+  {
+    "id": "w1.1.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 200
+  },
+  {
+    "id": "w1.1.check",
+    "check": {
+      "combat": {
+        "minSamples": 180,
+        "engagedSamplesMin": 1,
+        "modesSeenAny": [
+          "MELEE"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w1.1.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w1.2.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w1.2.give",
+    "give": {
+      "minecraft:bow": 1,
+      "minecraft:arrow": 32
+    }
+  },
+  {
+    "id": "w1.2.health",
+    "setHealth": 20.0
+  },
+  {
+    "id": "w1.2.food",
+    "setFood": 20
+  },
+  {
+    "id": "w1.2.zombie",
+    "run": "summon minecraft:zombie 162 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w1.2.wait",
+    "wait": 2
+  },
+  {
+    "id": "w1.2.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 160
+  },
+  {
+    "id": "w1.2.check",
+    "check": {
+      "combat": {
+        "minSamples": 140,
+        "engagedSamplesMin": 1,
+        "modesSeenAny": [
+          "RANGED"
+        ],
+        "usedItemAny": [
+          "item.minecraft.bow"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w1.2.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w1.3.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w1.3.give",
+    "give": {
+      "minecraft:cooked_beef": 6
+    }
+  },
+  {
+    "id": "w1.3.health",
+    "setHealth": 8.0
+  },
+  {
+    "id": "w1.3.food",
+    "setFood": 17
+  },
+  {
+    "id": "w1.3.zombie",
+    "run": "summon minecraft:zombie 152 66 90 {NoAI:1b,Tags:[\"W1EAT\"]}"
+  },
+  {
+    "id": "w1.3.resist",
+    "run": "effect give @e[type=minecraft:zombie,tag=W1EAT] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w1.3.wait",
+    "wait": 2
+  },
+  {
+    "id": "w1.3.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 320
+  },
+  {
+    "id": "w1.3.check",
+    "check": {
+      "combat": {
+        "minSamples": 280,
+        "engagedSamplesMin": 1,
+        "modesSeenAny": [
+          "EAT"
+        ],
+        "usedItemAny": [
+          "item.minecraft.cooked_beef"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w1.3.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w1.4.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w1.4.give",
+    "give": {
+      "minecraft:iron_sword": 1
+    }
+  },
+  {
+    "id": "w1.4.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w1.4.health",
+    "setHealth": 20.0
+  },
+  {
+    "id": "w1.4.food",
+    "setFood": 20
+  },
+  {
+    "id": "w1.4.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w1.4.wait",
+    "wait": 2
+  },
+  {
+    "id": "w1.4.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 160
+  },
+  {
+    "id": "w1.4.check",
+    "check": {
+      "combat": {
+        "minSamples": 100,
+        "engagedSamplesMin": 1,
+        "modesSeenAny": [
+          "APPROACH"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w1.4.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w1.5.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w1.5.give",
+    "give": {
+      "minecraft:iron_sword": 1
+    }
+  },
+  {
+    "id": "w1.5.health",
+    "setHealth": 20.0
+  },
+  {
+    "id": "w1.5.food",
+    "setFood": 20
+  },
+  {
+    "id": "w1.5.zombie",
+    "run": "summon minecraft:zombie 154 66 90 {NoAI:1b,Tags:[\"W1A\"]}"
+  },
+  {
+    "id": "w1.5.wait",
+    "wait": 2
+  },
+  {
+    "id": "w1.5.record1",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 100
+  },
+  {
+    "id": "w1.5.kill",
+    "run": "kill @e[type=minecraft:zombie,tag=W1A]"
+  },
+  {
+    "id": "w1.5.wait2",
+    "wait": 2
+  },
+  {
+    "id": "w1.5.record2",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 120
+  },
+  {
+    "id": "w1.5.check",
+    "check": {
+      "combat": {
+        "minSamples": 100,
+        "engagedSamplesMax": 0
+      }
+    }
+  },
+  {
+    "id": "w1.spawn-on",
+    "run": "gamerule doMobSpawning true"
+  },
+  {
+    "id": "w1.stop",
+    "run": "maidtasks stop",
+    "source": "player"
+  },
+  {
+    "id": "w2.clear",
+    "run": "fill 136 66 84 176 72 100 minecraft:air"
+  },
+  {
+    "id": "w2.floor",
+    "run": "fill 136 64 84 176 65 100 minecraft:stone"
+  },
+  {
+    "id": "w2.day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.peaceful-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.kill0",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.kill-skeleton",
+    "run": "kill @e[type=minecraft:skeleton]"
+  },
+  {
+    "id": "w2.kill-creeper",
+    "run": "kill @e[type=minecraft:creeper]"
+  },
+  {
+    "id": "w2.kill-spider",
+    "run": "kill @e[type=minecraft:spider]"
+  },
+  {
+    "id": "w2.normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.wait-world",
+    "wait": 2
+  },
+  {
+    "id": "w2.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.stop0",
+    "run": "maidtasks stop",
+    "source": "player"
+  },
+  {
+    "id": "w2.1.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.1.give",
+    "give": {
+      "minecraft:bow": 1,
+      "minecraft:arrow": 32,
+      "minecraft:cooked_beef": 8
+    }
+  },
+  {
+    "id": "w2.1.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.1.health-full",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2.1.food",
+    "setFood": 17
+  },
+  {
+    "id": "w2.1.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b,Tags:[\"W2DRAW\"]}"
+  },
+  {
+    "id": "w2.1.resist",
+    "run": "effect give @e[type=minecraft:zombie,tag=W2DRAW] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w2.1.wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.1.record-draw",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 30
+  },
+  {
+    "id": "w2.1.check-draw",
+    "check": {
+      "combat": {
+        "minSamples": 20,
+        "engagedSamplesMin": 1,
+        "modesSeenAny": [
+          "RANGED"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w2.1.health-half",
+    "setHealth": 8.0
+  },
+  {
+    "id": "w2.1.record-half",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 180
+  },
+  {
+    "id": "w2.1.check-half",
+    "check": {
+      "combat": {
+        "minSamples": 160,
+        "engagedSamplesMin": 1,
+        "modesSeenAny": [
+          "EAT"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w2.1.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.2.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.2.pre-peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.2.pre-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.2.pre-normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.2.pre-day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.2.give",
+    "give": {
+      "minecraft:shield": 1
+    }
+  },
+  {
+    "id": "w2.2.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.2.health",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2.2.food",
+    "setFood": 20
+  },
+  {
+    "id": "w2.2.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w2.2.arrow",
+    "run": "summon minecraft:arrow 157 67.5 90 {Motion:[-0.35,0.0,0.0],NoGravity:1b}"
+  },
+  {
+    "id": "w2.2.wait",
+    "wait": 1
+  },
+  {
+    "id": "w2.2.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 140
+  },
+  {
+    "id": "w2.2.check",
+    "check": {
+      "combat": {
+        "minSamples": 120,
+        "blockingTicksMin": 1,
+        "modesSeenAny": [
+          "SHIELD"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w2.2.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.2.kill-arrows",
+    "run": "kill @e[type=minecraft:arrow]"
+  },
+  {
+    "id": "w2.3.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.3.pre-peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.3.pre-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.3.pre-normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.3.pre-day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.3.give",
+    "give": {
+      "minecraft:shield": 1
+    }
+  },
+  {
+    "id": "w2.3.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.3.health",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2.3.food",
+    "setFood": 20
+  },
+  {
+    "id": "w2.3.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w2.3.arrow",
+    "run": "summon minecraft:arrow 157 67.5 90 {Motion:[-0.35,0.0,0.0],NoGravity:1b}"
+  },
+  {
+    "id": "w2.3.wait",
+    "wait": 1
+  },
+  {
+    "id": "w2.3.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 200
+  },
+  {
+    "id": "w2.3.check",
+    "check": {
+      "combat": {
+        "minSamples": 180,
+        "blockingTicksMin": 1
+      }
+    }
+  },
+  {
+    "id": "w2.3.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.3.kill-arrows",
+    "run": "kill @e[type=minecraft:arrow]"
+  },
+  {
+    "id": "w2.4.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.4.pre-peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.4.pre-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.4.pre-normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.4.pre-day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.4.give",
+    "give": {
+      "minecraft:bow": 1,
+      "minecraft:arrow": 32,
+      "minecraft:cooked_beef": 8
+    }
+  },
+  {
+    "id": "w2.4.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.4.health",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2.4.food",
+    "setFood": 20
+  },
+  {
+    "id": "w2.4.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w2.4.wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.4.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 120
+  },
+  {
+    "id": "w2.4.check",
+    "check": {
+      "combat": {
+        "minSamples": 100,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w2.4.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.5.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.5.pre-peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.5.pre-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.5.pre-normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.5.pre-day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.5.give",
+    "give": {
+      "minecraft:bow": 1,
+      "minecraft:arrow": 32
+    }
+  },
+  {
+    "id": "w2.5.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.5.health",
+    "setHealth": 8.0
+  },
+  {
+    "id": "w2.5.food",
+    "setFood": 17
+  },
+  {
+    "id": "w2.5.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w2.5.wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.5.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 120
+  },
+  {
+    "id": "w2.5.check",
+    "check": {
+      "combat": {
+        "minSamples": 100,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w2.5.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.stop",
+    "run": "maidtasks stop",
+    "source": "player"
+  },
+  {
+    "id": "w3.clear",
+    "run": "fill 180 66 84 230 72 100 minecraft:air"
+  },
+  {
+    "id": "w3.floor",
+    "run": "fill 180 64 84 230 65 100 minecraft:stone"
+  },
+  {
+    "id": "w3.spawn-off",
+    "run": "gamerule doMobSpawning false"
+  },
+  {
+    "id": "w3.day",
+    "run": "time set day"
+  },
+  {
+    "id": "w3.peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w3.kill0",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w3.kill-skeleton",
+    "run": "kill @e[type=minecraft:skeleton]"
+  },
+  {
+    "id": "w3.kill-creeper",
+    "run": "kill @e[type=minecraft:creeper]"
+  },
+  {
+    "id": "w3.kill-spider",
+    "run": "kill @e[type=minecraft:spider]"
+  },
+  {
+    "id": "w3.normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w3.wait-world",
+    "wait": 2
+  },
+  {
+    "id": "w3.place",
+    "place": [
+      186.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w3.stop0",
+    "run": "maidtasks stop",
+    "source": "player"
+  },
+  {
+    "id": "w3.1.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w3.1.give",
+    "give": {
+      "minecraft:iron_sword": 1
+    }
+  },
+  {
+    "id": "w3.1.health",
+    "setHealth": 20.0
+  },
+  {
+    "id": "w3.1.food",
+    "setFood": 20
+  },
+  {
+    "id": "w3.1.a",
+    "run": "summon minecraft:zombie 190 66 90 {NoAI:1b,Tags:[\"W3A\"]}"
+  },
+  {
+    "id": "w3.1.b",
+    "run": "summon minecraft:zombie 200 66 90 {NoAI:1b,Tags:[\"W3B\"]}"
+  },
+  {
+    "id": "w3.1.resist-a",
+    "run": "effect give @e[type=minecraft:zombie,tag=W3A] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w3.1.resist-b",
+    "run": "effect give @e[type=minecraft:zombie,tag=W3B] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w3.1.wait",
+    "wait": 2
+  },
+  {
+    "id": "w3.1.record-a",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 100
+  },
+  {
+    "id": "w3.1.check-a",
+    "check": {
+      "combat": {
+        "minSamples": 80,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w3.1.kill-a",
+    "run": "kill @e[type=minecraft:zombie,tag=W3A]"
+  },
+  {
+    "id": "w3.1.wait2",
+    "wait": 2
+  },
+  {
+    "id": "w3.1.record-b",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 160
+  },
+  {
+    "id": "w3.1.check-b",
+    "check": {
+      "combat": {
+        "minSamples": 140,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w3.1.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w3.2.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w3.2.give",
+    "give": {
+      "minecraft:iron_sword": 1
+    }
+  },
+  {
+    "id": "w3.2.health",
+    "setHealth": 20.0
+  },
+  {
+    "id": "w3.2.food",
+    "setFood": 20
+  },
+  {
+    "id": "w3.2.a",
+    "run": "summon minecraft:zombie 190 66 90 {NoAI:1b,Tags:[\"W3A\"]}"
+  },
+  {
+    "id": "w3.2.b",
+    "run": "summon minecraft:zombie 196 66 90 {NoAI:1b,Tags:[\"W3B\"]}"
+  },
+  {
+    "id": "w3.2.resist-a",
+    "run": "effect give @e[type=minecraft:zombie,tag=W3A] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w3.2.resist-b",
+    "run": "effect give @e[type=minecraft:zombie,tag=W3B] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w3.2.wait",
+    "wait": 2
+  },
+  {
+    "id": "w3.2.record-a",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 80
+  },
+  {
+    "id": "w3.2.check-a",
+    "check": {
+      "combat": {
+        "minSamples": 60,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w3.2.move-a",
+    "run": "tp @e[type=minecraft:zombie,tag=W3A] 300 66 90"
+  },
+  {
+    "id": "w3.2.wait2",
+    "wait": 2
+  },
+  {
+    "id": "w3.2.record-b",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 160
+  },
+  {
+    "id": "w3.2.check-b",
+    "check": {
+      "combat": {
+        "minSamples": 140
+      }
+    }
+  },
+  {
+    "id": "w3.2.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w3.3.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w3.3.give",
+    "give": {
+      "minecraft:iron_sword": 1
+    }
+  },
+  {
+    "id": "w3.3.health",
+    "setHealth": 20.0
+  },
+  {
+    "id": "w3.3.food",
+    "setFood": 20
+  },
+  {
+    "id": "w3.3.a",
+    "run": "summon minecraft:zombie 190 66 90 {NoAI:1b,Tags:[\"W3A\"]}"
+  },
+  {
+    "id": "w3.3.resist-a",
+    "run": "effect give @e[type=minecraft:zombie,tag=W3A] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w3.3.wait",
+    "wait": 2
+  },
+  {
+    "id": "w3.3.record-a",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 80
+  },
+  {
+    "id": "w3.3.check-a",
+    "check": {
+      "combat": {
+        "minSamples": 60,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w3.3.stop",
+    "run": "maidtasks stop",
+    "source": "player"
+  },
+  {
+    "id": "w3.3.kill-a",
+    "run": "kill @e[type=minecraft:zombie,tag=W3A]"
+  },
+  {
+    "id": "w3.3.wait2",
+    "wait": 2
+  },
+  {
+    "id": "w3.3.record-b",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 120
+  },
+  {
+    "id": "w3.3.check-b",
+    "check": {
+      "combat": {
+        "minSamples": 100,
+        "engagedSamplesMax": 0
+      }
+    }
+  },
+  {
+    "id": "w3.3.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w3.4.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w3.4.give",
+    "give": {
+      "minecraft:iron_sword": 1
+    }
+  },
+  {
+    "id": "w3.4.health",
+    "setHealth": 20.0
+  },
+  {
+    "id": "w3.4.food",
+    "setFood": 20
+  },
+  {
+    "id": "w3.4.b",
+    "run": "summon minecraft:zombie 196 66 90 {NoAI:1b,Tags:[\"W3B\"]}"
+  },
+  {
+    "id": "w3.4.resist-b",
+    "run": "effect give @e[type=minecraft:zombie,tag=W3B] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w3.4.wait",
+    "wait": 2
+  },
+  {
+    "id": "w3.4.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 120
+  },
+  {
+    "id": "w3.4.check",
+    "check": {
+      "combat": {
+        "minSamples": 100,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w3.4.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w3.spawn-on",
+    "run": "gamerule doMobSpawning true"
+  },
+  {
+    "id": "w3.stop",
+    "run": "maidtasks stop",
+    "source": "player"
+  }
+]

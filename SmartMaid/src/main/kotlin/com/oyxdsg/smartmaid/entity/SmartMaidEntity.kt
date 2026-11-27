@@ -7,6 +7,7 @@ import com.oyxdsg.smartmaid.entity.ai.*
 import com.oyxdsg.smartmaid.entity.ai.bridge.MaidTelemetryWriter
 import com.oyxdsg.smartmaid.entity.ai.bridge.MaidWsClient
 import com.oyxdsg.smartmaid.entity.ai.combat.MaidCombatGoal
+import com.oyxdsg.smartmaid.entity.ai.combat.MaidCombatObservation
 import com.oyxdsg.smartmaid.entity.ai.combat.MaidTargetFilter
 import com.oyxdsg.smartmaid.entity.ai.maidtask.MaidTaskManager
 import com.oyxdsg.smartmaid.entity.ai.perception.PerceptionModule
@@ -176,6 +177,9 @@ open class SmartMaidEntity(type: EntityType<out TamableAnimal>, level: Level) :
 
     /** 是否处于战斗状态（战斗优先于 AI 任务；寻路降级据此禁用） */
     fun isCombatActive(): Boolean = this.combatGoal != null && this.combatGoal!!.isEngaged()
+
+    /** 只读战斗观测（测试用）；无战斗 Goal 时返回 null。 */
+    fun combatObservation(): MaidCombatObservation? = combatGoal?.observe()
 
     /** 最近攻击者（感知/遥测事件用）。缓存新鲜度 100 tick（5s）。 */
     val recentAttacker: Entity?

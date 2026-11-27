@@ -1,0 +1,15 @@
+[
+  { "__comment": "C1 战斗观测：弓/进食冲突（COMBAT-02）。给弓+箭+食物、血量低于半血、召唤僵尸后逐 tick 记录 120 tick；仅记录，不设通过阈值，只做存活采样检查。" },
+  { "id": "c2.place", "place": [102.5, 66.0, 90.5] },
+  { "id": "c2.clear", "run": "fill 96 66 84 112 70 100 minecraft:air" },
+  { "id": "c2.floor", "run": "fill 96 64 84 112 65 100 minecraft:stone" },
+  { "id": "c2.give", "give": { "minecraft:bow": 1, "minecraft:arrow": 32, "minecraft:cooked_beef": 8 } },
+  { "id": "c2.health", "setHealth": 9.0 },
+  { "id": "c2.food", "setFood": 17 },
+  { "id": "c2.zombie", "run": "summon minecraft:zombie 110 66 90" },
+  { "id": "c2.wait", "wait": 2 },
+  { "id": "c2.record", "run": "maidtasks stop", "source": "player", "recordCombat": 120 },
+  { "id": "c2.check", "check": { "combat": { "minSamples": 100 } } },
+  { "id": "c2.stop", "run": "maidtasks stop", "source": "player" },
+  { "id": "c2.kill", "run": "kill @e[type=minecraft:zombie]" }
+]

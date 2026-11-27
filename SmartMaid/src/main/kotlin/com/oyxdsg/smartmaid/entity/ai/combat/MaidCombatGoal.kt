@@ -36,10 +36,27 @@ class MaidCombatGoal(private val maid: SmartMaidEntity) : Goal() {
     private var lastLoggedTarget: LivingEntity? = null
     private var lastMode: Mode? = null
     private var stopReason = "?"
+    private var tickCalls: Long = 0
+    private var lastTickGameTime: Int = 0
 
     init { flags = EnumSet.of(Flag.MOVE, Flag.LOOK) }
 
     fun isEngaged(): Boolean = engaged
+
+    /** 只读观测快照（测试用），不参与决策。 */
+    fun observe(): MaidCombatObservation = MaidCombatObservation(
+        engaged = engaged,
+        mode = lastMode?.name ?: "NONE",
+        actionCooldown = actionCooldown,
+        targetId = target?.id ?: -1,
+        maidTargetId = maid.target?.id ?: -1,
+        lostTicks = lostTicks,
+        eatRetreatTicks = eatRetreatTicks,
+        blockStartTick = blockStartTick,
+        blockHoldTicks = if (blockStartTick >= 0) maid.tickCount - blockStartTick else -1,
+        tickCalls = tickCalls,
+        lastTickGameTime = lastTickGameTime
+    )
 
     override fun canUse(): Boolean {
         if (maid.isOrderedToSit) return false
@@ -51,11 +68,23 @@ class MaidCombatGoal(private val maid: SmartMaidEntity) : Goal() {
 
     override fun canContinueToUse(): Boolean {
         if (maid.isOrderedToSit) { stopReason = "sit"; return false }
-        val current = target ?: run { stopReason = "no_target"; return false }
+        val current = refreshTarget() ?: run { stopReason = "no_target"; return false }
         if (!current.isAlive) { stopReason = "target_dead"; return false }
         if (!maid.canAttack(current)) { stopReason = "cannot_attack"; return false }
         return true
     }
+
+    /** 跟随实体当前目标；避免 Goal 缓存目标与 maid.target 分叉（COMBAT-04）。 */
+    private fun refreshTarget(): LivingEntity? {
+        val desired = maid.target
+        if (desired != null && desired !== target && desired.isAlive && maid.canAttack(desired)) {
+            target = desired
+            lostTicks = 0
+        }
+        return target
+    }
+
+    override fun requiresUpdateEveryTick(): Boolean = true
 
     override fun start() {
         engaged = true
@@ -76,7 +105,9 @@ class MaidCombatGoal(private val maid: SmartMaidEntity) : Goal() {
     }
 
     override fun tick() {
-        val current = target
+        tickCalls++
+        lastTickGameTime = maid.tickCount
+        val current = refreshTarget()
         if (current == null || !current.isAlive) {
             if (++lostTicks > TARGET_LOST_TIMEOUT) maid.target = null
             return
@@ -146,7 +177,14 @@ class MaidCombatGoal(private val maid: SmartMaidEntity) : Goal() {
             if (eatRetreatTicks == EAT_RETREAT_LIMIT) MaidDebug.log("Combat eat 无法拉开距离（墙角？），改为原地进食")
             return
         }
-        if (maid.isUsingItem) { movement.keepDistance(maid, target, EAT_SAFE_DISTANCE); return }
+        if (maid.isUsingItem) {
+            // 只有正在吃食物才算进食；拉弓/盾等其它 useItem 不能阻塞进食（COMBAT-02）。
+            if (MaidActions.isFood(maid.useItem)) {
+                movement.keepDistance(maid, target, EAT_SAFE_DISTANCE)
+                return
+            }
+            maid.stopUsingItem()
+        }
         if (actionCooldown > 0) { actionCooldown--; return }
         val slot = MaidActions.findFoodSlot(maid, null)
         if (slot < 0 || !MaidActions.swapToMainhand(maid, slot) || !MaidActions.startEating(maid)) { MaidDebug.log("Combat eat 失败（无可用食物）"); actionCooldown = FAILED_ATTACK_COOLDOWN * 2; return }

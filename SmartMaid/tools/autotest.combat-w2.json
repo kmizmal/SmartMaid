@@ -1,0 +1,464 @@
+[
+  {
+    "__comment": "W2 动作切换基线：半血拉弓→进食、盾抢占/威胁解除、满血与无食物负对照。所有场景使用固定平台与 NoAI 目标；仅记录与报告，除存活/动作存在性外不设手感阈值。"
+  },
+  {
+    "id": "w2.clear",
+    "run": "fill 136 66 84 176 72 100 minecraft:air"
+  },
+  {
+    "id": "w2.floor",
+    "run": "fill 136 64 84 176 65 100 minecraft:stone"
+  },
+  {
+    "id": "w2.day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.peaceful-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.kill0",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.kill-skeleton",
+    "run": "kill @e[type=minecraft:skeleton]"
+  },
+  {
+    "id": "w2.kill-creeper",
+    "run": "kill @e[type=minecraft:creeper]"
+  },
+  {
+    "id": "w2.kill-spider",
+    "run": "kill @e[type=minecraft:spider]"
+  },
+  {
+    "id": "w2.normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.wait-world",
+    "wait": 2
+  },
+  {
+    "id": "w2.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.stop0",
+    "run": "maidtasks stop",
+    "source": "player"
+  },
+  {
+    "__comment": "W2-01 半血拉弓→进食：先在满血记录拉弓 80 tick，再 setHealth 9 后记录 180 tick；观察弓状态是否先结束、食物是否被消费。"
+  },
+  {
+    "id": "w2.1.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.1.give",
+    "give": {
+      "minecraft:bow": 1,
+      "minecraft:arrow": 32,
+      "minecraft:cooked_beef": 8
+    }
+  },
+  {
+    "id": "w2.1.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.1.health-full",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2.1.food",
+    "setFood": 17
+  },
+  {
+    "id": "w2.1.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b,Tags:[\"W2DRAW\"]}"
+  },
+  {
+    "id": "w2.1.resist",
+    "run": "effect give @e[type=minecraft:zombie,tag=W2DRAW] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w2.1.wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.1.record-draw",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 30
+  },
+  {
+    "id": "w2.1.check-draw",
+    "check": {
+      "combat": {
+        "minSamples": 20,
+        "engagedSamplesMin": 1,
+        "modesSeenAny": [
+          "RANGED"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w2.1.health-half",
+    "setHealth": 8.0
+  },
+  {
+    "id": "w2.1.record-half",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 180
+  },
+  {
+    "id": "w2.1.check-half",
+    "check": {
+      "combat": {
+        "minSamples": 160,
+        "engagedSamplesMin": 1,
+        "modesSeenAny": [
+          "EAT"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w2.1.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "__comment": "W2-02 盾抢占：盾+僵尸目标，另召唤朝女仆飞行的箭；记录 blocking、blockStartTick 与 mode=SHIELD。"
+  },
+  {
+    "id": "w2.2.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.2.pre-peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.2.pre-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.2.pre-normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.2.pre-day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.2.give",
+    "give": {
+      "minecraft:shield": 1
+    }
+  },
+  {
+    "id": "w2.2.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.2.health",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2.2.food",
+    "setFood": 20
+  },
+  {
+    "id": "w2.2.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w2.2.arrow",
+    "run": "summon minecraft:arrow 157 67.5 90 {Motion:[-0.35,0.0,0.0],NoGravity:1b}"
+  },
+  {
+    "id": "w2.2.wait",
+    "wait": 1
+  },
+  {
+    "id": "w2.2.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 140
+  },
+  {
+    "id": "w2.2.check",
+    "check": {
+      "combat": {
+        "minSamples": 120,
+        "blockingTicksMin": 1,
+        "modesSeenAny": [
+          "SHIELD"
+        ]
+      }
+    }
+  },
+  {
+    "id": "w2.2.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.2.kill-arrows",
+    "run": "kill @e[type=minecraft:arrow]"
+  },
+  {
+    "__comment": "W2-03 威胁解除后恢复：同 W2-02 的单发箭场景延长记录，观察 block end 后的 mode 序列。"
+  },
+  {
+    "id": "w2.3.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.3.pre-peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.3.pre-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.3.pre-normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.3.pre-day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.3.give",
+    "give": {
+      "minecraft:shield": 1
+    }
+  },
+  {
+    "id": "w2.3.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.3.health",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2.3.food",
+    "setFood": 20
+  },
+  {
+    "id": "w2.3.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w2.3.arrow",
+    "run": "summon minecraft:arrow 157 67.5 90 {Motion:[-0.35,0.0,0.0],NoGravity:1b}"
+  },
+  {
+    "id": "w2.3.wait",
+    "wait": 1
+  },
+  {
+    "id": "w2.3.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 200
+  },
+  {
+    "id": "w2.3.check",
+    "check": {
+      "combat": {
+        "minSamples": 180,
+        "blockingTicksMin": 1
+      }
+    }
+  },
+  {
+    "id": "w2.3.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.3.kill-arrows",
+    "run": "kill @e[type=minecraft:arrow]"
+  },
+  {
+    "__comment": "W2-04 满血对照：同 W2-01 但保持满血，有食物；不应消耗食物。"
+  },
+  {
+    "id": "w2.4.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.4.pre-peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.4.pre-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.4.pre-normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.4.pre-day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.4.give",
+    "give": {
+      "minecraft:bow": 1,
+      "minecraft:arrow": 32,
+      "minecraft:cooked_beef": 8
+    }
+  },
+  {
+    "id": "w2.4.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.4.health",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2.4.food",
+    "setFood": 20
+  },
+  {
+    "id": "w2.4.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w2.4.wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.4.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 120
+  },
+  {
+    "id": "w2.4.check",
+    "check": {
+      "combat": {
+        "minSamples": 100,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w2.4.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "__comment": "W2-05 无食物对照：半血、弓+箭、背包无食物；不应进入进食循环。"
+  },
+  {
+    "id": "w2.5.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2.5.pre-peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2.5.pre-wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.5.pre-normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2.5.pre-day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2.5.give",
+    "give": {
+      "minecraft:bow": 1,
+      "minecraft:arrow": 32
+    }
+  },
+  {
+    "id": "w2.5.place",
+    "place": [
+      150.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "w2.5.health",
+    "setHealth": 8.0
+  },
+  {
+    "id": "w2.5.food",
+    "setFood": 17
+  },
+  {
+    "id": "w2.5.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b}"
+  },
+  {
+    "id": "w2.5.wait",
+    "wait": 2
+  },
+  {
+    "id": "w2.5.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 120
+  },
+  {
+    "id": "w2.5.check",
+    "check": {
+      "combat": {
+        "minSamples": 100,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w2.5.kill",
+    "run": "kill @e[type=minecraft:zombie]"
+  },
+  {
+    "id": "w2.stop",
+    "run": "maidtasks stop",
+    "source": "player"
+  }
+]
