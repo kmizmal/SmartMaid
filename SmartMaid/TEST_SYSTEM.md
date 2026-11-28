@@ -1,53 +1,40 @@
 # SmartMaid 测试体系
 
-> 目标：**把能自动化的都自动化，并且让「失败」有地方落**——不依赖人盯屏幕、不依赖人去翻 GBK 的 `latest.log`。
->
-> 现状：服务端 + 客户端两层自动化；静态三层回归门；一个统一的错误接收通道。
+更新：2026-11-28。当前 Kotlin 构建/测试入口与 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 一致；完整运行和归档步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，最新可用性验收见 [2026-11-28 可用性验收报告](../docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)，N1/N2 本机证据见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)，N3 复核见 [N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md)。
 
----
+## 0 当前执行入口
 
-## 0 一页速查
+所有命令从 `SmartMaid` 模块目录执行，使用 JDK 25。以下测试输入部署前先按操作卡归档旧配置/报告，确认没有待执行输入；同一 gameDir 只跑一个客户端。
 
-```bash
-# ① 静态回归总门（改完代码/升依赖后必跑；不需要开游戏）
-python tools/verify_all.py --series 26.3        # 编译 + Mixin 目标 + 依赖成员
+```powershell
+$env:JAVA_HOME = '<本机 JDK 25 安装目录>'
+$env:SMARTMAID_MC_DIR = (Resolve-Path '.\run').Path
+$env:PYTHONIOENCODING = 'utf-8'
+
+# 离线 JVM 测试（包括真实命令树注册/解析；不执行游戏命令回调）
+.\gradlew.bat --offline --no-daemon --console=plain test
+
+# 静态总门：当前默认 26.2，A 实际调用 Gradle 构建
 python tools/verify_all.py --series 26.2
 
-# ② 客户端自动化（GUI / 键位；要开游戏）
-python tools/clienttest.py list
-python tools/clienttest.py run gui-chain --series 26.3     # 放置测试脚本
-#   → 启动游戏、进世界（测试自动跑，全程不碰鼠标键盘）
-python tools/clienttest.py report --series 26.3            # 读结果
-python tools/clienttest.py errors --series 26.3 --stack 8   # 读错误通道
+# 客户端轻量菜单测试：已归档旧报告后部署
+python tools/clienttest.py run gui-chain
+.\gradlew.bat --offline --no-daemon --console=plain runClient
+# 正常保存退出后读取本轮结果
+python tools/clienttest.py report
+python tools/clienttest.py errors
 
-# ③ 服务端自动化（任务/队列/寻路，既有）
-#   把 tools/autotest.<名>.json 复制成 <game>/config/smartmaid/autotest.json → 进游戏
-grep "AutoTest" "<game>/logs/latest.log"
-
-# ④ 离线单测（纯逻辑，不需要游戏）
-./gradlew test
-
-# ⑤ 出发布包（两条线各有自己的通路）
-cd SmartMaid && ./gradlew build -x test          # 26.2 线 → build/libs/smartmaid-<版本>.jar
-python tools/compile_check.py \                  # 26.3 线（Gradle 多版本构建尚未实跑）
-  --mc-jar "<游戏目录>/versions/26.3/26.3.jar" \
-  --fapi-jar ../build_logs/deps/fabric-api-26.3.jar \
-  --src src/main/java --src src/mc26.3/java \
-  --libs libs/mc26.3 --libs-dir "<游戏目录>/libraries" \
-  --include-jar libs/mc26.3/player_animation_library-1.2.7.jar \
-  --mod-version <版本> --mc-version 26.3 --mc-range "~26.3" \
-  --fapi-range ">=0.161.0+26.3" --pal-range ">=1.2.7" \
-  --package ../build_logs/out/smartmaid-<版本>-mc26.3.jar
+git diff --check
+git diff --cached --check
+git diff --check main...HEAD
 ```
 
-> ⚠️ **打包必查**（26.3 曾踩过）：`--include-jar` 要**只给 PAL**（三份 mocha 由 PAL 运行时提供，不能内嵌）；
-> `--fapi-range` / `--pal-range` 默认是 `*`（只适合测试包），**发布包必须显式传真实范围**；
-> 打完用 `zipfile.testzip()` 校验，并确认包内 `fabric.mod.json` 的 `version` / `minecraft` 范围 / `META-INF/jars` 都对。
-
-> ⚠️ **这个启动器开了版本隔离**：`<game>` = `<.minecraft>/versions/<版本>`。
-> 所以 `clienttest.py` / `autotest` 的路径都要带 `--series`。详见 `MEMORY.md` §2。
-
----
+- 当前双版本各 **15 suites / 61 tests / 0 failures/errors/skips**（2026-11-28）；此前 8 suites / 40 tests、7 suites / 37 tests 和 6 suites / 33 tests 均为历史基线，新增测试须说明计数变化。6 suites / 33 tests 是新增命令 suite 前的历史基线。
+- 双版本 clean build 的完整命令、版本参数及 XML 归档顺序见操作卡。Kotlin 发布包使用 Wrapper；旧纯 javac 的 `compile_check.py --package` 不是当前 Kotlin 编译/打包入口。
+- `SMARTMAID_MC_DIR` 已指向真实 `run`，clienttest 不传 `--series`。静态工具的 `--series 26.2` 是版本选择，需要保留；不能直接把它改为 26.3 就声称完成了该版本的所有静态验证。
+- AutoTest 在单机集成服务器执行：按轮部署至 `run/config/smartmaid/autotest.json`，确认入场和本轮断言后正常退出，不能用旧 done 文件签收。
+- gui-chain 29/29 只证明所覆盖的菜单链路；N1 命令执行由 `tools/autotest.n1-commands.json` 在真实玩家命令源验证，N2 真实容器由 `tools/clienttest.inventory-live.json` 验证（均见 2026-11-26 报告）。`key-encoding` 需要操作人实际按键，不能宣称全程无需交互。26.3 游戏输入仍按用户决定不补做；桌宠 N/A。
+- 错误通道按本轮新增记录判定；保留日志原字节，按实际编码读取，不统一强制 GBK。后文样例用于说明报告结构，不作为当前测试证据。
 
 ## 1 分层总览
 
@@ -104,6 +91,15 @@ python tools/compile_check.py \                  # 26.3 线（Gradle 多版本�
 | `closeScreen` | — | 关闭当前 Screen |
 | `wait` | `ticks` | 等待（让包/状态刷新落定） |
 | `note` | `msg` | 往报告里写一条信息 |
+| `sendCommand` | `command` | 以真实玩家身份发送服务器命令 |
+| `waitForScreen` | `expect`、`ticks` | 等待指定 Screen 出现（超时失败） |
+| `waitForMaid` | `min`、`ticks` | 等待最近女仆 id 达标（超时失败） |
+| `assertNearestMaid` | `min` | 断言附近有女仆实体 |
+| `assertMenuMaid` | `expect` | 断言 `MaidInventoryMenu` 绑定同一女仆 |
+| `assertSlot` | `slot`、`item`、`count`/`empty` | 断言容器槽位实际物品 |
+| `assertMenuTotal` | `item`、`count` | 断言容器内物品总数 |
+| `clickSlot` | `slot`、`clickType` | 走真实容器点击链路（含 shift-click） |
+| `assertMaidEquipment` | `slot`、`item`、`count` | 断言女仆装备同步 |
 
 ### 结果报告 `clienttest.report.json`
 
@@ -129,6 +125,7 @@ python tools/compile_check.py \                  # 26.3 线（Gradle 多版本�
 |---|---|---|
 | `tools/clienttest.gui-chain.json` | 否 | 主菜单 → 任务/设置/动作/对话页 → 返回 → 4 个高频动作 → 背包入口（29 用例） |
 | `tools/clienttest.key-encoding.json` | **是**（要求按住 Shift+E 约 5 秒） | 按键编码是否读得到 |
+| `tools/clienttest.inventory-live.json` | 否 | 真实女仆实体/容器绑定、装备同步、shift-click 数量守恒、关开重进（37 用例，2026-11-26 通过） |
 
 ---
 
@@ -147,7 +144,7 @@ python tools/compile_check.py \                  # 26.3 线（Gradle 多版本�
 读取：
 
 ```bash
-python tools/clienttest.py errors --series 26.3 --stack 8
+python tools/clienttest.py errors --stack 8
 ```
 
 ---
@@ -158,7 +155,7 @@ python tools/clienttest.py errors --series 26.3 --stack 8
 
 | 检查 | 能发现 | **看不见** |
 |---|---|---|
-| A 编译（`compile_check.py`） | 版本 API 改名/删除/签名变化、classtweaker 误报 | **Mixin 注解**（不是常量池引用） |
+| A 编译（Kotlin 走 Gradle build） | 版本 API 改名/删除/签名变化、classtweaker 误报 | **Mixin 注解**（不是常量池引用） |
 | B Mixin 目标（`check_mixin_targets.py`） | `@Mixin` 目标类缺失、`@At` 注入点不存在（**致命项会启动崩**） | 运行期是否真的命中（ordinal/指令序） |
 | C 依赖成员（`check_dep_compat.py`） | 第三方 jar 引用的类/成员不存在 | 同上，也看不见 Mixin |
 
@@ -187,18 +184,16 @@ python tools/clienttest.py errors --series 26.3 --stack 8
 > 这条链路证明了一件事：**"既有自动化全绿而真机出问题"的根因是覆盖面缺口，不是自动化没用。**
 > 补上客户端那层之后，同一批问题在下一次改动里会被立刻抓住。
 
-> ⚠️ **"功能通过" ≠ "自动化覆盖"**。上表最后两行是**用户手工操作实测**（真鼠标、真键盘），
-> **不是 `clienttest` 跑出来的** —— 那两条路径**至今仍自动化覆盖不到**（`gui-chain` 跑时
-> `nearestMaid=-1`、菜单以 `state=null` 打开；`key-encoding` 需人工按住键）。详见 §6。
+> ⚠️ **"功能通过" ≠ "自动化覆盖"**。上表里的人工实测是**用户手工操作**（真鼠标、真键盘），
+> 不是自动生成的证据；真实容器路径后来已由 `clienttest.inventory-live.json` 补测，
+> `key-encoding` 仍需人工按住键。详见 §6。
 
 ---
 
 ## 6 待补（如实列出）
 
-- **有女仆的 GUI 路径**：功能已由**人工实测**通过（2026-10-07），但**自动化仍未覆盖** ——
-  `gui-chain` 目前跑在 `nearestMaid=-1`、菜单以 `state=null` 打开，
-  3D 预览 / 装备概览 / 任务队列里有数据这几个分支没走到。
-  要自动化覆盖，需给 `gui-chain` 加前置步骤：进世界后先 `summon`，再断言 `nearestMaid >= 0`。
+- **有女仆的真实容器路径**：2026-11-26 已由 `clienttest.inventory-live.json` 覆盖真实实体、`MaidInventoryScreen`、装备槽、shift-click 数量守恒和重开；`gui-chain` 仍是轻量菜单链路，不可替代该套件。
+- **N1 真实命令路径**：2026-11-26 AutoTest `autotest.n1-commands.json` 41/41 通过；权限仅在集成服真实玩家源与注册权限层级下验证，专用服务端默认权限仍未单独搭建。
 - **真实物理按键**：功能已由**人工实测**通过（Shift+E 能开背包），但 `key-encoding` 探针
   （需人工按住 Shift+E 约 5 秒）**尚未跑过**，物理键位 → 业务动作的完整闭环在自动化侧仍是空白。
 - `MaidAutoTest`（服务端）与 `clienttest`（客户端）目前是两套运行器、两种脚本格式，
@@ -206,5 +201,5 @@ python tools/clienttest.py errors --series 26.3 --stack 8
   （例如：客户端点"背包入口" → 断言服务端真的开了容器）。
 - `verify_all.py` 只覆盖内嵌第三方 jar 与本模组编译；**没有**把 `clienttest` / `autotest`
   的真机结果纳入统一判定（那需要游戏跑过之后才能汇总）。
-- 26.2 线尚未在真机跑过 `gui-chain`（只验过 26.3）。
+- 26.3 专用世界/实体键盘仍未补做；26.2 线当前已有 N1/N2 真机证据。
 - 没有 CI。上面所有命令都是本机手动跑。

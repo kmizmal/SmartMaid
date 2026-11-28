@@ -125,7 +125,7 @@ for (ItemStack drop : Block.getDrops(state, level, pos, blockEntity, maid, tool)
 level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
 ```
 
-**问题**：绕过 `PlayerBlockBreakEvents` / `playerWillDestroy` / `gameEvent` / 经验；`getDrops` 里把女仆当 entity 传。
+**问题**：绕过 `PlayerBlockBreakEvents` / `playerWillDestroy` / `gameEvent` / 经验；调用 `getDrops` 时，将女仆作为实体参数传入。
 
 **目标流程**（严格按原版 `ServerPlayerGameMode` 的顺序补齐）：
 
@@ -391,7 +391,7 @@ public static boolean isHostile(SmartMaidEntity maid, LivingEntity target) {
 **现状**：`CraftExecutor.java:309` / `:423` 的 `rm.getRecipes()` 全量遍历。
 
 **改法**：
-1. **价格很低的优化**：用原版索引替代正向全扫 —— `RecipeManager.getRecipeFor(RecipeType, RecipeInput, Level)`（3 个重载都已核实）内部走原版的 `RecipeMap` 缓存，别再自己 `stream().filter()`。
+1. **改动成本很低的优化**：用原版索引替代正向全扫 —— `RecipeManager.getRecipeFor(RecipeType, RecipeInput, Level)`（3 个重载都已核实）内部走原版的 `RecipeMap` 缓存，别再自己 `stream().filter()`。
 2. **反向索引**（"谁能产出 X"）才需要自建：
 ```java
 private static final Map<Item, List<RecipeHolder<CraftingRecipe>>> CACHE = new WeakHashMap<>();

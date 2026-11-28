@@ -1,5 +1,6 @@
 plugins {
     id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'org.jetbrains.kotlin.jvm' version "${kotlin_version}"
     id 'maven-publish'
 }
 
@@ -12,12 +13,12 @@ base {
 
 // ============================================================
 // 多版本兼容：版本专属源码目录
-//   src/main/java        共享代码（**不得**出现版本敏感的 API）
-//   src/mc<series>/java  版本专属实现（差异隔离层 com.oyxdsg.smartmaid.compat.MaidCompat 等）
+//   src/main/kotlin           共享 Kotlin 代码（Kotlin 插件默认目录，无需声明）
+//   src/mc<series>/kotlin     版本专属实现（差异隔离层 com.oyxdsg.smartmaid.compat.MaidCompat 等）
 //
 // 切换目标版本（不改文件、只改参数）：
 //   ./gradlew build -Pmc_series=26.3 -Pminecraft_version=26.3 \
-//       -Ploader_version=0.19.5 -Ploom_version=1.18-SNAPSHOT -Pfabric_api_version=0.161.0+26.3
+//       -Ploader_version=0.19.5 -Ploom_version=1.18.4 -Pfabric_api_version=0.161.0+26.3
 // 详见 SmartMaid/DESIGN_MULTIVERSION.md
 // ============================================================
 def mcSeries = (project.findProperty('mc_series') ?: '26.2').toString()
@@ -27,7 +28,7 @@ def fapiRange = (project.findProperty('fabric_api_range')
 
 // ---- 本地依赖（Player Animation Library + 其表达式引擎）按目标版本选择 ----
 // 为什么必须分版本：PAL 1.2.7 把内嵌表达式引擎的包名从 team.unnamed.mocha
-// 换成了 org.redlance.mocha.runtime（见 src/mc*/java/.../compat/MaidAnimCompat.java）。
+// 换成了 org.redlance.mocha.runtime（见 src/mc*/kotlin/.../compat/MaidAnimCompat.kt）。
 // 目录约定：libs/ 放共用 + 26.2 线；libs/mc<series>/ 放该版本专属。
 def palVersions = ['26.1': '1.2.6', '26.2': '1.2.6', '26.3': '1.2.7']
 def palVersion = (project.findProperty('pal_version') ?: palVersions[mcSeries] ?: '1.2.6').toString()
@@ -40,7 +41,9 @@ def mochaDeps = (mcSeries == '26.3')
 
 sourceSets {
     main {
-        java.srcDirs = ['src/main/java', "src/mc${mcSeries}/java"]
+        // 标准 Loom + Kotlin 布局：src/main/java 与 src/main/kotlin 都是插件默认目录。
+        // 这里只额外挂上「版本专属差异隔离层」的 Kotlin 目录。
+        kotlin.srcDir "src/mc${mcSeries}/kotlin"
     }
 }
 
@@ -48,6 +51,7 @@ logger.lifecycle("SmartMaid 目标: minecraft=${project.minecraft_version} serie
         + "PAL=${palVersion} mocha=${mochaDeps}")
 
 repositories {
+    mavenCentral()
     maven { url = 'https://maven.aliyun.com/repository/public' }
     maven { url = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/' }
     // 本地依赖：libs/（共用 + 26.2 线）与 libs/mc<series>/（版本专属，如 PAL 1.2.7）
@@ -55,6 +59,8 @@ repositories {
 }
 
 dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:${project.kotlin_version}"
+    implementation "net.fabricmc:fabric-language-kotlin:${project.fabric_kotlin_version}"
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
@@ -71,6 +77,7 @@ dependencies {
 }
 
 processResources {
+    inputs.property "fabric_kotlin_range", ">=${project.fabric_kotlin_version}"
     inputs.property "version", project.version
     inputs.property "minecraft_range", mcRange
     inputs.property "fabric_api_range", fapiRange
@@ -79,7 +86,8 @@ processResources {
     filesMatching("fabric.mod.json") {
         // 每个版本产出的 jar 只声明它**真正支持**的那个版本范围（禁止宽范围通吃，
         // 理由见 DESIGN_MULTIVERSION.md §4.3）
-        expand "version": project.version,
+        expand "fabric_kotlin_range": ">=${project.fabric_kotlin_version}",
+               "version": project.version,
                "minecraft_range": mcRange,
                "fabric_api_range": fapiRange,
                "target_mc": project.minecraft_version,
@@ -88,6 +96,8 @@ processResources {
     // 许可证与第三方声明随 jar 一起分发（jar 内含 GPL-3.0 表情数据与 CC BY-NC-SA 皮肤，
     // 声明必须与二进制同行；见仓库根 NOTICE.md）
     from(file("../LICENSE")) { into "META-INF" }
+    from(file("../LICENSE-MIT-upstream.txt")) { into "META-INF" }
+    from(file("../GPL-3.0.txt")) { into "META-INF" }
     from(file("../NOTICE.md")) { into "META-INF" }
 }
 

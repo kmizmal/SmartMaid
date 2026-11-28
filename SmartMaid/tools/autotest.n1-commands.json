@@ -1,0 +1,69 @@
+[
+    { "id": "n1.00.platform", "run": "fill {x-3} {y-1} {z-3} {x+3} {y-1} {z+3} minecraft:stone", "_why": "在女仆周围铺安全平台" },
+    { "id": "n1.00.clear", "run": "fill {x-3} {y} {z-3} {x+3} {y+2} {z+3} minecraft:air", "_why": "清空站立/操作空间" },
+    { "id": "n1.01.no-maid-console", "run": "maidtasks transfer mainhand offhand", "source": "server", "expectResult": 0, "_why": "无玩家/无女仆的旧控制台路径应拒绝且不崩溃" },
+
+    { "id": "n1.10.transfer-give", "give": { "minecraft:diamond": 10 } },
+    { "id": "n1.11.transfer", "run": "maidtasks transfer mainhand offhand 4", "source": "player", "expectResult": 1 },
+    { "id": "n1.12.transfer-main", "check": { "slot": { "slot": 0, "item": "minecraft:diamond", "count": 6 } } },
+    { "id": "n1.13.transfer-off", "check": { "slot": { "slot": 40, "item": "minecraft:diamond", "count": 4 } } },
+    { "id": "n1.14.transfer-back", "run": "maidtasks transfer offhand mainhand 4", "source": "player", "expectResult": 1 },
+    { "id": "n1.15.transfer-back-check", "check": { "slot": { "slot": 0, "item": "minecraft:diamond", "count": 10 } } },
+    { "id": "n1.16.transfer-bad-slot", "run": "maidtasks transfer 41 offhand", "source": "player", "expectResult": 0, "_why": "越界槽位必须在派发前拒绝" },
+    { "id": "n1.17.transfer-bad-count", "run": "maidtasks transfer mainhand offhand 0", "source": "player", "expectError": true },
+
+    { "id": "n1.20.equip-give", "give": { "minecraft:iron_sword": 1 } },
+    { "id": "n1.21.equip", "run": "maidtasks equip minecraft:iron_sword", "source": "player", "expectResult": 1 },
+    { "id": "n1.22.equip-check", "check": { "slot": { "slot": 0, "item": "minecraft:iron_sword", "count": 1 } } },
+    { "id": "n1.23.store", "run": "maidtasks store", "source": "player", "expectResult": 1 },
+    { "id": "n1.24.store-hand", "check": { "slot": { "slot": 0, "empty": true } } },
+    { "id": "n1.25.store-total", "check": { "inv": { "item": "minecraft:iron_sword", "min": 1 } }, "_why": "收纳后物品总数必须守恒" },
+
+    { "id": "n1.30.look", "run": "maidtasks look {x} {y} {z-4}", "source": "player", "expectResult": 1, "expectYaw": 180, "yawTolerance": 20, "_why": "look 为一次性动作，命令返回时头部 yaw 应已朝向正北" },
+
+    { "id": "n1.40.break-set", "run": "setblock {x+2} {y} {z} minecraft:stone" },
+    { "id": "n1.41.break", "run": "maidtasks break {lx} {ly} {lz}", "source": "player", "expectResult": 1 },
+    { "id": "n1.42.break-wait", "wait": 2 },
+    { "id": "n1.43.break-check", "check": { "block": { "at": "lastRun", "is": "minecraft:air" } } },
+    { "id": "n1.44.break-drop", "check": { "inv": { "item": "minecraft:cobblestone", "min": 1 } } },
+
+    { "id": "n1.50.place-set", "run": "setblock {x-2} {y} {z} minecraft:air" },
+    { "id": "n1.51.place-give", "give": { "minecraft:dirt": 1 } },
+    { "id": "n1.52.place-equip", "run": "maidtasks equip minecraft:dirt", "source": "player", "expectResult": 1 },
+    { "id": "n1.53.place", "run": "maidtasks place {lx} {ly} {lz}", "source": "player", "expectResult": 1 },
+    { "id": "n1.54.place-wait", "wait": 2 },
+    { "id": "n1.55.place-check", "check": { "block": { "at": "lastRun", "is": "minecraft:dirt" } } },
+
+    { "id": "n1.60.use-set", "run": "setblock {x-2} {y} {z} minecraft:obsidian" },
+    { "id": "n1.61.use-give", "give": { "minecraft:flint_and_steel": 1 } },
+    { "id": "n1.62.use-equip", "run": "maidtasks equip minecraft:flint_and_steel", "source": "player", "expectResult": 1 },
+    { "id": "n1.63.use", "run": "maidtasks use {lx} {ly+1} {lz}", "source": "player", "expectResult": 1 },
+    { "id": "n1.64.use-wait", "wait": 2 },
+    { "id": "n1.65.use-check", "check": { "block": { "at": "lastRun", "offset": [0, 1, 0], "is": "minecraft:fire" } } },
+
+    { "id": "n1.70.chest-set", "run": "setblock {x+2} {y} {z} minecraft:chest" },
+    { "id": "n1.71.chest-reject", "run": "maidtasks chestput", "source": "player", "expectResult": 0, "_why": "未 chestopen 前拒绝" },
+    { "id": "n1.72.chest-open", "run": "maidtasks chestopen {lx} {ly} {lz}", "source": "player", "expectResult": 1 },
+    { "id": "n1.73.chest-wait", "wait": 6 },
+    { "id": "n1.74.chest-give", "give": { "minecraft:cobblestone": 8 } },
+    { "id": "n1.75.chest-equip", "run": "maidtasks equip minecraft:cobblestone", "source": "player", "expectResult": 1 },
+    { "id": "n1.76.chest-put", "run": "maidtasks chestput 5", "source": "player", "expectResult": 1 },
+    { "id": "n1.77.chest-put-wait", "wait": 3 },
+    { "id": "n1.78.chest-put-check", "check": { "container": { "at": "lastRun", "slot": 0, "item": "minecraft:cobblestone", "count": 5 } } },
+    { "id": "n1.79.chest-take", "run": "maidtasks chesttake 0 3", "source": "player", "expectResult": 1 },
+    { "id": "n1.80.chest-take-wait", "wait": 3 },
+    { "id": "n1.81.chest-take-check", "check": { "container": { "at": "lastRun", "slot": 0, "item": "minecraft:cobblestone", "count": 2 } } },
+
+    { "id": "n1.90.attack-target", "run": "summon minecraft:cow {x+3} {y} {z}" },
+    { "id": "n1.91.attack", "run": "maidtasks attack 12 cow", "source": "player", "expectResult": 1 },
+    { "id": "n1.92.attack-task", "check": { "task": { "current": "attack" } } },
+    { "id": "n1.93.stop-attack", "run": "maidtasks stop", "source": "player", "expectResult": 1 },
+
+    { "id": "n1.94.mine", "run": "maidtasks mine {x} {y} {z-3} 4 2", "source": "player", "expectResult": 1, "expectTask": "mine" },
+    { "id": "n1.96.stop-mine", "run": "maidtasks stop", "source": "player", "expectResult": 1 },
+
+    { "id": "n1.97.farm", "run": "maidtasks farm {x} {y} {z-3} 4", "source": "player", "expectResult": 1, "expectTask": "farm" },
+    { "id": "n1.99.stop-farm", "run": "maidtasks stop", "source": "player", "expectResult": 1 },
+
+    { "id": "n1.100.final", "run": "maidtasks stop", "source": "player", "expectResult": 1 }
+]

@@ -1,0 +1,16 @@
+[
+  {"__comment":"Disposable creative test world only; start one op player in the Overworld with no maid. Prepare a loaded platform before moving either entity (superflat ground may be below Y=0). Distance restricts the selectors to their command dimension."},
+  {"id":"summon.keep-overworld-loaded","run":"execute in minecraft:overworld run forceload add 96 96 111 111","expectResult":1},
+  {"id":"summon.wait-chunk","wait":40},
+  {"id":"summon.platform","run":"execute in minecraft:overworld run fill 99 65 99 109 65 109 minecraft:stone"},
+  {"id":"summon.place-overworld","place":[104.5,66,104.5]},
+  {"id":"summon.sit-on-platform","run":"maidtasks sit","source":"player","expectResult":1},
+  {"id":"summon.mark-original","run":"execute in minecraft:overworld positioned 104.5 66 104.5 run tag @e[type=smartmaid:smart_maid,distance=..16] add summon_original","expectResult":1},
+  {"id":"summon.move-real-player","run":"execute in minecraft:the_nether run tp @s 0 129 0","source":"player","expectResult":1},
+  {"id":"summon.player-in-nether","run":"execute if dimension minecraft:the_nether","source":"player","expectResult":1},
+  {"id":"summon.no-duplicate","run":"summonmaid","source":"player","expectResult":0},
+  {"id":"summon.one-original","run":"execute in minecraft:overworld positioned 104.5 66 104.5 if entity @e[type=smartmaid:smart_maid,tag=summon_original,distance=..16]","expectResult":1},
+  {"id":"summon.no-nether-maid","run":"execute in minecraft:the_nether positioned 0 129 0 unless entity @e[type=smartmaid:smart_maid,distance=..30000000]","expectResult":1},
+  {"id":"summon.return-player","run":"execute in minecraft:overworld run tp @s 104 66 104","source":"player","expectResult":1},
+  {"id":"summon.release-overworld-chunk","run":"execute in minecraft:overworld run forceload remove 96 96 111 111","expectResult":1}
+]

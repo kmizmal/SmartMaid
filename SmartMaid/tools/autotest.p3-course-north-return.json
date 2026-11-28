@@ -1,0 +1,213 @@
+[
+  {
+    "id": "p3.course.north.1.place",
+    "place": [
+      82.5,
+      66.0,
+      90.5
+    ]
+  },
+  {
+    "id": "p3.course.north.1.floor",
+    "run": "fill 78 64 82 86 65 98 minecraft:stone"
+  },
+  {
+    "id": "p3.course.north.1.clear",
+    "run": "fill 78 66 82 86 69 98 minecraft:air"
+  },
+  {
+    "id": "p3.course.north.1.trench",
+    "run": "fill 81 65 87 83 65 89 minecraft:air"
+  },
+  {
+    "id": "p3.course.north.1.audit.01",
+    "run": "execute if block 78 64 98 minecraft:stone if block 79 64 98 minecraft:stone if block 80 64 98 minecraft:stone if block 81 64 98 minecraft:stone if block 82 64 98 minecraft:stone if block 83 64 98 minecraft:stone if block 84 64 98 minecraft:stone if block 85 64 98 minecraft:stone if block 86 64 98 minecraft:stone if block 78 64 97 minecraft:stone if block 79 64 97 minecraft:stone if block 80 64 97 minecraft:stone if block 81 64 97 minecraft:stone if block 82 64 97 minecraft:stone if block 83 64 97 minecraft:stone if block 84 64 97 minecraft:stone if block 85 64 97 minecraft:stone if block 86 64 97 minecraft:stone if block 78 64 96 minecraft:stone if block 79 64 96 minecraft:stone if block 80 64 96 minecraft:stone if block 81 64 96 minecraft:stone if block 82 64 96 minecraft:stone if block 83 64 96 minecraft:stone if block 84 64 96 minecraft:stone if block 85 64 96 minecraft:stone if block 86 64 96 minecraft:stone if block 78 64 95 minecraft:stone if block 79 64 95 minecraft:stone if block 80 64 95 minecraft:stone if block 81 64 95 minecraft:stone if block 82 64 95 minecraft:stone run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.02",
+    "run": "execute if block 83 64 95 minecraft:stone if block 84 64 95 minecraft:stone if block 85 64 95 minecraft:stone if block 86 64 95 minecraft:stone if block 78 64 94 minecraft:stone if block 79 64 94 minecraft:stone if block 80 64 94 minecraft:stone if block 81 64 94 minecraft:stone if block 82 64 94 minecraft:stone if block 83 64 94 minecraft:stone if block 84 64 94 minecraft:stone if block 85 64 94 minecraft:stone if block 86 64 94 minecraft:stone if block 78 64 93 minecraft:stone if block 79 64 93 minecraft:stone if block 80 64 93 minecraft:stone if block 81 64 93 minecraft:stone if block 82 64 93 minecraft:stone if block 83 64 93 minecraft:stone if block 84 64 93 minecraft:stone if block 85 64 93 minecraft:stone if block 86 64 93 minecraft:stone if block 78 64 92 minecraft:stone if block 79 64 92 minecraft:stone if block 80 64 92 minecraft:stone if block 81 64 92 minecraft:stone if block 82 64 92 minecraft:stone if block 83 64 92 minecraft:stone if block 84 64 92 minecraft:stone if block 85 64 92 minecraft:stone if block 86 64 92 minecraft:stone if block 78 64 91 minecraft:stone run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.03",
+    "run": "execute if block 79 64 91 minecraft:stone if block 80 64 91 minecraft:stone if block 81 64 91 minecraft:stone if block 82 64 91 minecraft:stone if block 83 64 91 minecraft:stone if block 84 64 91 minecraft:stone if block 85 64 91 minecraft:stone if block 86 64 91 minecraft:stone if block 78 64 90 minecraft:stone if block 79 64 90 minecraft:stone if block 80 64 90 minecraft:stone if block 81 64 90 minecraft:stone if block 82 64 90 minecraft:stone if block 83 64 90 minecraft:stone if block 84 64 90 minecraft:stone if block 85 64 90 minecraft:stone if block 86 64 90 minecraft:stone if block 78 64 89 minecraft:stone if block 79 64 89 minecraft:stone if block 80 64 89 minecraft:stone if block 81 64 89 minecraft:stone if block 82 64 89 minecraft:stone if block 83 64 89 minecraft:stone if block 84 64 89 minecraft:stone if block 85 64 89 minecraft:stone if block 86 64 89 minecraft:stone if block 78 64 88 minecraft:stone if block 79 64 88 minecraft:stone if block 80 64 88 minecraft:stone if block 81 64 88 minecraft:stone if block 82 64 88 minecraft:stone if block 83 64 88 minecraft:stone run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.04",
+    "run": "execute if block 84 64 88 minecraft:stone if block 85 64 88 minecraft:stone if block 86 64 88 minecraft:stone if block 78 64 87 minecraft:stone if block 79 64 87 minecraft:stone if block 80 64 87 minecraft:stone if block 81 64 87 minecraft:stone if block 82 64 87 minecraft:stone if block 83 64 87 minecraft:stone if block 84 64 87 minecraft:stone if block 85 64 87 minecraft:stone if block 86 64 87 minecraft:stone if block 78 64 86 minecraft:stone if block 79 64 86 minecraft:stone if block 80 64 86 minecraft:stone if block 81 64 86 minecraft:stone if block 82 64 86 minecraft:stone if block 83 64 86 minecraft:stone if block 84 64 86 minecraft:stone if block 85 64 86 minecraft:stone if block 86 64 86 minecraft:stone if block 78 64 85 minecraft:stone if block 79 64 85 minecraft:stone if block 80 64 85 minecraft:stone if block 81 64 85 minecraft:stone if block 82 64 85 minecraft:stone if block 83 64 85 minecraft:stone if block 84 64 85 minecraft:stone if block 85 64 85 minecraft:stone if block 86 64 85 minecraft:stone if block 78 64 84 minecraft:stone if block 79 64 84 minecraft:stone run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.05",
+    "run": "execute if block 80 64 84 minecraft:stone if block 81 64 84 minecraft:stone if block 82 64 84 minecraft:stone if block 83 64 84 minecraft:stone if block 84 64 84 minecraft:stone if block 85 64 84 minecraft:stone if block 86 64 84 minecraft:stone if block 78 64 83 minecraft:stone if block 79 64 83 minecraft:stone if block 80 64 83 minecraft:stone if block 81 64 83 minecraft:stone if block 82 64 83 minecraft:stone if block 83 64 83 minecraft:stone if block 84 64 83 minecraft:stone if block 85 64 83 minecraft:stone if block 86 64 83 minecraft:stone if block 78 64 82 minecraft:stone if block 79 64 82 minecraft:stone if block 80 64 82 minecraft:stone if block 81 64 82 minecraft:stone if block 82 64 82 minecraft:stone if block 83 64 82 minecraft:stone if block 84 64 82 minecraft:stone if block 85 64 82 minecraft:stone if block 86 64 82 minecraft:stone if block 78 65 98 minecraft:stone if block 79 65 98 minecraft:stone if block 80 65 98 minecraft:stone if block 81 65 98 minecraft:stone if block 82 65 98 minecraft:stone if block 83 65 98 minecraft:stone if block 84 65 98 minecraft:stone run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.06",
+    "run": "execute if block 85 65 98 minecraft:stone if block 86 65 98 minecraft:stone if block 78 65 97 minecraft:stone if block 79 65 97 minecraft:stone if block 80 65 97 minecraft:stone if block 81 65 97 minecraft:stone if block 82 65 97 minecraft:stone if block 83 65 97 minecraft:stone if block 84 65 97 minecraft:stone if block 85 65 97 minecraft:stone if block 86 65 97 minecraft:stone if block 78 65 96 minecraft:stone if block 79 65 96 minecraft:stone if block 80 65 96 minecraft:stone if block 81 65 96 minecraft:stone if block 82 65 96 minecraft:stone if block 83 65 96 minecraft:stone if block 84 65 96 minecraft:stone if block 85 65 96 minecraft:stone if block 86 65 96 minecraft:stone if block 78 65 95 minecraft:stone if block 79 65 95 minecraft:stone if block 80 65 95 minecraft:stone if block 81 65 95 minecraft:stone if block 82 65 95 minecraft:stone if block 83 65 95 minecraft:stone if block 84 65 95 minecraft:stone if block 85 65 95 minecraft:stone if block 86 65 95 minecraft:stone if block 78 65 94 minecraft:stone if block 79 65 94 minecraft:stone if block 80 65 94 minecraft:stone run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.07",
+    "run": "execute if block 81 65 94 minecraft:stone if block 82 65 94 minecraft:stone if block 83 65 94 minecraft:stone if block 84 65 94 minecraft:stone if block 85 65 94 minecraft:stone if block 86 65 94 minecraft:stone if block 78 65 93 minecraft:stone if block 79 65 93 minecraft:stone if block 80 65 93 minecraft:stone if block 81 65 93 minecraft:stone if block 82 65 93 minecraft:stone if block 83 65 93 minecraft:stone if block 84 65 93 minecraft:stone if block 85 65 93 minecraft:stone if block 86 65 93 minecraft:stone if block 78 65 92 minecraft:stone if block 79 65 92 minecraft:stone if block 80 65 92 minecraft:stone if block 81 65 92 minecraft:stone if block 82 65 92 minecraft:stone if block 83 65 92 minecraft:stone if block 84 65 92 minecraft:stone if block 85 65 92 minecraft:stone if block 86 65 92 minecraft:stone if block 78 65 91 minecraft:stone if block 79 65 91 minecraft:stone if block 80 65 91 minecraft:stone if block 81 65 91 minecraft:stone if block 82 65 91 minecraft:stone if block 83 65 91 minecraft:stone if block 84 65 91 minecraft:stone if block 85 65 91 minecraft:stone run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.08",
+    "run": "execute if block 86 65 91 minecraft:stone if block 78 65 90 minecraft:stone if block 79 65 90 minecraft:stone if block 80 65 90 minecraft:stone if block 81 65 90 minecraft:stone if block 82 65 90 minecraft:stone if block 83 65 90 minecraft:stone if block 84 65 90 minecraft:stone if block 85 65 90 minecraft:stone if block 86 65 90 minecraft:stone if block 78 65 89 minecraft:stone if block 79 65 89 minecraft:stone if block 80 65 89 minecraft:stone if block 81 65 89 minecraft:air if block 82 65 89 minecraft:air if block 83 65 89 minecraft:air if block 84 65 89 minecraft:stone if block 85 65 89 minecraft:stone if block 86 65 89 minecraft:stone if block 78 65 88 minecraft:stone if block 79 65 88 minecraft:stone if block 80 65 88 minecraft:stone if block 81 65 88 minecraft:air if block 82 65 88 minecraft:air if block 83 65 88 minecraft:air if block 84 65 88 minecraft:stone if block 85 65 88 minecraft:stone if block 86 65 88 minecraft:stone if block 78 65 87 minecraft:stone if block 79 65 87 minecraft:stone if block 80 65 87 minecraft:stone if block 81 65 87 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.09",
+    "run": "execute if block 82 65 87 minecraft:air if block 83 65 87 minecraft:air if block 84 65 87 minecraft:stone if block 85 65 87 minecraft:stone if block 86 65 87 minecraft:stone if block 78 65 86 minecraft:stone if block 79 65 86 minecraft:stone if block 80 65 86 minecraft:stone if block 81 65 86 minecraft:stone if block 82 65 86 minecraft:stone if block 83 65 86 minecraft:stone if block 84 65 86 minecraft:stone if block 85 65 86 minecraft:stone if block 86 65 86 minecraft:stone if block 78 65 85 minecraft:stone if block 79 65 85 minecraft:stone if block 80 65 85 minecraft:stone if block 81 65 85 minecraft:stone if block 82 65 85 minecraft:stone if block 83 65 85 minecraft:stone if block 84 65 85 minecraft:stone if block 85 65 85 minecraft:stone if block 86 65 85 minecraft:stone if block 78 65 84 minecraft:stone if block 79 65 84 minecraft:stone if block 80 65 84 minecraft:stone if block 81 65 84 minecraft:stone if block 82 65 84 minecraft:stone if block 83 65 84 minecraft:stone if block 84 65 84 minecraft:stone if block 85 65 84 minecraft:stone if block 86 65 84 minecraft:stone run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.10",
+    "run": "execute if block 78 65 83 minecraft:stone if block 79 65 83 minecraft:stone if block 80 65 83 minecraft:stone if block 81 65 83 minecraft:stone if block 82 65 83 minecraft:stone if block 83 65 83 minecraft:stone if block 84 65 83 minecraft:stone if block 85 65 83 minecraft:stone if block 86 65 83 minecraft:stone if block 78 65 82 minecraft:stone if block 79 65 82 minecraft:stone if block 80 65 82 minecraft:stone if block 81 65 82 minecraft:stone if block 82 65 82 minecraft:stone if block 83 65 82 minecraft:stone if block 84 65 82 minecraft:stone if block 85 65 82 minecraft:stone if block 86 65 82 minecraft:stone if block 78 66 98 minecraft:air if block 79 66 98 minecraft:air if block 80 66 98 minecraft:air if block 81 66 98 minecraft:air if block 82 66 98 minecraft:air if block 83 66 98 minecraft:air if block 84 66 98 minecraft:air if block 85 66 98 minecraft:air if block 86 66 98 minecraft:air if block 78 66 97 minecraft:air if block 79 66 97 minecraft:air if block 80 66 97 minecraft:air if block 81 66 97 minecraft:air if block 82 66 97 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.11",
+    "run": "execute if block 83 66 97 minecraft:air if block 84 66 97 minecraft:air if block 85 66 97 minecraft:air if block 86 66 97 minecraft:air if block 78 66 96 minecraft:air if block 79 66 96 minecraft:air if block 80 66 96 minecraft:air if block 81 66 96 minecraft:air if block 82 66 96 minecraft:air if block 83 66 96 minecraft:air if block 84 66 96 minecraft:air if block 85 66 96 minecraft:air if block 86 66 96 minecraft:air if block 78 66 95 minecraft:air if block 79 66 95 minecraft:air if block 80 66 95 minecraft:air if block 81 66 95 minecraft:air if block 82 66 95 minecraft:air if block 83 66 95 minecraft:air if block 84 66 95 minecraft:air if block 85 66 95 minecraft:air if block 86 66 95 minecraft:air if block 78 66 94 minecraft:air if block 79 66 94 minecraft:air if block 80 66 94 minecraft:air if block 81 66 94 minecraft:air if block 82 66 94 minecraft:air if block 83 66 94 minecraft:air if block 84 66 94 minecraft:air if block 85 66 94 minecraft:air if block 86 66 94 minecraft:air if block 78 66 93 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.12",
+    "run": "execute if block 79 66 93 minecraft:air if block 80 66 93 minecraft:air if block 81 66 93 minecraft:air if block 82 66 93 minecraft:air if block 83 66 93 minecraft:air if block 84 66 93 minecraft:air if block 85 66 93 minecraft:air if block 86 66 93 minecraft:air if block 78 66 92 minecraft:air if block 79 66 92 minecraft:air if block 80 66 92 minecraft:air if block 81 66 92 minecraft:air if block 82 66 92 minecraft:air if block 83 66 92 minecraft:air if block 84 66 92 minecraft:air if block 85 66 92 minecraft:air if block 86 66 92 minecraft:air if block 78 66 91 minecraft:air if block 79 66 91 minecraft:air if block 80 66 91 minecraft:air if block 81 66 91 minecraft:air if block 82 66 91 minecraft:air if block 83 66 91 minecraft:air if block 84 66 91 minecraft:air if block 85 66 91 minecraft:air if block 86 66 91 minecraft:air if block 78 66 90 minecraft:air if block 79 66 90 minecraft:air if block 80 66 90 minecraft:air if block 81 66 90 minecraft:air if block 82 66 90 minecraft:air if block 83 66 90 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.13",
+    "run": "execute if block 84 66 90 minecraft:air if block 85 66 90 minecraft:air if block 86 66 90 minecraft:air if block 78 66 89 minecraft:air if block 79 66 89 minecraft:air if block 80 66 89 minecraft:air if block 81 66 89 minecraft:air if block 82 66 89 minecraft:air if block 83 66 89 minecraft:air if block 84 66 89 minecraft:air if block 85 66 89 minecraft:air if block 86 66 89 minecraft:air if block 78 66 88 minecraft:air if block 79 66 88 minecraft:air if block 80 66 88 minecraft:air if block 81 66 88 minecraft:air if block 82 66 88 minecraft:air if block 83 66 88 minecraft:air if block 84 66 88 minecraft:air if block 85 66 88 minecraft:air if block 86 66 88 minecraft:air if block 78 66 87 minecraft:air if block 79 66 87 minecraft:air if block 80 66 87 minecraft:air if block 81 66 87 minecraft:air if block 82 66 87 minecraft:air if block 83 66 87 minecraft:air if block 84 66 87 minecraft:air if block 85 66 87 minecraft:air if block 86 66 87 minecraft:air if block 78 66 86 minecraft:air if block 79 66 86 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.14",
+    "run": "execute if block 80 66 86 minecraft:air if block 81 66 86 minecraft:air if block 82 66 86 minecraft:air if block 83 66 86 minecraft:air if block 84 66 86 minecraft:air if block 85 66 86 minecraft:air if block 86 66 86 minecraft:air if block 78 66 85 minecraft:air if block 79 66 85 minecraft:air if block 80 66 85 minecraft:air if block 81 66 85 minecraft:air if block 82 66 85 minecraft:air if block 83 66 85 minecraft:air if block 84 66 85 minecraft:air if block 85 66 85 minecraft:air if block 86 66 85 minecraft:air if block 78 66 84 minecraft:air if block 79 66 84 minecraft:air if block 80 66 84 minecraft:air if block 81 66 84 minecraft:air if block 82 66 84 minecraft:air if block 83 66 84 minecraft:air if block 84 66 84 minecraft:air if block 85 66 84 minecraft:air if block 86 66 84 minecraft:air if block 78 66 83 minecraft:air if block 79 66 83 minecraft:air if block 80 66 83 minecraft:air if block 81 66 83 minecraft:air if block 82 66 83 minecraft:air if block 83 66 83 minecraft:air if block 84 66 83 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.15",
+    "run": "execute if block 85 66 83 minecraft:air if block 86 66 83 minecraft:air if block 78 66 82 minecraft:air if block 79 66 82 minecraft:air if block 80 66 82 minecraft:air if block 81 66 82 minecraft:air if block 82 66 82 minecraft:air if block 83 66 82 minecraft:air if block 84 66 82 minecraft:air if block 85 66 82 minecraft:air if block 86 66 82 minecraft:air if block 78 67 98 minecraft:air if block 79 67 98 minecraft:air if block 80 67 98 minecraft:air if block 81 67 98 minecraft:air if block 82 67 98 minecraft:air if block 83 67 98 minecraft:air if block 84 67 98 minecraft:air if block 85 67 98 minecraft:air if block 86 67 98 minecraft:air if block 78 67 97 minecraft:air if block 79 67 97 minecraft:air if block 80 67 97 minecraft:air if block 81 67 97 minecraft:air if block 82 67 97 minecraft:air if block 83 67 97 minecraft:air if block 84 67 97 minecraft:air if block 85 67 97 minecraft:air if block 86 67 97 minecraft:air if block 78 67 96 minecraft:air if block 79 67 96 minecraft:air if block 80 67 96 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.16",
+    "run": "execute if block 81 67 96 minecraft:air if block 82 67 96 minecraft:air if block 83 67 96 minecraft:air if block 84 67 96 minecraft:air if block 85 67 96 minecraft:air if block 86 67 96 minecraft:air if block 78 67 95 minecraft:air if block 79 67 95 minecraft:air if block 80 67 95 minecraft:air if block 81 67 95 minecraft:air if block 82 67 95 minecraft:air if block 83 67 95 minecraft:air if block 84 67 95 minecraft:air if block 85 67 95 minecraft:air if block 86 67 95 minecraft:air if block 78 67 94 minecraft:air if block 79 67 94 minecraft:air if block 80 67 94 minecraft:air if block 81 67 94 minecraft:air if block 82 67 94 minecraft:air if block 83 67 94 minecraft:air if block 84 67 94 minecraft:air if block 85 67 94 minecraft:air if block 86 67 94 minecraft:air if block 78 67 93 minecraft:air if block 79 67 93 minecraft:air if block 80 67 93 minecraft:air if block 81 67 93 minecraft:air if block 82 67 93 minecraft:air if block 83 67 93 minecraft:air if block 84 67 93 minecraft:air if block 85 67 93 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.17",
+    "run": "execute if block 86 67 93 minecraft:air if block 78 67 92 minecraft:air if block 79 67 92 minecraft:air if block 80 67 92 minecraft:air if block 81 67 92 minecraft:air if block 82 67 92 minecraft:air if block 83 67 92 minecraft:air if block 84 67 92 minecraft:air if block 85 67 92 minecraft:air if block 86 67 92 minecraft:air if block 78 67 91 minecraft:air if block 79 67 91 minecraft:air if block 80 67 91 minecraft:air if block 81 67 91 minecraft:air if block 82 67 91 minecraft:air if block 83 67 91 minecraft:air if block 84 67 91 minecraft:air if block 85 67 91 minecraft:air if block 86 67 91 minecraft:air if block 78 67 90 minecraft:air if block 79 67 90 minecraft:air if block 80 67 90 minecraft:air if block 81 67 90 minecraft:air if block 82 67 90 minecraft:air if block 83 67 90 minecraft:air if block 84 67 90 minecraft:air if block 85 67 90 minecraft:air if block 86 67 90 minecraft:air if block 78 67 89 minecraft:air if block 79 67 89 minecraft:air if block 80 67 89 minecraft:air if block 81 67 89 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.18",
+    "run": "execute if block 82 67 89 minecraft:air if block 83 67 89 minecraft:air if block 84 67 89 minecraft:air if block 85 67 89 minecraft:air if block 86 67 89 minecraft:air if block 78 67 88 minecraft:air if block 79 67 88 minecraft:air if block 80 67 88 minecraft:air if block 81 67 88 minecraft:air if block 82 67 88 minecraft:air if block 83 67 88 minecraft:air if block 84 67 88 minecraft:air if block 85 67 88 minecraft:air if block 86 67 88 minecraft:air if block 78 67 87 minecraft:air if block 79 67 87 minecraft:air if block 80 67 87 minecraft:air if block 81 67 87 minecraft:air if block 82 67 87 minecraft:air if block 83 67 87 minecraft:air if block 84 67 87 minecraft:air if block 85 67 87 minecraft:air if block 86 67 87 minecraft:air if block 78 67 86 minecraft:air if block 79 67 86 minecraft:air if block 80 67 86 minecraft:air if block 81 67 86 minecraft:air if block 82 67 86 minecraft:air if block 83 67 86 minecraft:air if block 84 67 86 minecraft:air if block 85 67 86 minecraft:air if block 86 67 86 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.19",
+    "run": "execute if block 78 67 85 minecraft:air if block 79 67 85 minecraft:air if block 80 67 85 minecraft:air if block 81 67 85 minecraft:air if block 82 67 85 minecraft:air if block 83 67 85 minecraft:air if block 84 67 85 minecraft:air if block 85 67 85 minecraft:air if block 86 67 85 minecraft:air if block 78 67 84 minecraft:air if block 79 67 84 minecraft:air if block 80 67 84 minecraft:air if block 81 67 84 minecraft:air if block 82 67 84 minecraft:air if block 83 67 84 minecraft:air if block 84 67 84 minecraft:air if block 85 67 84 minecraft:air if block 86 67 84 minecraft:air if block 78 67 83 minecraft:air if block 79 67 83 minecraft:air if block 80 67 83 minecraft:air if block 81 67 83 minecraft:air if block 82 67 83 minecraft:air if block 83 67 83 minecraft:air if block 84 67 83 minecraft:air if block 85 67 83 minecraft:air if block 86 67 83 minecraft:air if block 78 67 82 minecraft:air if block 79 67 82 minecraft:air if block 80 67 82 minecraft:air if block 81 67 82 minecraft:air if block 82 67 82 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.20",
+    "run": "execute if block 83 67 82 minecraft:air if block 84 67 82 minecraft:air if block 85 67 82 minecraft:air if block 86 67 82 minecraft:air if block 78 68 98 minecraft:air if block 79 68 98 minecraft:air if block 80 68 98 minecraft:air if block 81 68 98 minecraft:air if block 82 68 98 minecraft:air if block 83 68 98 minecraft:air if block 84 68 98 minecraft:air if block 85 68 98 minecraft:air if block 86 68 98 minecraft:air if block 78 68 97 minecraft:air if block 79 68 97 minecraft:air if block 80 68 97 minecraft:air if block 81 68 97 minecraft:air if block 82 68 97 minecraft:air if block 83 68 97 minecraft:air if block 84 68 97 minecraft:air if block 85 68 97 minecraft:air if block 86 68 97 minecraft:air if block 78 68 96 minecraft:air if block 79 68 96 minecraft:air if block 80 68 96 minecraft:air if block 81 68 96 minecraft:air if block 82 68 96 minecraft:air if block 83 68 96 minecraft:air if block 84 68 96 minecraft:air if block 85 68 96 minecraft:air if block 86 68 96 minecraft:air if block 78 68 95 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.21",
+    "run": "execute if block 79 68 95 minecraft:air if block 80 68 95 minecraft:air if block 81 68 95 minecraft:air if block 82 68 95 minecraft:air if block 83 68 95 minecraft:air if block 84 68 95 minecraft:air if block 85 68 95 minecraft:air if block 86 68 95 minecraft:air if block 78 68 94 minecraft:air if block 79 68 94 minecraft:air if block 80 68 94 minecraft:air if block 81 68 94 minecraft:air if block 82 68 94 minecraft:air if block 83 68 94 minecraft:air if block 84 68 94 minecraft:air if block 85 68 94 minecraft:air if block 86 68 94 minecraft:air if block 78 68 93 minecraft:air if block 79 68 93 minecraft:air if block 80 68 93 minecraft:air if block 81 68 93 minecraft:air if block 82 68 93 minecraft:air if block 83 68 93 minecraft:air if block 84 68 93 minecraft:air if block 85 68 93 minecraft:air if block 86 68 93 minecraft:air if block 78 68 92 minecraft:air if block 79 68 92 minecraft:air if block 80 68 92 minecraft:air if block 81 68 92 minecraft:air if block 82 68 92 minecraft:air if block 83 68 92 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.22",
+    "run": "execute if block 84 68 92 minecraft:air if block 85 68 92 minecraft:air if block 86 68 92 minecraft:air if block 78 68 91 minecraft:air if block 79 68 91 minecraft:air if block 80 68 91 minecraft:air if block 81 68 91 minecraft:air if block 82 68 91 minecraft:air if block 83 68 91 minecraft:air if block 84 68 91 minecraft:air if block 85 68 91 minecraft:air if block 86 68 91 minecraft:air if block 78 68 90 minecraft:air if block 79 68 90 minecraft:air if block 80 68 90 minecraft:air if block 81 68 90 minecraft:air if block 82 68 90 minecraft:air if block 83 68 90 minecraft:air if block 84 68 90 minecraft:air if block 85 68 90 minecraft:air if block 86 68 90 minecraft:air if block 78 68 89 minecraft:air if block 79 68 89 minecraft:air if block 80 68 89 minecraft:air if block 81 68 89 minecraft:air if block 82 68 89 minecraft:air if block 83 68 89 minecraft:air if block 84 68 89 minecraft:air if block 85 68 89 minecraft:air if block 86 68 89 minecraft:air if block 78 68 88 minecraft:air if block 79 68 88 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.23",
+    "run": "execute if block 80 68 88 minecraft:air if block 81 68 88 minecraft:air if block 82 68 88 minecraft:air if block 83 68 88 minecraft:air if block 84 68 88 minecraft:air if block 85 68 88 minecraft:air if block 86 68 88 minecraft:air if block 78 68 87 minecraft:air if block 79 68 87 minecraft:air if block 80 68 87 minecraft:air if block 81 68 87 minecraft:air if block 82 68 87 minecraft:air if block 83 68 87 minecraft:air if block 84 68 87 minecraft:air if block 85 68 87 minecraft:air if block 86 68 87 minecraft:air if block 78 68 86 minecraft:air if block 79 68 86 minecraft:air if block 80 68 86 minecraft:air if block 81 68 86 minecraft:air if block 82 68 86 minecraft:air if block 83 68 86 minecraft:air if block 84 68 86 minecraft:air if block 85 68 86 minecraft:air if block 86 68 86 minecraft:air if block 78 68 85 minecraft:air if block 79 68 85 minecraft:air if block 80 68 85 minecraft:air if block 81 68 85 minecraft:air if block 82 68 85 minecraft:air if block 83 68 85 minecraft:air if block 84 68 85 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.24",
+    "run": "execute if block 85 68 85 minecraft:air if block 86 68 85 minecraft:air if block 78 68 84 minecraft:air if block 79 68 84 minecraft:air if block 80 68 84 minecraft:air if block 81 68 84 minecraft:air if block 82 68 84 minecraft:air if block 83 68 84 minecraft:air if block 84 68 84 minecraft:air if block 85 68 84 minecraft:air if block 86 68 84 minecraft:air if block 78 68 83 minecraft:air if block 79 68 83 minecraft:air if block 80 68 83 minecraft:air if block 81 68 83 minecraft:air if block 82 68 83 minecraft:air if block 83 68 83 minecraft:air if block 84 68 83 minecraft:air if block 85 68 83 minecraft:air if block 86 68 83 minecraft:air if block 78 68 82 minecraft:air if block 79 68 82 minecraft:air if block 80 68 82 minecraft:air if block 81 68 82 minecraft:air if block 82 68 82 minecraft:air if block 83 68 82 minecraft:air if block 84 68 82 minecraft:air if block 85 68 82 minecraft:air if block 86 68 82 minecraft:air if block 78 69 98 minecraft:air if block 79 69 98 minecraft:air if block 80 69 98 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.25",
+    "run": "execute if block 81 69 98 minecraft:air if block 82 69 98 minecraft:air if block 83 69 98 minecraft:air if block 84 69 98 minecraft:air if block 85 69 98 minecraft:air if block 86 69 98 minecraft:air if block 78 69 97 minecraft:air if block 79 69 97 minecraft:air if block 80 69 97 minecraft:air if block 81 69 97 minecraft:air if block 82 69 97 minecraft:air if block 83 69 97 minecraft:air if block 84 69 97 minecraft:air if block 85 69 97 minecraft:air if block 86 69 97 minecraft:air if block 78 69 96 minecraft:air if block 79 69 96 minecraft:air if block 80 69 96 minecraft:air if block 81 69 96 minecraft:air if block 82 69 96 minecraft:air if block 83 69 96 minecraft:air if block 84 69 96 minecraft:air if block 85 69 96 minecraft:air if block 86 69 96 minecraft:air if block 78 69 95 minecraft:air if block 79 69 95 minecraft:air if block 80 69 95 minecraft:air if block 81 69 95 minecraft:air if block 82 69 95 minecraft:air if block 83 69 95 minecraft:air if block 84 69 95 minecraft:air if block 85 69 95 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.26",
+    "run": "execute if block 86 69 95 minecraft:air if block 78 69 94 minecraft:air if block 79 69 94 minecraft:air if block 80 69 94 minecraft:air if block 81 69 94 minecraft:air if block 82 69 94 minecraft:air if block 83 69 94 minecraft:air if block 84 69 94 minecraft:air if block 85 69 94 minecraft:air if block 86 69 94 minecraft:air if block 78 69 93 minecraft:air if block 79 69 93 minecraft:air if block 80 69 93 minecraft:air if block 81 69 93 minecraft:air if block 82 69 93 minecraft:air if block 83 69 93 minecraft:air if block 84 69 93 minecraft:air if block 85 69 93 minecraft:air if block 86 69 93 minecraft:air if block 78 69 92 minecraft:air if block 79 69 92 minecraft:air if block 80 69 92 minecraft:air if block 81 69 92 minecraft:air if block 82 69 92 minecraft:air if block 83 69 92 minecraft:air if block 84 69 92 minecraft:air if block 85 69 92 minecraft:air if block 86 69 92 minecraft:air if block 78 69 91 minecraft:air if block 79 69 91 minecraft:air if block 80 69 91 minecraft:air if block 81 69 91 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.27",
+    "run": "execute if block 82 69 91 minecraft:air if block 83 69 91 minecraft:air if block 84 69 91 minecraft:air if block 85 69 91 minecraft:air if block 86 69 91 minecraft:air if block 78 69 90 minecraft:air if block 79 69 90 minecraft:air if block 80 69 90 minecraft:air if block 81 69 90 minecraft:air if block 82 69 90 minecraft:air if block 83 69 90 minecraft:air if block 84 69 90 minecraft:air if block 85 69 90 minecraft:air if block 86 69 90 minecraft:air if block 78 69 89 minecraft:air if block 79 69 89 minecraft:air if block 80 69 89 minecraft:air if block 81 69 89 minecraft:air if block 82 69 89 minecraft:air if block 83 69 89 minecraft:air if block 84 69 89 minecraft:air if block 85 69 89 minecraft:air if block 86 69 89 minecraft:air if block 78 69 88 minecraft:air if block 79 69 88 minecraft:air if block 80 69 88 minecraft:air if block 81 69 88 minecraft:air if block 82 69 88 minecraft:air if block 83 69 88 minecraft:air if block 84 69 88 minecraft:air if block 85 69 88 minecraft:air if block 86 69 88 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.28",
+    "run": "execute if block 78 69 87 minecraft:air if block 79 69 87 minecraft:air if block 80 69 87 minecraft:air if block 81 69 87 minecraft:air if block 82 69 87 minecraft:air if block 83 69 87 minecraft:air if block 84 69 87 minecraft:air if block 85 69 87 minecraft:air if block 86 69 87 minecraft:air if block 78 69 86 minecraft:air if block 79 69 86 minecraft:air if block 80 69 86 minecraft:air if block 81 69 86 minecraft:air if block 82 69 86 minecraft:air if block 83 69 86 minecraft:air if block 84 69 86 minecraft:air if block 85 69 86 minecraft:air if block 86 69 86 minecraft:air if block 78 69 85 minecraft:air if block 79 69 85 minecraft:air if block 80 69 85 minecraft:air if block 81 69 85 minecraft:air if block 82 69 85 minecraft:air if block 83 69 85 minecraft:air if block 84 69 85 minecraft:air if block 85 69 85 minecraft:air if block 86 69 85 minecraft:air if block 78 69 84 minecraft:air if block 79 69 84 minecraft:air if block 80 69 84 minecraft:air if block 81 69 84 minecraft:air if block 82 69 84 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.audit.29",
+    "run": "execute if block 83 69 84 minecraft:air if block 84 69 84 minecraft:air if block 85 69 84 minecraft:air if block 86 69 84 minecraft:air if block 78 69 83 minecraft:air if block 79 69 83 minecraft:air if block 80 69 83 minecraft:air if block 81 69 83 minecraft:air if block 82 69 83 minecraft:air if block 83 69 83 minecraft:air if block 84 69 83 minecraft:air if block 85 69 83 minecraft:air if block 86 69 83 minecraft:air if block 78 69 82 minecraft:air if block 79 69 82 minecraft:air if block 80 69 82 minecraft:air if block 81 69 82 minecraft:air if block 82 69 82 minecraft:air if block 83 69 82 minecraft:air if block 84 69 82 minecraft:air if block 85 69 82 minecraft:air if block 86 69 82 minecraft:air run say p3-course-audit",
+    "expectResult": 1
+  },
+  {
+    "id": "p3.course.north.1.tp",
+    "tp": true
+  },
+  {
+    "id": "p3.course.north.1.move",
+    "run": "maidtasks move 82 66 86",
+    "source": "player",
+    "expectResult": 1,
+    "expectTask": "move",
+    "recordTicks": 120
+  },
+  {
+    "id": "p3.course.north.1.check",
+    "check": {
+      "record": {
+        "minTargetDistMax": 2.0,
+        "minYMin": 65.9
+      }
+    }
+  },
+  {
+    "id": "p3.course.north.1.return.place",
+    "place": [
+      82.5,
+      66.0,
+      86.5
+    ]
+  },
+  {
+    "id": "p3.course.north.1.return",
+    "run": "maidtasks move 82 66 90",
+    "source": "player",
+    "expectResult": 1,
+    "expectTask": "move",
+    "recordTicks": 120
+  },
+  {
+    "id": "p3.course.north.1.return.check",
+    "check": {
+      "record": {
+        "minTargetDistMax": 2.0,
+        "minYMin": 65.9
+      }
+    }
+  }
+]

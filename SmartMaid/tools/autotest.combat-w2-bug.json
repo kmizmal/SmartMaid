@@ -1,0 +1,83 @@
+[
+  {
+    "__comment": "W2-01 聚焦复现：满血拉弓过程中注入半血，检查 handleEat 是否把 isUsingItem 的弓误当成进食。"
+  },
+  {
+    "id": "w2bug.clear",
+    "run": "fill 136 66 84 176 72 100 minecraft:air"
+  },
+  {
+    "id": "w2bug.floor",
+    "run": "fill 136 64 84 176 65 100 minecraft:stone"
+  },
+  {
+    "id": "w2bug.peaceful",
+    "run": "difficulty peaceful"
+  },
+  {
+    "id": "w2bug.wait-peaceful",
+    "wait": 2
+  },
+  {
+    "id": "w2bug.normal",
+    "run": "difficulty normal"
+  },
+  {
+    "id": "w2bug.day",
+    "run": "time set day"
+  },
+  {
+    "id": "w2bug.place",
+    "place": [150.5, 66.0, 90.5]
+  },
+  {
+    "id": "w2bug.clear-inv",
+    "clearInv": true
+  },
+  {
+    "id": "w2bug.give",
+    "give": {"minecraft:bow": 1, "minecraft:arrow": 32, "minecraft:cooked_beef": 8}
+  },
+  {
+    "id": "w2bug.health",
+    "setHealth": 24.0
+  },
+  {
+    "id": "w2bug.food",
+    "setFood": 17
+  },
+  {
+    "id": "w2bug.zombie",
+    "run": "summon minecraft:zombie 166 66 90 {NoAI:1b,Tags:[\"W2BUG\"]}"
+  },
+  {
+    "id": "w2bug.resist",
+    "run": "effect give @e[type=minecraft:zombie,tag=W2BUG] minecraft:resistance 1000 4 true"
+  },
+  {
+    "id": "w2bug.wait",
+    "wait": 2
+  },
+  {
+    "id": "w2bug.record",
+    "run": "maidtasks stop",
+    "source": "player",
+    "recordCombat": 60,
+    "setHealthAt": 30,
+    "setHealthValue": 8.0
+  },
+  {
+    "id": "w2bug.check",
+    "check": {
+      "combat": {
+        "minSamples": 50,
+        "engagedSamplesMin": 1
+      }
+    }
+  },
+  {
+    "id": "w2bug.stop",
+    "run": "maidtasks stop",
+    "source": "player"
+  }
+]

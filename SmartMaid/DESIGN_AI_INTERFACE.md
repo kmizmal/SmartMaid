@@ -13,7 +13,7 @@
 4. **女仆 = 玩家延续**——背包仍走 41 格布局、主手 = 热键0、副手任意物品的既有规则。
 5. **命令参数全部用 MC 原生类型**——槽位用数字/单词（`word()`）、物品用 `IdentifierArgument`、坐标用 `BlockPosArgument`，**不用自定义 ArgumentType、不用冒号槽位**（避免命令树同步崩溃与输入坑）。
 
-## 二、总体架构（三层 + 一桥 + 一联动）
+## 二、总体架构（三层架构 + 一个通信桥 + 一套联动机制）
 
 ```
 [AI 通道] 桌宠 WebSocket（M5-a 下行 + M5-b 上行）/ /maidai <json>（当前）/ /maidtasks 命令（当前）
@@ -80,7 +80,7 @@
 | `chestput [count]` | 主手物品放入已打开箱子：**优先同类可堆叠（智能 maxStackSize）→ 其次空槽**；满则留主手 + 提示 |
 | `chesttake [slot] [count]` | 从已打开箱子取物品到主手（slot 缺省 = 首个非空） |
 
-> `chestopen` 找不到容器 → 气泡"附近没有箱子"；未 open 就 put/take → 提示"先 chestopen"；箱子被移走 → 提示"箱子不在了"。
+> `chestopen` 找不到容器 → 气泡"附近没有箱子"；未 open 就 put/take → 提示"先   chestopen"；箱子被移走 → 提示"箱子不在了"。
 
 ### 4.3 基础指令（原子动作）
 
@@ -324,7 +324,7 @@ MAID_LINK_PERCEPTION_INTERVAL_MS = 750
 
 ### 13.5 `item_index` 物品索引下发（NLU 支持）
 
-握手成功后（收到 `hello_ack`）由模组**下发一次**，把「当前语言的物品显示名 → `minecraft:id`」整表交给桌宠：
+握手成功后（收到 `hello_ack`）由模组**下发一次**，把「当前语言的物品显示名 → `minecraft:id`」的完整映射表交给桌宠：
 
 ```json
 {"type":"item_index","count":1523,

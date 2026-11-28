@@ -1,5 +1,7 @@
 # Smart Maid 交接文档
 
+> 历史设计/实施记录：下文保留原有时间线、源码名称、工具实验与失败，不作为当前操作命令。当前构建为 Gradle 9.9.1 / Kotlin 2.4.21，源码使用 `src/main/kotlin` 与 `src/mc<series>/kotlin`；双版本 Wrapper 构建已实跑。当前状态见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)，执行见 [Loom 操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，后续见 [战斗与移动安全阶段计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。旧 HMCL/纯 javac 发布命令仅为历史。
+
 > 给下一个接手开发的人。记录项目背景、当前进度、关键实现、已知问题与下一步。
 
 > ⚠️ **2026-09-30 起有一条独立主线：游戏内菜单（N1）+ 任务队列。**
@@ -173,8 +175,8 @@ prompt 模板把产物写死 `#minecraft:oak_logs`，且 `prompt.txt`/`prompt2.t
 
 ### 已完成（2026-09-11：桌宠 NLU 支撑）
 - [x] **`craft_check` 干跑查询（M6-a）**：`CraftExecutor.check()` —— 走与 `craft` 相同的配方解析路径但**不消耗材料**，逐项回报 `ingredients[].{options,need,have,ok}`（tag 类配方给候选列表、多产出配方按 `out_per_craft` 折算要做的次数）。`MaidAIBridge` 里作为**查询指令**（不进任务队列、不改世界状态）处理
-- [x] **`item_index` 物品索引下发（M6-b）**：`bridge/ItemIndexPayload.java` —— 握手后把「当前语言物品名 → `minecraft:id`」整表推给桌宠（客户端 `I18n` 取名，覆盖 mod 物品；`null` 表示专用服务端无语言资源）。桌宠据此本地做中文/拼音模糊匹配（语音「稿子」→「镐子」）
-- [x] **`owner.pos` 感知补全（M6-c）**：`OwnerSense` 补主人**方块坐标**（原来只有 `dist`），桌宠才能把「在我脚下放方块 / 到我这儿来」换算成模组要的绝对坐标
+- [x] **`item_index` 物品索引下发（M6-b）**：`bridge/ItemIndexPayload.java` —— 握手后把「当前语言物品名 → `minecraft:id`」的完整映射表推给桌宠（客户端 `I18n` 取名，覆盖 mod 物品；`null` 表示专用服务端无语言资源）。桌宠据此本地做中文/拼音模糊匹配（语音「稿子」→「镐子」）
+- [x] **`owner.pos` 感知补全（M6-c）**：`OwnerSense` 新增主人的**方块坐标**（原来只有 `dist`），桌宠才能把「在我脚下放方块 / 到我这儿来」换算成模组要的绝对坐标
 - [x] 构建验证：JDK 25 + Gradle wrapper `BUILD SUCCESSFUL`
 
 > 这三项都是**桌宠侧 NLU（本地意图识别 + 自动执行）**的支撑需求：桌宠要在本地判断
@@ -339,10 +341,10 @@ prompt 模板把产物写死 `#minecraft:oak_logs`，且 `prompt.txt`/`prompt2.t
 
 **P0 战斗系统真机回归收尾**：全流程（近战/走位/背对跳/远程/盾/进食/任务抢占）；日志抓 `SmartMaid-Debug` 的 `Combat` 段（`MaidDebug.VERBOSE` 可开深排查）。
 > 2026-09-19 已推进：盾牌格挡真机验证通过（去前摇后 14 支箭全挡下），近战死区修正为 2.7~3.2。剩余：走位/背对跳/远程/进食/任务抢占的完整流程回归 + 盾牌"真漏箭"精确区分（可打印 `amount - applyItemBlocking(...)`，挡下为 0）。
-**P0 鱼竿**：原版对女仆不可用（spike 结论见上），是否自研 `MaidFishingHook` 待定。
-**P3 跳跃系统完整实测标定**：跨 3 沟、跨沟上 1 格、下跳 1~3 格、对角跨沟；日志 `Jump start/fired/landed` 取真实落点。
-**P4 发布前收尾**：`/summonmaid` `/maidtasks` `/maidai` 加权限检查；`MaidDebug.ENABLED=false`（周期性高频日志已收进 `verbose()`，见开发规范）。
-**P5 基岩版 Q 版模型**：参考 TouhouLittleMaid 的 `simplebedrockmodel`，需 `tlm_custom_pack` 资源（不入库，从 zip 解压），**单独立项**。
+> **P0 鱼竿**：原版对女仆不可用（spike 结论见上），是否自研 `MaidFishingHook` 待定。
+> **P3 跳跃系统完整实测标定**：跨 3 沟、跨沟上 1 格、下跳 1~3 格、对角跨沟；日志 `Jump start/fired/landed` 取真实落点。
+> **P4 发布前收尾**：`/summonmaid` `/maidtasks` `/maidai` 加权限检查；`MaidDebug.ENABLED=false`（周期性高频日志已收进 `verbose()`，见开发规范）。
+> **P5 基岩版 Q 版模型**：参考 TouhouLittleMaid 的 `simplebedrockmodel`，需 `tlm_custom_pack` 资源（不入库，从 zip 解压），**单独立项**。
 
 ### 已知 bug（已修复 ✅）
 

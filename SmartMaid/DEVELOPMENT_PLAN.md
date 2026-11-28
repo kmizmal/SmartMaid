@@ -1,7 +1,26 @@
 # Smart Maid 后续开发方案
 
+## 当前开发路线（2026-11-24）
+
+当前迁移基线与验证以 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 为准。旧一键 E2E 已退役，当前入口为 Wrapper / Loom、AutoTest 和 clienttest；[操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 是执行入口。
+
+| 优先级 | 工作 | 状态与交付 |
+| --- | --- | --- |
+| 已完成 | 26.2 /maidtasks 执行与权限回归 | 2026-11-26 完成，见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md) |
+| 已完成 | 真实女仆背包容器套件 | 37/37 PASS，见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md) |
+| 已完成 | 合并材料复核 | 见 [N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md) |
+| 已完成 | P3 跳跃实测标定 | 见 [P3 标定记录](../docs/superpowers/handoffs/2026-11-26-p3-jump-calibration-baseline.md) |
+| 待分派 | 战斗决策与移动安全（COMBAT-01～05） | 见 [战斗与移动安全阶段计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md) |
+| 以后 | M6 完整桌宠联调、P5 模型 | 单独排期；本阶段桌宠 N/A，不顺带扩展 |
+
+2026-11-28 更新：上表前四项已完成；最新可用性验收见 [2026-11-28 可用性验收报告](../docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)。26.3 仅继续构建/互操作测试，不补做其专用世界和实体输入验证。
+
+## 历史规划与实施记录
+
+以下保留 2026-09 至 10 月的阶段设计和当时验证，旧状态、源码文件名和排期不是新的接续任务；当前优先级以上表为准。
+
 > 基线：`4ca22a6`（2026-09-10）
-> 已完成：M1~M3.6 任务系统 / M-P0 感知模块 / M4 指令桥接 / MaidAutoTest / **M5 桌宠联动** / **M-P1 感知增量** / **一键 e2e 脚本** / **M6 桌宠 NLU 支撑（craft_check 干跑查询 / item_index 物品索引 / owner.pos）**
+> 已完成：M1~M3.6 任务系统 / M-P0 感知模块 / M4 指令桥接 / MaidAutoTest / **M5 桌宠联动** / **M-P1 感知增量** / **Loom / AutoTest / clienttest 分步验收** / **M6 桌宠 NLU 支撑（craft_check 干跑查询 / item_index 物品索引 / owner.pos）**
 > 本文只写"接下来做什么"，已完成的实现细节见 `HANDOVER.md` / `DESIGN_AI_INTERFACE.md`。
 
 ---
@@ -20,7 +39,7 @@
 | **P8** | `owner.pos` 感知补全（M6-c） | 相对指令「在我脚下…」可换算 | 极低 | 无 | ✅ 已实现 |
 | **P9** | `attack` 支持指定目标（M6-d） | 「杀这头猪」→ 打指定实体类型，可获取食物 | 低 | 无 | ✅ 已实现（2026-09-12） |
 | **P10** | 寻路降级：挖方块 + 搭路 | 原版寻路失败/绕远 → 直线物理路径，遇障碍挖、遇沟/水/需向上搭方块 | 中 | 无 | ✅ 已实现（2026-09-15 真机验收） |
-| **P11** | **女仆战斗系统（C0–C5）** | 近战/走位/远程/盾牌/进食；规则驱动、AI 兜底 | 高 | 无 | ✅ 已实现（2026-09-17，真机回归中） |
+| **P11** | **女仆战斗系统** | 近战/走位/远程/盾牌/进食；鱼竿按既有决定暂缓 | 高 | 无 | 历史已有实现；2026-11-24 静态复核发现 COMBAT-01—05 待处理，非本轮战斗验收 |
 | **P12** | **整合包兼容改造 + 采集/背包修正** | 可被整合包收录、在整合包里开箱可用；采集目标选定正确 | 中 | 无 | ✅ 已实现 + 真机验收（2026-09-29） |
 | **P13** | **多版本兼容（26.2 / 26.3 双版本）** | 跟上最新游戏版本；一份源码按版本切构建、一版本一 jar | 中 | 无 | ✅ 已实现 + 真机验证（2026-10-07，见 `DESIGN_MULTIVERSION.md`） |
 | P5 | 基岩版 Q 版模型渲染 | 观感 | 高 | 无 | ⏳ 待做 |
@@ -34,14 +53,14 @@
 **已修复**：`damage` 事件 `target:"?"` 攻击者解析遗漏（B 方案落地，2026-09-10）：`SmartMaidEntity.hurtServer` 缓存攻击者 + `PerceptionModule.attackerLabel()` 类型映射表，`target` 输出短名/玩家名，未知写 `unknown` 且遥测降级 NORMAL。详见 DEVELOPMENT_ISSUES §2026-09-10 问题 5 修复记录。
 **2026-09-11 追加（M6：桌宠 NLU 支撑）**：桌宠侧要做「本地意图识别 + 自动执行」，对模组提出三个需求，均已实现：
 - **P6 `craft_check`**：干跑配方预检（不消耗材料），逐项回报所需材料/现有/够不够；tag 类配方给候选列表、多产出配方按 `out_per_craft` 折算。走与 `craft` 相同的解析路径，避免「预检说够、真做失败」
-- **P7 `item_index`**：握手后一次性下发「当前语言物品名 → `minecraft:id`」整表（客户端 `I18n`，覆盖 mod 物品；专用服务端返回 null 让对方降级）
+- **P7 `item_index`**：握手后一次性下发「当前语言物品名 → `minecraft:id`」的完整映射表（客户端 `I18n`，覆盖 mod 物品；专用服务端返回 null 让对方降级）
 - **P8 `owner.pos`**：`OwnerSense` 补主人方块坐标（原来只有 `dist`），使「在我脚下放方块 / 到我这儿来」可换算成绝对坐标
 
 > 对接中还梳理出**集成方必须知道的接口语义边界**（`transfer` 的 from/to 必填、`chestopen` 是异步任务、
 > `equip`/`drop`/`place`/`use` 只作用于主手…），已写入 `HANDOVER.md` §5.1；
 > 详细排查过程与设计取舍见 `DEVELOPMENT_ISSUES.md` §2026-09-11。
 
-**下一步**：① P3 跳跃实测标定 / ② 游戏内菜单改造 N1（见 `DESIGN_MAID_MENU.md`）。
+**历史后续设想**：菜单 N1 已实施，当前结构见 [菜单说明](DESIGN_MAID_MENU.md)。本段不再安排重做菜单；当前开发顺序见文首路线表和 [设计索引](DESIGN_INDEX.md)。
 （P4 发布收尾已于 2026-09-24 完成，P12 整合包兼容改造于 2026-09-29 完成并真机验收。）
 
 ---
@@ -69,26 +88,16 @@
 
 ---
 
-## 十二、女仆战斗系统 ✅ 已实现（2026-09-17，C0–C5）
+## 十二、女仆战斗系统：当前实现与待修项
 
-**目标**：规则驱动的自主战斗——玩家指挥女仆时，战斗全由本地确定性逻辑完成（AI 只下「打谁」）。
+2026-11-24 已将旧实施方案整理为 [战斗开发文档](DEVELOPMENT_COMBAT.md)，玩法规则及原始需求对照见 [女仆战斗系统](../女仆战斗系统.md)。本节不再重复维护距离、冷却和文件清单。
 
-**优先级**：L0 安全层 > 战斗 > 其他 AI 任务 > 常规 Goal。
-
-**实现（`entity/ai/combat/`，设计文档 `DEVELOPMENT_COMBAT.md`）**：
-- `MaidCombatGoal`：状态机 **盾>吃>远程>近战>逼近**；近战判定 3.0 / 可攻击 **3.2**；按武器攻速出手；全流程 `Combat` debug 日志
-- `MaidCombatMovement`：原版 `MoveControl.strafe`（STRAFE 不转向）→ **面向敌人后退** / **侧移绕行**（两侧交替）/ **背对跳 1 格**
-- `MaidTargetFilter`：Monster + 排除表（末影人/僵尸猪灵）+ **友军仅玩家**
-- `MaidWeaponSelector`：`forEachModifier` 解析「单次伤害 × 攻击速度」；弓只比 `POWER` 附魔
-- `MaidRangedSkill`：自写蓄力/发射（`BowItem.releaseUsing` 是 Player 专属）+ kite；`getProjectile` 覆写找箭
-- `MaidThreatDetector` + `MaidShieldSkill`：箭矢/苦力怕威胁 → 副手举盾（`BLOCKS_ATTACKS` 减伤）
-- `MaidFoodData` + `EatTask`：仿玩家饱食度/回血；`/maidtasks eat [item]` / `/maidai eat`
-- `MaidArrow`：不伤玩家（实体类型仍是原版 `arrow`，零注册）
-- 战斗期 **禁用 P10 直线降级**（不挖不搭）但**保留跳跃执行器**；`MaidTaskManager` 战斗期取消 AI 任务
-
-**验收**：构建通过；桌宠侧 `eat` 指令/意图已同步并重训 NLU（27 意图）。真机全流程回归进行中。
-
-**鱼竿**：spike 结论——`FishingHook` 非玩家 owner 首 tick 丢弃、`FishingRodItem.use` Player 专属 → **原版不可用，暂不做**（用户拍板）。
+- 已有近战、走位、弓箭、盾牌、进食回血实现；护主模式与友军伤害受玩家设置控制。
+- 战斗暂停当前队列项、保留并回队首，结束后继续；旧“取消任务、不恢复”的描述已淘汰。
+- 鱼竿按历史 API 调研与既有决定暂不做；“C0—C5 已实现”不包含可用鱼竿。
+- 2026-09-19 有盾牌免前摇与近战死区修正的历史真机记录；不作为当前 Kotlin 分支的完整战斗验收。
+- 本次静态复核记录 COMBAT-01 调度/计时、COMBAT-02 低血量拉弓阻塞进食、COMBAT-03 动作互斥、COMBAT-04 目标同步，以及 COMBAT-05 格挡规则对齐；均未在本轮修复或重新游戏验收。
+- 修复建议与定向场景见战斗开发文档。项目顺序仍以文首及下一阶段计划为准，不自动增加迁移合并门禁。
 
 ---
 
@@ -249,7 +258,7 @@
 
 1. 用 `config/smartmaid/autotest.json` 编场景：对角跨沟 / 跨 3 沟上 1 格 / 下跳 1~3 格
 2. 读日志 `[SmartMaid-Debug] Jump start/fired/landed` 取实际落点（**注意 `latest.log` 是 GBK 编码**）
-3. 落点偏差 → 改参数后跑 `node tools/gen_jump_table.js` 重新生成 `MaidJumpTable.java`
+3. 落点偏差 → 改参数后跑 `node tools/gen_jump_table.js` 重新生成 `MaidJumpTable.kt`
 4. 顺带定 `MOVEMENT_SPEED`：现为 `0.16`（行走偏快 ≈7 m/s），若要"和玩家一致"回 `0.1`，但跨 3 沟能力会下降
 
 ---
@@ -284,7 +293,7 @@
 |---|---|---|
 | 桌宠只扫顶层目录 | `window_files()` 用 `os.listdir`，不递归 | 用 `deskpet/maid/` 子目录 + 桌宠侧小改 |
 | 两个 mod 混写同一文件 | deskpet-mod 与 SmartMaid 都写 `deskpet/` | 子目录隔离 |
-| 日志编码 | Windows 中文系统 `latest.log` 是 **GBK** | 分析脚本必须 gbk 解码 |
+| 日志编码 | 日志与终端输出编码可能不同 | 保留原字节并按实际编码解码；不统一强制 GBK |
 | 桌宠线程模型 | PySide6 单线程 GUI | 不要在 UI 线程做阻塞 IO |
 | 指令注入 | 文件通道任何人都能写 | 指令带 token 校验；或限定端口仅本机 |
 | 端口占用 | 若走 WS，21420 可能被占 | 文件通道天然规避 |
@@ -306,6 +315,6 @@
 | 7 | P6/P7/P8 桌宠 NLU 支撑（craft_check / item_index / owner.pos） | — | ✅ 已完成（2026-09-11），构建通过 |
 | 8 | **真机联调 M6**：进游戏确认 item_index 下发、craft_check 缺料明细 | 需进游戏 | 建议优先（尚未真机验证） |
 | 9 | **P12 整合包兼容改造（T1–T9）+ 采集/背包修正** | — | ✅ 已完成（2026-09-29）：AutoTest PASS=17/FAIL=0、砍树 8/8 |
-| 10 | **P13 多版本兼容（26.2 / 26.3）** | — | ✅ 已完成（2026-10-07）：26.2/26.3 双向编译 0 真实错误；`clienttest gui-chain` 29/29 PASS；菜单/任务队列/背包键位真机修复。余项：26.1 线未动、Gradle `-Pmc_series` 未实跑 |
+| 10 | **P13 多版本兼容（26.2 / 26.3）** | — | ✅ 已完成（2026-10-07）：26.2/26.3 双向编译 0 真实错误；`clienttest gui-chain` 29/29 PASS；菜单/任务队列/背包键位真机修复。后续更新：26.2/26.3 Wrapper 构建均已实跑，各 37 项测试通过；26.1 未推进，26.3 游戏输入未单独验证 |
 
-**当前实际状态**：行 0~3 已完成 + 真机验证；行 7（M6）已完成但**仅编译验证，未真机联调**；行 9、10（P12/P13）已完成并真机验收；行 4~6、8 未做。运行 `python tools/run_e2e_test.py --quick-play "新的世界 (11)"` 即可重放端到端验证。
+**历史排期状态说明**：P4（行 5）已完成；P3（行 4）待实测、P5（行 6）独立立项。M6 已有 craft_check 游戏侧断言，但 item_index/桌宠完整闭环未作为本轮签收。P13 当前双版本构建/互操作通过，26.3 输入仍未验证。当前优先级以文首路线表为准。当前开发验收使用 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，按轮部署配置、执行 `gradlew.bat runClient` 并归档报告。

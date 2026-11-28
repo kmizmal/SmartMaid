@@ -26,11 +26,13 @@ cd SmartMaid
 gradlew.bat build
 #  产物：SmartMaid/build/libs/smartmaid-<version>.jar
 
-# 2) 放进 .minecraft/mods/（需已安装 Fabric Loader 0.18.4+ 与 Fabric API 0.158.0+26.2）
+# 2) 放进 .minecraft/mods/（需已安装 Fabric Loader 0.18.4+ 与 Fabric API 0.161.0+26.2、Fabric Language Kotlin 1.14.2+kotlin.2.4.21 或满足元数据要求的版本，Java >=25）
 
 # 3) 进游戏执行
 /summonmaid
 ```
+
+开发验收以 [当前迁移状态](SmartMaid/KOTLIN_MIGRATION_STATUS.md) 和 [Loom 操作卡](docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 为准；最新验收见 [2026-11-28 可用性验收报告](docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)，后续战斗阶段见 [计划](docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。26.3 已完成独立构建/测试，游戏输入验证范围见状态文档。
 
 ## 目录
 
@@ -38,15 +40,14 @@ gradlew.bat build
 |-------------------------|----------------------------------------------------------|
 | `SmartMaid/`            | 模组工程本体（源码 / 资源 / 工具 / 开发文档）            |
 | `SmartMaid/README.md`   | **完整文档** —— 功能特性、指令手册、架构、构建与工具脚本 |
-| `LICENSE` / `NOTICE.md` | 许可与第三方声明                                         |
+| [`LICENSE`](LICENSE) / [`LICENSE-MIT-upstream.txt`](LICENSE-MIT-upstream.txt) / [`NOTICE.md`](NOTICE.md) | 上游 MIT、维护部分 GPLv3 及第三方声明 |
 
 ## 许可
 
-**本项目免费开源、不收取任何费用，也不用于商业用途。**
+根目录 `LICENSE` 现为 GPLv3 完整正文，与保留的 `GPL-3.0.txt` 一致。
 
-1. cb9dcaba7538ab018b01a339cd360e2f695b57aa 及之前部分采用原上游 `MIT`
-2. 自 `2026年11月21日` 起 [kmizmal](https://github.com/kmizmal) 维护的部分采用 `GPLv3`
-3. 鲸鱼娘素材归属 [上善无形](https://space.bilibili.com/4456176) | [ZipZipPipe](https://space.bilibili.com/4168597)｜ CC
-   BY-NC-SA 4.0
+1. `cb9dcaba7538ab018b01a339cd360e2f695b57aa` 及之前的上游 MIT 部分，继续保留原 [MIT 文本](LICENSE-MIT-upstream.txt) 和版权声明。
+2. 自 2026 年 11 月 21 日起，[kmizmal](https://github.com/kmizmal) 维护部分以 [GNU GPL 第 3 版](LICENSE)（`GPL-3.0-only`）分发。
+3. 第三方素材保留原许可。鲸鱼娘皮肤等素材由 [上善无形](https://space.bilibili.com/4456176) / [ZipZipPipe](https://space.bilibili.com/4168597) 授权，按 CC BY-NC-SA 4.0 分发，不得用于商业目的；Emotecraft 表情按其 GPL-3.0 条款分发。
 
-> 完整来源与条款见 [`NOTICE.md`](NOTICE.md)。**皮肤与表情数据不可用于商业用途。**
+> 各部分的适用许可和来源见 [`NOTICE.md`](NOTICE.md)。

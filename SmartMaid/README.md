@@ -6,7 +6,9 @@
 
 **女仆战斗系统已落地（2026-09-17，C0–C5）**——规则驱动：近战（判定 3.0 / 攻击 3.2）、走位（面向敌人后退 / 侧移绕行 / 背对跳 1 格）、远程弓箭、盾牌格挡、半血进食回血；与桌宠 `eat` 指令打通。见 `DEVELOPMENT_COMBAT.md`。
 
-**M5 双向链路 + 感知增量 diff + 一键 e2e 已通过真机端到端验证（2026-09-10）**——见 `HANDOVER.md` §二、§已知 bug 与 `DEVELOPMENT_ISSUES.md` 2026-09-10 节。
+**M5 双向链路与感知增量的历史验收（2026-09-10）**见 `HANDOVER.md`、`DEVELOPMENT_ISSUES.md`；当时的一键 E2E 入口已退役，当前使用 Loom 操作卡。
+
+当前设计导航见 [设计索引](DESIGN_INDEX.md)；当前代码/验证范围见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)；最新验收见 [2026-11-28 可用性验收报告](../docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)，后续战斗阶段见 [计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。双版本构建通过不代表 26.3 游戏输入已验证。
 
 **玩家绑定设置 + 游戏内女仆菜单 + 聊天栏对话 + 桌宠隐退已落地（2026-09-19）**——见 `HANDOVER.md` §2026-09-19 节。
 
@@ -16,7 +18,7 @@
 
 **挖矿坐标可选 + 挖掘面向 + 对话事件静默 + 生物名中文已落地（2026-09-19）**——`mine` 不给坐标自动探测周围矿物（水平 12 / 垂直 8 格）、挖掘面向目标挥镐；玩家对话女仆期间游戏事件 AI 静默（消除"一条消息多条回复"）；感知/状态里生物名翻译中文。
 
-**多版本兼容：26.3 支持已落地（2026-10-07，真机验证）**——同一份源码按版本切构建（`gradle.properties` 的 `mc_series`，默认 26.2），每个版本产出**只声明自己支持范围**的 jar；版本差异全部收敛在 `compat/MaidCompat`。26.3 的渲染与输入后端是大改（Blaze3D→Renderpearl、GLFW→SDL），适配结论与踩坑见 [`DESIGN_MULTIVERSION.md`](./DESIGN_MULTIVERSION.md)；配套的自动化测试体系见 [`TEST_SYSTEM.md`](./TEST_SYSTEM.md)。
+**多版本构建**：共享 Kotlin 代码按 `mc_series` 选择版本适配源集，26.2/26.3 各自产出 jar。当前双版本构建与测试已通过；26.3 游戏输入按用户决定不补做，不能将历史适配结果当作本轮输入验证。设计与边界见 [多版本说明](DESIGN_MULTIVERSION.md)，操作见 [测试体系](TEST_SYSTEM.md)。
 
 ## 相关仓库（先看这里）
 
@@ -78,7 +80,7 @@ SmartMaid 是**桌面宠物 DeskPet 的 Minecraft 侧搭档**——女仆的 AI 
 - **感知模块（AI"玩家视角"）**：`/maidperception` 查看感知快照——自身状态/背包能力摘要/主人状态（含**方块坐标 `owner.pos`**，供相对指令换算）/周边实体/方块/环境/事件队列，服务端分层采样（0.25s~2s），为 AI 提供结构化决策输入（`MaidPerception`）
 - **AI 指令桥接**：`/maidai <json>` 统一 JSON 指令协议（24 指令与 `/maidtasks` 一致），坐标支持相对 `~`，回执含 `id/ok/state/step/result`，`persist:true` 持久化任务配置（`.cfg`）
 - **干跑查询 `craft_check`（M6-a）**：不消耗材料的配方预检——逐项回报「需要什么材料 / 女仆现有多少 / 够不够」（`options/need/have/ok`，支持 tag 类配方如「任意木板×3」）。桌宠侧 NLU 靠它在自动合成前判断并向用户解释缺料
-- **物品索引下发 `item_index`（M6-b）**：握手后把「当前语言的物品显示名 → `minecraft:id`」整表推给桌宠（客户端 `I18n` 取名，覆盖 mod 物品），桌宠即可本地做中文/拼音模糊匹配（语音「稿子」→「镐子」）；专用服务端无语言资源时自动跳过
+- **物品索引下发 `item_index`（M6-b）**：握手后把「当前语言的物品显示名 → `minecraft:id`」的完整映射表推给桌宠（客户端 `I18n` 取名，覆盖 mod 物品），桌宠即可本地做中文/拼音模糊匹配（语音「稿子」→「镐子」）；专用服务端无语言资源时自动跳过
 - **桌宠联动下行 (M5-a)**：女仆事件按 20s 窗口聚合落到 `<游戏目录>/deskpet/maid/YYYYMMDD-HHMM.jsonl`（事件 type 复用桌宠已认识的 `damage` / `summary`，桌宠侧零改动渲染中文）；状态快照随窗口附带于 `maid` 字段
 - **桌宠联动上行 (M5-b)**：JDK 25 内置 WebSocket Client 连桌宠 `ws://127.0.0.1:21420`，5s 心跳 + 指数退避（1s→30s）+ 可选 token 握手；上行 `hello`/`perception`/`event`/`command_result`/`pong`，下行 `command`/`speak`/`animation`/`ping`；回调线程铁律——一律 `server.execute()` 切回服务端线程再碰世界
 - **感知增量 diff (M-P1)**：差异只发 `{changed, removed}`，接收方递归合并；首帧全量、断线 reset；真机 5761B → 971B，降 **83.1%**
@@ -117,32 +119,33 @@ SmartMaid 是**桌面宠物 DeskPet 的 Minecraft 侧搭档**——女仆的 AI 
 | 项 | 26.2 线 | 26.3 线 |
 |---|---|---|
 | Minecraft | 26.2（`~26.2`） | 26.3（`~26.3`） |
-| 加载器 | Fabric Loader >= 0.18.4（开发用 0.19.3） | Fabric Loader >= 0.19.5 |
-| 前置 | Fabric API `0.158.0+26.2` | Fabric API `0.161.0+26.3` |
+| 加载器 | 元数据 >= 0.18.4；构建配置 0.19.3 | 元数据 >= 0.18.4；构建配置 0.19.5 |
+| 前置 | Fabric API `0.161.0+26.2` | Fabric API `0.161.0+26.3` |
 | 内置动画库 | Player Animation Library `1.2.6` | Player Animation Library `1.2.7` |
 | Java | >= 25（JDK 25 构建） | >= 25（JDK 25 构建） |
-| Gradle | 9.7.1（wrapper 内置） | 9.7.1（wrapper 内置） |
+| Gradle | 9.9.1（Wrapper） | 9.9.1（Wrapper） |
+| Kotlin / stdlib（构建） | 2.4.21 | 2.4.21 |
+| Fabric Language Kotlin（外部依赖） | >= 1.14.2+kotlin.2.4.21 | >= 1.14.2+kotlin.2.4.21 |
 
-> **一版本一个 jar** —— 每个 jar 只声明自己**真正支持**的版本范围。
+> **每个版本各构建一个 jar** —— 每个 jar 只声明自己**真正支持**的版本范围。
 > 建议**不要**打"宽范围通吃"的 jar：Fabric Loader 不做 mod 版本握手，协议号不一致时会**静默网络失败**。
 
 ## 构建
 
-```bash
-# 需要 JDK 25（26.2 起要求），先设置 JAVA_HOME 指向你的 JDK 25 安装目录
-$env:JAVA_HOME="<你的 JDK 25 安装目录>"
-gradlew.bat build                          # 默认构建 26.2 线
+从本模块目录使用 PowerShell，设置本机 JDK 25 路径：
+
+```powershell
+$env:JAVA_HOME = '<本机 JDK 25 安装目录>'
+.\gradlew.bat --offline --no-daemon --console=plain clean build
+# 先归档 build/test-results/test，再构建另一版本：
+.\gradlew.bat --offline --no-daemon --console=plain clean build '-Pmc_series=26.3' '-Pminecraft_version=26.3' '-Ploader_version=0.19.5' '-Ploom_version=1.18.4' '-Pfabric_api_version=0.161.0+26.3'
 ```
 
-26.3 线的构建参数已接好（`gradlew.bat build -Pmc_series=26.3 -Pminecraft_version=26.3 -Ploader_version=0.19.5 -Pfabric_api_version=0.161.0+26.3`），
-⚠️ 但**该 Gradle 路径尚未实跑**；当前 26.3 产物走 `tools/compile_check.py --package` 这条纯 javac 通路（见 `TEST_SYSTEM.md`）。
+26.2 与 26.3 的离线 `clean build` 均已通过，各 15 suites / 61 tests，无失败、错误或跳过。构建不代替游戏内手工验收；本轮范围见[可用性修复报告](../docs/PROJECT_USABILITY_ANALYSIS_2026-11-27.md#修复与验收2026-11-27)。Kotlin 生产代码统一使用 Gradle 构建，旧 `compile_check.py --package` 的纯 javac 流程不是当前发布入口。离线执行需本机已有依赖缓存；首次下载按本机网络环境准备。
 
-产物在 `build/libs/smartmaid-<version>.jar`，放入对应版本的 `mods/` 即可。
+产物在 `build/libs/`；两个版本的文件名可能相同，下一轮 clean 前分别归档 jar 和测试 XML，避免覆盖。玩家安装时选择对应版本的 jar，并安装上表声明的外部依赖。客户端开发验收使用模块下 `run`，完整归档及门禁步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)。
 
-> 国内网络：Gradle 发行版走腾讯镜像（`gradle/wrapper/gradle-wrapper.properties` 已配置）；公共依赖走阿里云/腾讯镜像（`build.gradle` 已配置）；Mojang 下载需代理。
-
-> ⚠️ 启动器开了**版本隔离**时，每个版本的 `gameDir` 是 `<.minecraft>/versions/<版本>/`，
-> mods 要放 `versions/<版本>/mods/`，不是 `.minecraft/mods/`。
+启动器安装时的 mods 位置以其实际 gameDir 为准；启用版本隔离的实例可能在 `versions/<版本>/`。这不改变开发验收的 `SmartMaid/run`，不能因此给 clienttest 追加 `--series`。
 
 ## 使用方法
 
@@ -216,8 +219,8 @@ gradlew.bat build                          # 默认构建 26.2 线
 
 ## 数据存储
 
-- **女仆装备 / 物品栏 / 任务队列**：`<存档>/smartmaid/maids/<玩家UUID>.dat`（NBT 压缩文件，自动读写）
-  —— **按存档隔离**，多存档互不串档；旧版 `config/smartmaid/maids/` 下的同名文件**首次读取时自动迁移**过来
+- **女仆装备 / 物品栏 / 任务队列**：`<存档>/smartmaid/maids/<玩家UUID>-<女仆UUID>.dat`（NBT 压缩快照）。`<玩家UUID>.latest` 记录重召时应恢复的快照，不是召唤锁。当前女仆尚未移除时，同一玩家不能跨维度重复召唤；正常移除后仍可重召并恢复数据。
+  —— **按存档隔离**。首次迁移优先复制世界目录中的旧 `<玩家UUID>.dat`，其次才读旧版 `config/smartmaid/maids/`；复制失败可只读回退，旧文件不会被覆盖或删除。
 - **女仆设置**（与玩家绑定）：`<游戏目录>/config/smartmaid/settings/<玩家UUID>.json`（菜单修改自动保存）
 - **AI 任务配置**：`<游戏目录>/config/smartmaid/maids/<玩家UUID>.cfg`
 - **模组配置**：`<游戏目录>/config/smartmaid/main.json`（调试开关、命令权限、背包自动整理等；首次运行自动生成）
@@ -309,12 +312,12 @@ libs/                     ★本地依赖（Player Animation Library + mocha，j
 tools/
 ├── maid_monitor.ps1       资源/日志监测脚本
 ├── maid_jump_sim.js       ★速度/落点/朝向模拟（Node，无依赖）
-├── gen_jump_table.js      ★离线生成 MaidJumpTable.java
+├── gen_jump_table.js      ★离线生成 MaidJumpTable.kt
 ├── fix_ai_skin.py         修复 AI 皮肤（镜像补齐）
 ├── fix_maid_skin_hands.py 修复皮肤手部缺失面
-└── maid_inventory_sim.js  ★背包槽位规则验证（Node，无依赖）
-├── launch_game.py         ★从 HMCL 日志提取启动命令 + 补 token + quickPlay
-└── run_e2e_test.py        ★一键端到端联调：起桌宠 → 起游戏 → 轮询 → 报告；含 --check-token
+├── maid_inventory_sim.js  ★背包槽位规则验证（Node，无依赖）
+├── clienttest.py          ★部署客户端用例、读取报告和错误通道
+└── verify_all.py          ★编译 / Mixin / 依赖成员静态门禁
 config/smartmaid/
 ├── main.json              ★模组配置（调试开关 / 命令权限 / 背包自动整理；首次自动生成）
 ├── bridge.json            ★M5 桌宠联动配置（遥测 + WS；首次自动生成）
@@ -322,8 +325,15 @@ config/smartmaid/
 ├── clienttest.json        ★客户端自动化测试脚本（GUI / 键位，进世界后自动执行）
 ├── settings/<UUID>.json   ★玩家绑定设置（女仆菜单修改自动保存）
 └── maids/<UUID>.cfg         AI 任务配置（持久化任务）
-<存档>/smartmaid/maids/<UUID>.dat   ★背包 / 装备 / 任务队列存档（按存档隔离；旧 config 位置自动迁移）
+<存档>/smartmaid/maids/<玩家UUID>-<女仆UUID>.dat   ★背包 / 装备 / 任务队列快照
+<存档>/smartmaid/maids/<玩家UUID>.latest         ★重召恢复用的快照指针
 ```
+
+### 桌宠 WebSocket 配置
+
+- 文件遥测的 `enabled` 与 WebSocket 的 `ws.enabled` 是独立开关，默认均为 `false`。旧配置缺失相应开关或整个 `ws` 对象时，不会自动启用；只接受 JSON 布尔值 `true`。
+- 启用 WebSocket 时必须设置非空 `ws.token`，并与桌宠端一致。回环地址（例如 `ws://127.0.0.1:21420`）可使用 `ws://`。非回环地址默认必须用 `wss://`；只有明确设为 `ws.allowInsecure: true` 才开放远端明文。该选项默认关闭，且不豁免 token 要求。
+- 桌宠必须返回带布尔值 `"ok": true` 的 `hello_ack` 后才能下发指令。游戏服务端定期重读 WebSocket 设置；禁用、轮换 token、变更地址或传输策略都会撤销旧连接。文件遥测配置仍在启动时加载。
 
 ## 工具脚本
 
@@ -337,12 +347,18 @@ node tools/gen_jump_table.js
 # 验证女仆背包槽位规则（与 Java 端逻辑一致）
 node tools/maid_inventory_sim.js
 
-# 端到端联调（游戏 + 桌宠一起跑）
-# 前置：用 GUI 启动器登录一次（让 HMCL 刷新 accessToken）
-python tools/run_e2e_test.py --quick-play "新的世界 (11)"
-#  --check-token    在跑前校验 HMCL 凭证，过期早退
-# 内部逻辑：launch_game.py 从 HMCL 日志逆向提取启动命令 + 补 quick-play
 ```
+
+开发客户端统一通过模块目录的 Gradle Wrapper / Fabric Loom 启动：
+
+```powershell
+$env:SMARTMAID_MC_DIR = (Resolve-Path '.\run').Path
+.\gradlew.bat --offline --no-daemon --console=plain runClient
+```
+
+游戏测试的配置部署、逐轮归档、GUI 报告和可选桌宠观测见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)。使用真实 `SMARTMAID_MC_DIR` 时，`clienttest.py` 不传 `--series`。
+
+旧 `launch_game.py` / `run_e2e_test.py` 启动入口已退役；历史交接及设计文档中的 HMCL、token 和一键启动命令不再适用，当前操作以本 README 和操作卡为准。
 
 ## 动作动画（/maidanim）
 
@@ -368,7 +384,7 @@ python tools/run_e2e_test.py --quick-play "新的世界 (11)"
 - [x] **桌宠联动 M5-a（感知下行：写 `<游戏目录>/deskpet/maid/*.jsonl`）**
 - [x] **桌宠联动 M5-b（指令上行：WebSocket Client 连桌宠 `ws://127.0.0.1:21420`）**
 - [x] **感知增量 diff（M-P1：首帧全量+后续 changed/removed，真机降 83.1%）**
-- [x] **一键端到端联调（`tools/run_e2e_test.py`）**
+- [x] **Loom 标准启动 + AutoTest / clienttest 分步验收**（见测试操作卡）
 - [x] **`craft_check` 干跑查询（M6-a：不消耗材料的配方/缺料明细）**
 - [x] **`item_index` 物品索引下发（M6-b：当前语言名→id，支撑桌宠本地物品名匹配）**
 - [x] **`owner.pos` 感知补全（M6-c：相对指令「在我脚下…」可换算）**
@@ -408,15 +424,14 @@ python tools/run_e2e_test.py --quick-play "新的世界 (11)"
 
 ## 许可
 
-**本项目免费开源、不收取任何费用，也不用于商业用途。**
-
 | 内容 | 许可 |
 |---|---|
-| 本项目原创代码（Java 源码、构建脚本、文档、界面贴图） | **MIT**（见仓库根 [`LICENSE`](../LICENSE)） |
-| `entity/ai/MaidMoveControl.java` 的"触发跳跃"判断条件 | 改编自 [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid)（代码部分 MIT，Copyright © 2019-2025 tartaric_acid），文件头已保留其版权声明 |
+| `cb9dcaba7538ab018b01a339cd360e2f695b57aa` 及之前的上游 MIT 部分 | 保留原 [MIT 许可与版权声明](../LICENSE-MIT-upstream.txt) |
+| 2026 年 11 月 21 日起的 kmizmal 维护部分 | [GNU GPL 第 3 版](../LICENSE)（`GPL-3.0-only`） |
+| `entity/ai/MaidMoveControl.kt` 的"触发跳跃"判断条件 | 改编自 [Touhou Little Maid](https://github.com/TartaricAcid/TouhouLittleMaid)（代码部分 MIT，Copyright © 2019-2025 tartaric_acid），来源与署名记录见根目录 NOTICE.md |
 | `assets/smartmaid/emotes/*.json`（11 个表情动画） | 来自 [Emotecraft](https://github.com/KosmX/emotes)（KosmX）内置表情的未修改副本，**GPL-3.0** |
 | 女仆皮肤图片（`textures/entity/smart_maid.png`、仓库根 `皮肤大肥鱼.png`）与模组图标（`assets/smartmaid/icon.png`） | 基于"大肥鱼"角色立绘制作，**CC BY-NC-SA 4.0**（须署名 / **禁止商用** / 衍生须相同方式共享） |
 | `libs/` 内置第三方库 | Player Animation Library（MIT）；mochafloats（PAL 传递依赖） |
 
-> 完整来源与条款见仓库根 [`NOTICE.md`](../NOTICE.md)。该声明也已随 jar 打包到 `META-INF/` 下，
-> 二进制分发时许可信息不会丢失。**皮肤与表情数据不可用于商业用途。**
+> 完整来源与条款见仓库根 [`NOTICE.md`](../NOTICE.md)。根目录 LICENSE 为 GPLv3 完整正文；上游 MIT 原文单独保存在 LICENSE-MIT-upstream.txt。两份正文及声明随 JAR 打包到 `META-INF/`。
+> CC BY-NC-SA 4.0 的非商业限制适用于对应素材，不是 GPLv3 的附加限制。

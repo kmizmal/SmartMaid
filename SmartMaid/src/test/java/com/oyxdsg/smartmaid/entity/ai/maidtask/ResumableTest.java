@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -43,7 +44,9 @@ class ResumableTest {
         assertEquals(5, out.get("mined").getAsInt());
         assertTrue(out.get("noOre").getAsBoolean());
         assertEquals(1, out.getAsJsonArray("skipped").size());
-        assertTrue(m.validateState(null, s) == false, "无女仆环境校验不通过");
+        assertFalse(m.validateState(null, s), "无女仆环境校验不通过");
+        m.restoreState(null);
+        assertEquals(out, m.saveState());
     }
 
     @Test
@@ -58,6 +61,9 @@ class ResumableTest {
         assertEquals(2, out.get("index").getAsInt());
         assertTrue(out.get("outOfBlock").getAsBoolean());
         assertEquals(2, out.getAsJsonArray("positions").size());
+        assertFalse(b.validateState(null, s));
+        b.restoreState(null);
+        assertEquals(out, b.saveState());
     }
 
     @Test
@@ -66,6 +72,8 @@ class ResumableTest {
         JsonObject s = new JsonObject();
         s.addProperty("done", true);
         f.restoreState(s);
+        assertFalse(f.validateState(null, s));
+        f.restoreState(null);
         assertTrue(f.saveState().get("done").getAsBoolean());
     }
 }

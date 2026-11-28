@@ -46,10 +46,10 @@ SERIES = {
     "26.2": {
         "mc_jar": None,                       # 由 loom 缓存解析
         "loom_mc": "net/minecraft/minecraft-merged-deobf/26.2/minecraft-merged-deobf-26.2.jar",
-        "fapi": "mods/fabric-api-0.158.0+26.2.jar",
+            "fapi": "mods/fabric-api-0.161.0+26.2.jar",
         "libs": "libs",
         "nested": ["libs/player_animation_library-1.2.6.jar"],
-        "mc_range": "~26.2", "fapi_range": ">=0.158.0+26.2", "pal_range": ">=1.2.6",
+            "mc_range": "~26.2", "fapi_range": ">=0.161.0+26.2", "pal_range": ">=1.2.6",
     },
     "26.3": {
         "loom_mc": None,
@@ -80,23 +80,64 @@ def resolve(cfg: dict) -> dict:
     elif cfg.get("mc_jar"):
         out["mc_jar"] = os.path.join(mc, cfg["mc_jar"])
     fapi = cfg["fapi"]
-    out["fapi"] = (os.path.join(LOGS, fapi.replace("__deps__/", "deps/"))
-                   if fapi.startswith("__deps__/") else os.path.join(mc, fapi))
+    if fapi.startswith("__deps__/"):
+        fapi_path = os.path.join(LOGS, fapi.replace("__deps__/", "deps/"))
+    else:
+        fapi_path = os.path.join(mc, fapi)
+        # Gradle Loom resolves Fabric API from its dependency cache, while the
+        # older verifier only searched <.minecraft>/mods. Prefer an explicit
+        # override, then fall back to the exact cached module/version.
+        if not os.path.isfile(fapi_path):
+            override = os.environ.get("SMARTMAID_FABRIC_JAR")
+            if override and os.path.isfile(override):
+                fapi_path = override
+            else:
+                name = os.path.basename(fapi)
+                if name.startswith("fabric-api-") and name.endswith(".jar"):
+                    version = name[len("fabric-api-"):-4]
+                    cache_glob = os.path.expanduser(
+                        os.path.join("~", ".gradle", "caches", "modules-2", "files-2.1",
+                                     "net.fabricmc.fabric-api", "fabric-api", version,
+                                     "*", name))
+                    hits = sorted(glob.glob(cache_glob))
+                    if hits:
+                        fapi_path = hits[-1]
+    out["fapi"] = fapi_path
     out["libs"] = os.path.join(REPO, cfg["libs"])
     out["nested"] = [os.path.join(REPO, p) for p in cfg["nested"]]
     out["mc_libraries"] = os.path.join(mc, "libraries")
+    out["gradle_modules"] = os.path.expanduser(
+        os.path.join("~", ".gradle", "caches", "modules-2", "files-2.1"))
     return out
 
 
 def run(argv: list[str]) -> tuple[int, str]:
-    r = subprocess.run([sys.executable] + argv, capture_output=True, text=True, errors="replace")
+    # 子工具输出包含中文；Windows 的系统 locale 可能是 GBK，而工具本身
+    # 按 UTF-8 输出。显式指定解码，否则正则会看到乱码并把成功结果解析成 -1。
+    r = subprocess.run([sys.executable] + argv, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
+def _has_java_sources(series: str) -> bool:
+    for d in (os.path.join(REPO, "src", "main", "java"),
+              os.path.join(REPO, "src", "mc%s" % series, "java")):
+        if os.path.isdir(d):
+            for _root, _dirs, files in os.walk(d):
+                if any(f.endswith(".java") for f in files):
+                    return True
+    return False
+
+
 def step_compile(cfg: dict, series: str) -> dict:
+    # 迁移到 Kotlin 后 src/main/java 已归零：javac 路（compile_check.py）会「0 个真实错误」
+    # 地空跑成假绿，所以这里先判断还有没有 Java 主源码；没有就走真实 Gradle 构建。
+    if not _has_java_sources(series):
+        return _step_compile_gradle(series)
+
     # ⚠️ 每次跑用**唯一**输出目录：compile_check.py 会先清空目标目录，而目标里往往有几百个
     #    .class —— 在带"删除保护"的环境里那会被拦成 "SAFE_DELETE_BULK_CONFIRM_REQUIRED"，
-    #    于是编译步假失败。用唯一目录 = 根本没有东西要删。
+    #    于是编译检查会误报失败。使用全新的输出目录就不需要删除任何文件。
     out_dir = os.path.join(tempfile.gettempdir(),
                            "sm_verify_%s_%d" % (series.replace(".", ""), time.time_ns()))
     os.makedirs(out_dir, exist_ok=True)
@@ -108,6 +149,34 @@ def step_compile(cfg: dict, series: str) -> dict:
                     "--out", out_dir, "--max-errors", "40"])
     ok = rc == 0 and "0 个真实错误" in text
     return {"name": "A 编译", "ok": ok, "detail": _tail(text), "log": out_dir}
+
+
+def _step_compile_gradle(series: str) -> dict:
+    """Kotlin 主源码的编译门：用真实 Gradle 构建（Kotlin/Java 联合编译 + 测试编译）。"""
+    props_path = os.path.join(REPO, "gradle.properties")
+    cur = "?"
+    try:
+        with open(props_path, encoding="utf-8", errors="replace") as fh:
+            m = re.search(r"^\s*mc_series\s*=\s*(\S+)", fh.read(), re.M)
+        if m:
+            cur = m.group(1)
+    except OSError:
+        pass
+    if cur != series:
+        return {"name": "A 编译", "ok": False, "log": "",
+                "detail": "gradle.properties 的 mc_series=%s 与 --series %s 不一致。\n"
+                          "本工具不会自动改版本线：先手动改 mc_series/minecraft_version/"
+                          "loader_version/loom_version/fabric_api_version 再跑。" % (cur, series)}
+
+    env = dict(os.environ)
+    javac = find_jdk_tool("javac")
+    if javac:
+        env["JAVA_HOME"] = os.path.dirname(os.path.dirname(javac))
+    r = subprocess.run(["cmd.exe", "/c", "gradlew.bat", "--offline", "--no-daemon", "build"],
+                       cwd=REPO, capture_output=True, text=True, errors="replace", env=env)
+    text = (r.stdout or "") + (r.stderr or "")
+    ok = r.returncode == 0 and "BUILD SUCCESSFUL" in text
+    return {"name": "A 编译", "ok": ok, "detail": _tail(text), "log": ""}
 
 
 _RE_MIXIN_FATAL = re.compile(r"致命（会导致 Mixin 应用失败／启动崩溃）:\s*(\d+)")
@@ -124,7 +193,8 @@ def step_mixin(cfg: dict, series: str) -> dict:
             continue
         rc, text = run([os.path.join(HERE, "check_mixin_targets.py"),
                         "--mod-jar", jar, "--mc-jar", cfg["mc_jar"],
-                        "--libs-dir", cfg["mc_libraries"]])
+                        "--libs-dir", cfg["mc_libraries"],
+                        "--libs-dir", cfg["gradle_modules"]])
         mf = _RE_MIXIN_FATAL.search(text)
         mw = _RE_MIXIN_WARN.search(text)
         fatal = int(mf.group(1)) if mf else -1
@@ -163,7 +233,8 @@ def step_dep(cfg: dict, series: str) -> dict:
         rc, text = run([os.path.join(HERE, "check_dep_compat.py"), "--dep", jar,
                         "--mc-jar", cfg["mc_jar"],
                         "--extra-classpath", fapi_classes,
-                        "--extra-classpath", cfg["mc_libraries"]])
+                        "--extra-classpath", cfg["mc_libraries"],
+                        "--extra-classpath", cfg["gradle_modules"]])
         passed = "静态核对通过" in text
         lines.append("%s → %s" % (name, "通过" if passed else "**不通过**"))
         if not passed:

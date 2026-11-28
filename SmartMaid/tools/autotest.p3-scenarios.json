@@ -1,0 +1,14 @@
+[
+  { "__comment": "P3 跳跃标定：平地 / 1 格台阶 / 3 格短沟 / 4 格边界；recordTicks 采样起跳-落地轨迹。" },
+  { "id": "p3.flat.setup", "run": "fill {x-6} {y-1} {z-3} {x+6} {y-1} {z+8} minecraft:stone" },
+  { "id": "p3.flat.move", "run": "maidtasks move {x} {y} {z+4}", "source": "player", "expectResult": 1, "expectTask": "move", "recordTicks": 120 },
+  { "id": "p3.step.setup", "run": "fill {x-6} {y-1} {z-3} {x+6} {y-1} {z+8} minecraft:stone" },
+  { "id": "p3.step.wall", "run": "fill {x-1} {y} {z+2} {x+1} {y} {z+2} minecraft:stone" },
+  { "id": "p3.step.move", "run": "maidtasks move {x} {y+1} {z+4}", "source": "player", "expectResult": 1, "expectTask": "move", "recordTicks": 120 },
+  { "id": "p3.gap.setup", "run": "fill {x-6} {y-1} {z-3} {x+6} {y-1} {z+8} minecraft:stone" },
+  { "id": "p3.gap.remove", "run": "fill {x-1} {y-1} {z+1} {x+1} {y-1} {z+3} minecraft:air" },
+  { "id": "p3.gap.move", "run": "maidtasks move {x} {y} {z+4}", "source": "player", "expectResult": 1, "expectTask": "move", "recordTicks": 120 },
+  { "id": "p3.boundary.setup", "run": "fill {x-8} {y-1} {z-3} {x+8} {y-1} {z+9} minecraft:stone" },
+  { "id": "p3.boundary.remove", "run": "fill {x-2} {y-1} {z+1} {x+2} {y-1} {z+4} minecraft:air" },
+  { "id": "p3.boundary.move", "run": "maidtasks move {x} {y} {z+5}", "source": "player", "expectResult": 1, "expectTask": "move", "recordTicks": 120 }
+]

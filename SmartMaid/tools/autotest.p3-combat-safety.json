@@ -1,0 +1,12 @@
+[
+  { "__comment": "P3 战斗约束：攻击期间不得挖方块；攻击前后石标应保持。" },
+  { "id": "p3.c.anchor", "anchor": true },
+  { "id": "p3.c.platform", "run": "fill {x-4} {y-1} {z-4} {x+4} {y-1} {z+4} minecraft:stone" },
+  { "id": "p3.c.clear", "run": "fill {x-4} {y} {z-4} {x+4} {y+2} {z+4} minecraft:air" },
+  { "id": "p3.c.marker", "run": "setblock {x-3} {y} {z-1} minecraft:stone" },
+  { "id": "p3.c.cow", "run": "summon minecraft:cow {x+3} {y} {z}" },
+  { "id": "p3.c.attack", "run": "maidtasks attack 60 cow", "source": "player", "expectResult": 1, "expectTask": "attack" },
+  { "id": "p3.c.wait", "wait": 6 },
+  { "id": "p3.c.marker-check", "check": { "block": { "at": "lastRun", "is": "minecraft:stone" } } },
+  { "id": "p3.c.stop", "run": "maidtasks stop", "source": "player", "expectResult": 1 }
+]

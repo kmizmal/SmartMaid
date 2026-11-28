@@ -1,0 +1,7 @@
+[
+  { "__comment": "P3 安全约束：坐下时逐 tick 位置应保持不变；不涉及生产任务。" },
+  { "id": "p3.safety.anchor", "anchor": true },
+  { "id": "p3.safety.sit", "run": "maidtasks sit", "source": "player", "expectResult": 1, "recordTicks": 60 },
+  { "id": "p3.safety.unsit", "run": "maidtasks sit", "source": "player", "expectResult": 1 },
+  { "id": "p3.safety.stop", "run": "maidtasks stop", "source": "player", "expectResult": 1 }
+]

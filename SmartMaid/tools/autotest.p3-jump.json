@@ -1,0 +1,6 @@
+[
+  { "__comment": "P3 跳跃标定：3 格短沟（起跳格到对岸 4 格）。使用调试日志 + recordTicks 逐 tick 位置采样。" },
+  { "id": "p3.platform", "run": "fill {x-6} {y-1} {z-3} {x+6} {y-1} {z+8} minecraft:stone" },
+  { "id": "p3.gap", "run": "fill {x-1} {y-1} {z+1} {x+1} {y-1} {z+3} minecraft:air" },
+  { "id": "p3.move", "run": "maidtasks move {x} {y} {z+4}", "source": "player", "expectResult": 1, "expectTask": "move", "recordTicks": 120 }
+]

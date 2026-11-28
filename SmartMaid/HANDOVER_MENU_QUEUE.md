@@ -1,5 +1,7 @@
 # 承接单：游戏内女仆菜单（N1）+ 任务队列
 
+> 历史设计/实施记录：下文保留原有时间线、源码名称、工具实验与失败，不作为当前操作命令。当前构建为 Gradle 9.9.1 / Kotlin 2.4.21，源码使用 `src/main/kotlin` 与 `src/mc<series>/kotlin`；双版本 Wrapper 构建已实跑。当前状态见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)，执行见 [Loom 操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，后续见 [战斗与移动安全阶段计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。旧 HMCL/纯 javac 发布命令仅为历史。
+
 > **给接手这个任务的人（或 AI）。** 这是一份**入口文档** —— 读完它你就知道要做什么、读哪些文档、
 > 哪些决策已经定了不要再问、按什么顺序做、怎么验证。
 > 编写日期：2026-09-30 · 状态：**✅ 已实现（2026-10-01，真机验收通过）**。
@@ -174,7 +176,7 @@ python tools/probe_api.py --fabric events-interaction                           
 5. **展开逻辑放上层**（桌宠 NLU / 菜单），服务端只按 `mutexKey` 精确判重 ——
    若服务端也自己展开"所有矿物"，会和上层重复展开。
 6. **`Resumable` 不实现的任务要显式声明"不支持接续"**，恢复时按"重头来"并如实回执 —— 不假装能接着做。
-7. **菜单是纯 `Screen` 后没有 `ContainerData`** —— 状态必须走新 S2C 包，别想着复用 `menu.getSetting`。
+7. **菜单改用普通 `Screen` 后，不再有 `ContainerData`** —— 状态必须走新 S2C 包，别想着复用 `menu.getSetting`。
 
 ---
 

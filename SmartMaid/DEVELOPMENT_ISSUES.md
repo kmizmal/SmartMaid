@@ -1,5 +1,7 @@
 # Smart Maid 开发问题记录
 
+> 历史设计/实施记录：下文保留原有时间线、源码名称、工具实验与失败，不作为当前操作命令。当前构建为 Gradle 9.9.1 / Kotlin 2.4.21，源码使用 `src/main/kotlin` 与 `src/mc<series>/kotlin`；双版本 Wrapper 构建已实跑。当前状态见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)，执行见 [Loom 操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，后续见 [战斗与移动安全阶段计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。旧 HMCL/纯 javac 发布命令仅为历史。
+
 > 记录开发过程中踩过的坑：现象、排查过程、根因、解决方式与核心教训。
 > 重点：2026-09-05 的"玩家式移动改造"失败复盘——绕开原版移动体系自己实现物理，是本次最大的坑。
 
@@ -9,11 +11,15 @@
 
 ### 背景与目标
 
-用户希望女仆像玩家一样移动：跳上 1 格高方块、跳过沟壑、持续按 W。期间参考了 **Mineflayer-Baritone**（动作系统 + 执行器）的思路，尝试把女仆移动改为"动作系统 A\* 寻路 + 手动 velocity 执行 + 覆盖 travel"。
+用户希望女仆像玩家一样移动：跳上 1 格高方块、跳过沟壑、持续按 W。期间参考了 **Mineflayer-Baritone**（动作系统 +
+执行器）的思路，尝试把女仆移动改为"动作系统 A\* 寻路 + 手动 velocity 执行 + 覆盖 travel"。
 
-**多轮尝试全部失败**（召唤崩溃、不移动、方向反、跳不上、冻结、卡死、旋转），最终**回到"原版移动体系 + 车万女仆式跳跃优化"**（照搬 TouhouLittleMaid 的 MaidMoveControl），彻底正常。
+**多轮尝试全部失败**（召唤崩溃、不移动、方向反、跳不上、冻结、卡死、旋转），最终**回到"原版移动体系 + 车万女仆式跳跃优化"**（照搬
+TouhouLittleMaid 的 MaidMoveControl），彻底正常。
 
-**一句话根因**：绕开了 Minecraft 原版成熟可靠的移动体系（MoveControl / Navigation / travel / JumpControl），试图从零实现"玩家式移动物理"——这在 MC 里注定踩坑。车万女仆的正确做法是**完全用原版骨架 + 只优化跳跃触发条件**。
+**一句话根因**：绕开了 Minecraft 原版成熟可靠的移动体系（MoveControl / Navigation / travel /
+JumpControl），试图从零实现"玩家式移动物理"——这在 MC 里注定踩坑。车万女仆的正确做法是**完全用原版骨架 +
+只优化跳跃触发条件**。
 
 ---
 
@@ -25,44 +31,55 @@
   NullPointerException: Cannot invoke "NodeEvaluator.setCanFloat(boolean)"
   because "this.nodeEvaluator" is null
   ```
-- **根因**：自定义 `MaidPlayerNavigator.createPathFinder()` 只 `new PathFinder(new WalkNodeEvaluator(), 0)`，**没给 `this.nodeEvaluator` 赋值**。原版 `GroundPathNavigation` 会在 `createPathFinder` 里设 `this.nodeEvaluator`，实体加入世界首次 tick 时原版逻辑调 `navigation.setCanFloat` → 访问 null 的 nodeEvaluator → NPE。
+- **根因**：自定义 `MaidPlayerNavigator.createPathFinder()` 只 `new PathFinder(new WalkNodeEvaluator(), 0)`，**没给
+  `this.nodeEvaluator` 赋值**。原版 `GroundPathNavigation` 会在 `createPathFinder` 里设 `this.nodeEvaluator`，实体加入世界首次
+  tick 时原版逻辑调 `navigation.setCanFloat` → 访问 null 的 nodeEvaluator → NPE。
 - **解决**：`createPathFinder` 里先 `this.nodeEvaluator = new WalkNodeEvaluator();`。
 
 ### 问题 2：女仆不移动，只能垂直跳（26.2 zza 输入链重构）
 
 - **现象**：女仆跳得起（vy 有效、y 变化大），但水平完全不动；诊断显示 `zza=1.0 speed=1.3` 都已设置，`vel.x/z` 却恒为 0。
-- **排查**：反编译 `LivingEntity.travel` → 26.2 移动输入链已重构，`travel` 走 `handleRelativeFrictionAndCalculateMovement`；**服务端实体上 `setZza/setSpeed` 不再可靠驱动水平位移**（`zza` 只被 `applyInput()` 做 `*=0.98` 衰减，moveRelative 用的是传入的 travelVector 但服务端实体不填）。
+- **排查**：反编译 `LivingEntity.travel` → 26.2 移动输入链已重构，`travel` 走
+  `handleRelativeFrictionAndCalculateMovement`；**服务端实体上 `setZza/setSpeed` 不再可靠驱动水平位移**（`zza` 只被
+  `applyInput()` 做 `*=0.98` 衰减，moveRelative 用的是传入的 travelVector 但服务端实体不填）。
 - **解决**：改为手动 `setDeltaMovement` 设水平速度。⚠️ 但这只是进入了下一个坑（见问题 4）。
 
 ### 问题 3：女仆方向反（yaw 换算错误）
 
 - **现象**：女仆朝目标反方向走（要往西却往北）。
-- **根因**：把 `yaw` 换算成 velocity 水平分量时，MC 前向向量是 `(-sin(yaw), 0, cos(yaw))`，我用了 `(sin, 0, cos)`，方向反了 180°。
+- **根因**：把 `yaw` 换算成 velocity 水平分量时，MC 前向向量是 `(-sin(yaw), 0, cos(yaw))`，我用了 `(sin, 0, cos)`，方向反了
+  180°。
 - **解决**：改用**目标方向向量** `(dx, dz)` 归一化 × 速度，完全不经过 yaw 换算（零歧义）。
 
 ### 问题 4：跳不上 1 格方块（贴墙时水平被墙挡）
 
 - **现象**：女仆能跳（y 升 1.3 格，超过 1 格墙顶），但跳起时水平（z）不推进，卡在墙边永远上不去。
 - **排查**：反复尝试单步 `move(vel)`、分两步 `move`，均失败。
-- **根因**：覆盖 `travel` 后手动 `move(MoverType.SELF, vel)` 一次性应用三维位移，`Entity.move()` 的碰撞轴处理顺序导致**贴墙起跳瞬间水平先被墙挡**；而"脚底过顶后水平再推进"依赖原版 `travel` 内部的复杂处理，我的简化版没有。
+- **根因**：覆盖 `travel` 后手动 `move(MoverType.SELF, vel)` 一次性应用三维位移，`Entity.move()` 的碰撞轴处理顺序导致
+  **贴墙起跳瞬间水平先被墙挡**；而"脚底过顶后水平再推进"依赖原版 `travel` 内部的复杂处理，我的简化版没有。
 - **教训**：**覆盖 travel 手动实现移动物理不可靠**——碰撞、摩擦、轴处理、onGround 状态、重力全部要自己重造，一环错全盘崩。
 
 ### 问题 5：分两步 move（先垂直后水平）导致实体冻结
 
-- **现象**：为让"脚底先过障碍顶再水平推进"，在 travel 里先 `move(SELF, (0, vy, 0))` 再 `move(SELF, (vx, 0, vz))` → 女仆**完全冻结**（连 y 都不动、onGround=false 悬空）。
-- **根因**：一次 tick 内两次调用 `Entity.move()`，第二次调用基于第一次已更新的碰撞状态（onGround/horizontalCollision）执行，破坏了 move() 内部的状态机。
+- **现象**：为让"脚底先过障碍顶再水平推进"，在 travel 里先 `move(SELF, (0, vy, 0))` 再 `move(SELF, (vx, 0, vz))` → 女仆
+  **完全冻结**（连 y 都不动、onGround=false 悬空）。
+- **根因**：一次 tick 内两次调用 `Entity.move()`，第二次调用基于第一次已更新的碰撞状态（onGround/horizontalCollision）执行，破坏了
+  move() 内部的状态机。
 - **解决**：放弃分步；最终方案是**不覆盖 travel**，回到原版移动体系。
 
 ### 问题 6：贴墙卡死（起跳时机套错了 Mineflayer-Baritone 的场景）
 
-- **现象**：套用 Baritone `_shouldJumpNow`（走到起跳格边缘才跳），贴墙时 `distanceToEdge = 0.3`（半宽）恒大于阈值 0.1，**永远不跳，女仆卡死**。
-- **根因**：`_shouldJumpNow`（边缘判定）只适用于"跨沟/助跑"场景；**贴墙跳 1 格墙**该用 Baritone 的 **`_shouldAutoJump`**（前方 1 格是实心方块 + 上方净空 → 自动跳）。我套错了场景。
+- **现象**：套用 Baritone `_shouldJumpNow`（走到起跳格边缘才跳），贴墙时 `distanceToEdge = 0.3`（半宽）恒大于阈值 0.1，
+  **永远不跳，女仆卡死**。
+- **根因**：`_shouldJumpNow`（边缘判定）只适用于"跨沟/助跑"场景；**贴墙跳 1 格墙**该用 Baritone 的 **`_shouldAutoJump`**（前方
+  1 格是实心方块 + 上方净空 → 自动跳）。我套错了场景。
 - **教训**：套用参考实现前，必须先读懂它适用什么场景，而不是照抄函数。
 
 ### 问题 7：女仆原地"旋转跳跃"
 
 - **现象**：女仆原地跳 + 方向（yRot）剧烈变化，看起来在转圈。
-- **根因**：跟随目标重算导致路径目标在多个格子间切换（如 `JUMP_UP(48,-61,-23)` ↔ `WALK(48,-62,-22)`），executor 每 tick 按目标算方向 → 目标变方向就变。
+- **根因**：跟随目标重算导致路径目标在多个格子间切换（如 `JUMP_UP(48,-61,-23)` ↔ `WALK(48,-62,-22)`），executor 每 tick
+  按目标算方向 → 目标变方向就变。
 - **解决**：跳跃方向锁定（起跳时锁定朝向与前进方向，空中直线推进不转向）；跟随只在目标格变化时才重算路径。
 
 ### 问题 8：findPath 频繁 budget-exhausted
@@ -76,8 +93,8 @@
 ## 核心教训（务必遵守）
 
 1. **Minecraft 里做"类玩家移动"的正确方式 = 原版移动体系 + 最小定制**，不是重写移动物理。
-   - 原版 `MoveControl` 已处理：转向、速度、碰撞、重力、摩擦、卡墙跳。
-   - 只需像车万女仆那样，在 `MoveControl.tick()` 的 MOVE_TO 分支里优化"何时触发跳跃"的判断条件。
+    - 原版 `MoveControl` 已处理：转向、速度、碰撞、重力、摩擦、卡墙跳。
+    - 只需像车万女仆那样，在 `MoveControl.tick()` 的 MOVE_TO 分支里优化"何时触发跳跃"的判断条件。
 2. **服务端实体 ≠ 客户端玩家**：`zza/xxa` 输入链、物理来源、移动包都不同，不能直接移植客户端 bot（Mineflayer）的执行逻辑。
 3. **先读参考实现再动手**：车万女仆 `MaidMoveControl`（TouhouLittleMaid）就是 26.2 下"跳跃增强"的正确蓝本。
 4. **遇到"移动完全不动 / 冻结 / 不落地"这类基础问题**，先怀疑自己绕开了原版移动体系，而不是继续调参数/加补丁。
@@ -96,8 +113,8 @@
 ```
 
 - `MaidMoveControl` 跳跃触发（照搬车万女仆）：
-  - 目标 Y 差 > 跨步高度(0.6) 且水平距离近（前方要抬 1 格）→ `jumpControl.jump()`
-  - 脚下方块有碰撞、头顶低于方块顶、且非门/栅栏/可攀爬 → 跳起防卡
+    - 目标 Y 差 > 跨步高度(0.6) 且水平距离近（前方要抬 1 格）→ `jumpControl.jump()`
+    - 脚下方块有碰撞、头顶低于方块顶、且非门/栅栏/可攀爬 → 跳起防卡
 - `MaidWalkNodeEvaluator`：`isNeighborValid` 先走 `super`，失败后放宽上坡 +1.5 / 下坡 -3 格。
 
 ---
@@ -115,14 +132,18 @@
 
 ## 2026-09-06：跳跃系统开发复盘（重要）
 
-女仆跳跃/跨沟系统的完整开发记录。核心教训：**MC 物理是确定性、可逆的，直接读 prismarine-physics（mineflayer 官方物理库，完整复刻 MC 原版）拿权威公式，比反编译/手算/实测都可靠**。
+女仆跳跃/跨沟系统的完整开发记录。核心教训：**MC 物理是确定性、可逆的，直接读 prismarine-physics（mineflayer 官方物理库，完整复刻
+MC 原版）拿权威公式，比反编译/手算/实测都可靠**。
 
 ### 问题 1：女仆"蜗牛"速度（MOVEMENT_SPEED 从 0.28 改 0.1 后）
 
 - **现象**：速度慢得像蜗牛，明显低于"玩家一致"应有的 4.3 m/s。
-- **排查**：反编译 26.2 移动链：`MoveControl.setSpeed → Mob.setSpeed(自动 setZza(speed)) → travelVector=(xxa,yya,zza) → moveRelative(getFrictionInfluencedSpeed(friction), travelVector)`。
-- **根因**：`MaidMoveControl` 覆写 `tick()` 时**只 setSpeed、漏了显式 `setZza(1)`**。而 26.2 的 `Mob.setSpeed` 会自动 `setZza(speed)`，`moveRelative` 里 `getInputVector(travelVector, speed, yaw)` 又会 `scale(speed)`——于是 `zza=speed` 时加速度变成 **speed²**（平方衰减）：
-  - 0.1 → 稳定速度仅 0.02 blocks/tick ≈ 0.44 m/s（蜗牛）
+- **排查**：反编译 26.2 移动链：
+  `MoveControl.setSpeed → Mob.setSpeed(自动 setZza(speed)) → travelVector=(xxa,yya,zza) → moveRelative(getFrictionInfluencedSpeed(friction), travelVector)`。
+- **根因**：`MaidMoveControl` 覆写 `tick()` 时**只 setSpeed、漏了显式 `setZza(1)`**。而 26.2 的 `Mob.setSpeed` 会自动
+  `setZza(speed)`，`moveRelative` 里 `getInputVector(travelVector, speed, yaw)` 又会 `scale(speed)`——于是 `zza=speed`
+  时加速度变成 **speed²**（平方衰减）：
+    - 0.1 → 稳定速度仅 0.02 blocks/tick ≈ 0.44 m/s（蜗牛）
 - **解决**：MOVE_TO 分支显式 `setZza(1.0F) + setXxa(0.0F)`，accel 恢复线性 = speed。
 
 ### 问题 2：26.2 速度机制（反编译确认）
@@ -135,49 +156,62 @@
 ### 问题 3：垂直顺序（位移先于重力）
 
 - **现象**：手算跳跃最大抬升只有 0.83 格，却跳不上 1 格高台（与"玩家能跳 1 格"矛盾）。
-- **根因**：MC 每 tick 顺序是 **位移先于重力**——`y += vy; vy = (vy - 0.08) × 0.98`，不是先重力后位移。正确结果：vy0=0.42 最大抬升 **≈1.25 格**、飞行 **≈12 tick**（此前误算 10 tick / 0.83 格）。
+- **根因**：MC 每 tick 顺序是 **位移先于重力**——`y += vy; vy = (vy - 0.08) × 0.98`，不是先重力后位移。正确结果：vy0=0.42
+  最大抬升 **≈1.25 格**、飞行 **≈12 tick**（此前误算 10 tick / 0.83 格）。
 - **解决**：`JumpPhysics.computeFlightTicks` / 所有模拟脚本改用正确顺序。
 
 ### 问题 4：起跳朝向 yaw 公式错位
 
 - **现象**：女仆朝错误方向跳（差 90°）。
-- **根因**：MC 前向 = `(-sin(yaw), 0, cos(yaw))`，要指向落点方向 `(tx, tz)` 应 `yaw = atan2(-tx, tz)`；写成了 `atan2(-tz, -tx)`（错位）。
+- **根因**：MC 前向 = `(-sin(yaw), 0, cos(yaw))`，要指向落点方向 `(tx, tz)` 应 `yaw = atan2(-tx, tz)`；写成了
+  `atan2(-tz, -tx)`（错位）。
 - **解决**：`MaidActionExecutor` 修正为 `Mth.atan2(-tx, tz)`。
 
 ### 问题 5：空中没持续给速度（跳跃距离过短）
 
 - **现象**：起跳后落点太短（跑跳只有 ~3.3 格），与玩家 4 格不符。
 - **根因**：`tickJump` 阶段 MoveControl 让路后，`applyInput` 每 tick 把 `zza ×0.98` 衰减到 0，空中前进输入消失，只剩惯性。
-- **解决**：空中每 tick `setZza(2.0F)`（>1 归一化满速），`moveRelative` 持续 +0.02（prismarine 的 `airborneAcceleration`）维持速度。
+- **解决**：空中每 tick `setZza(2.0F)`（>1 归一化满速），`moveRelative` 持续 +0.02（prismarine 的 `airborneAcceleration`
+  ）维持速度。
 
 ### 问题 6：起跳瞬间速度不足（掉沟）——"走到起跳点停下"
 
 - **现象**：日志显示 `Jump fired vel 水平仅 0.156`，起跳前地面速度只有 0.103，落点 2.24 < 3 格掉沟。
-- **根因**：`POSITIONING` 用 `MoveControl.setWantedPosition(edgePos)` "走到起跳点**停下**"，MoveControl 接近目标减速，起跳瞬间速度几乎丢光。玩家跑跳是"**全速冲过起跳点**"。
-- **解决**：**起跳瞬间直接施加离线标定的 takeoff 速度**（走 0.30 / 跑 0.55 blocks/tick，与助跑/地面速度完全解耦），符合"能力一致、不需助跑"。
+- **根因**：`POSITIONING` 用 `MoveControl.setWantedPosition(edgePos)` "走到起跳点**停下**"，MoveControl
+  接近目标减速，起跳瞬间速度几乎丢光。玩家跑跳是"**全速冲过起跳点**"。
+- **解决**：**起跳瞬间直接施加离线标定的 takeoff 速度**（走 0.30 / 跑 0.55
+  blocks/tick，与助跑/地面速度完全解耦），符合"能力一致、不需助跑"。
 
 ### 问题 7：跨沟寻路断链（不起跳）
 
 - **现象**：跨 2 格沟 + 对岸高 1 格完全不起跳。
-- **根因**：`MaidWalkNodeEvaluator` 的跨沟邻居只生成"同层落点"，对岸高 1 格时 `isLandableCell` 失败 → 寻路无路径到高台 → `MoveControl.wanted` 到不了对岸 → 执行器不触发。
-- **解决**：`addGapJumpNeighbors` 对岸落点先试同层、再试 +1 层（高台），生成高台格邻居。同时 `isGap → isJumpable`：同时识别"沟"（中间无支撑）与"≤1 格高实心障碍"。
+- **根因**：`MaidWalkNodeEvaluator` 的跨沟邻居只生成"同层落点"，对岸高 1 格时 `isLandableCell` 失败 → 寻路无路径到高台 →
+  `MoveControl.wanted` 到不了对岸 → 执行器不触发。
+- **解决**：`addGapJumpNeighbors` 对岸落点先试同层、再试 +1 层（高台），生成高台格邻居。同时 `isGap → isJumpable`
+  ：同时识别"沟"（中间无支撑）与"≤1 格高实心障碍"。
 
 ### 问题 8：近距离跨沟跳过头
 
 - **现象**：固定 takeoff 落点远（走 3.26 / 跑 5.13 格），跨 1 格沟会跳过对岸窄台。
-- **解决**：离线解表按"**落点落入目标格**"求解 `back`（起跳点后撤量）：跨 1 沟 1.25 / 跨 2 沟 0.25 / 跨 3 沟跑跳 1.25；上跳（dy+1）撞高台不过头用 back=0。
+- **解决**：离线解表按"**落点落入目标格**"求解 `back`（起跳点后撤量）：跨 1 沟 1.25 / 跨 2 沟 0.25 / 跨 3 沟跑跳
+  1.25；上跳（dy+1）撞高台不过头用 back=0。
 
 ### 架构决策（用户明确要求）
 
-1. **能力一致而非速度一致**：女仆跳跃要做到玩家能做的一切（跳 1 格、跨 2~3 沟、上 1 格高台），跳跃 takeoff 用**固定值**（走 0.30 / 跑 0.55），**不需要助跑**。
-2. **模组不做运行时物理计算**：每种障碍（dist×dy）的起跳解 `{sprint, back}` 由 **`tools/gen_jump_table.js` 离线预计算**，生成 `MaidJumpTable.java` 常量表；模组运行时**只查表**执行。
+1. **能力一致而非速度一致**：女仆跳跃要做到玩家能做的一切（跳 1 格、跨 2~3 沟、上 1 格高台），跳跃 takeoff 用**固定值**（走
+   0.30 / 跑 0.55），**不需要助跑**。
+2. **模组不做运行时物理计算**：每种障碍（dist×dy）的起跳解 `{sprint, back}` 由 **`tools/gen_jump_table.js` 离线预计算**，生成
+   `MaidJumpTable.java` 常量表；模组运行时**只查表**执行。
 3. **移动速度体系**：`MOVEMENT_SPEED=0.16`（行走），跳跃 takeoff 与其解耦。
 
 ### 权威参考
 
-- **prismarine-physics**（`node_modules/prismarine-physics/index.js`）：完整复刻 MC 物理（地面加速度 = 属性 × 0.1627714/inertia³、空中 0.02、起跳 vy0=0.42 + 疾跑 0.2 冲量、垂直先位移后重力）。**MC 移动/跳跃问题先查它，不要自己反编译**。
+- **prismarine-physics**（`node_modules/prismarine-physics/index.js`）：完整复刻 MC 物理（地面加速度 = 属性 ×
+  0.1627714/inertia³、空中 0.02、起跳 vy0=0.42 + 疾跑 0.2 冲量、垂直先位移后重力）。**MC
+  移动/跳跃问题先查它，不要自己反编译**。
 - 本地模拟工具：`SmartMaid/tools/maid_jump_sim.js`（速度/落点/朝向验证）、`tools/gen_jump_table.js`（生成解表）。
-- 反编译方法：`javap -p -c -classpath <merged-jar> <类>`（jar 在 `.gradle/loom-cache/minecraftMaven/.../minecraft-merged-*.jar`）。
+- 反编译方法：`javap -p -c -classpath <merged-jar> <类>`（jar 在
+  `.gradle/loom-cache/minecraftMaven/.../minecraft-merged-*.jar`）。
 
 ---
 
@@ -185,15 +219,18 @@
 
 ### 〇、开发规范（用户明确要求，务必遵守）
 
-**以后每加一个新功能，顺手加上 debug 日志**（用 `MaidDebug.log`），方便出问题时**直接读游戏日志**（`logs/latest.log`）定位，而不是反复让玩家跑游戏贴日志。
+**以后每加一个新功能，顺手加上 debug 日志**（用 `MaidDebug.log`），方便出问题时**直接读游戏日志**（`logs/latest.log`
+）定位，而不是反复让玩家跑游戏贴日志。
 
 - **日志要低频**：每 40 tick 或每 200 帧打一次即可，避免刷屏淹没其他日志（`MaidMonitor` 每 tick 刷地形图把关键日志淹没，就是这个教训）。
-- **日志编码坑（非常重要）**：MC 在 Windows 中文系统的 `logs/latest.log` 是 **GBK 编码**，不是 UTF-8！用 Python/编辑器读日志分析时**必须 `gbk` 解码**，否则中文日志全部搜不到，会误判"日志没输出 / 代码没生效 / 功能没触发"，白排查半天。
+- **日志编码坑（非常重要）**：MC 在 Windows 中文系统的 `logs/latest.log` 是 **GBK 编码**，不是 UTF-8！用 Python/编辑器读日志分析时
+  **必须 `gbk` 解码**，否则中文日志全部搜不到，会误判"日志没输出 / 代码没生效 / 功能没触发"，白排查半天。
 - 排查渲染/客户端问题，日志在 **Render thread**；服务端逻辑在 **Server thread**，两者都在 `latest.log`。
 
 ### 一、26.2 渲染体系（RenderState 分离）——坐姿/装备外观相关的坑
 
 26.2 实体渲染链路：
+
 ```
 EntityRenderDispatcher.extractEntity(entity, tickDelta)
   → renderer.createRenderState(entity, tickDelta)  [final]
@@ -204,45 +241,57 @@ submit: submitNodeCollector.submitModel(model, state, ...)  // 主模型
   → model.setupAnim(state)  // layers 阶段调用
 ```
 
-- **覆写 `extractRenderState` 用泛型签名 `(T,S,float)`**（javap 确认编译器会生成 bridge 链，运行时正确分派到覆写）。javap 显示的 `(Mob, HumanoidRenderState)` / `(Entity, EntityRenderState)` 是编译器 bridge，**不可覆写**（会擦除冲突）。
-- **主模型动画入口**：26.2 `HumanoidModel.setupAnim` **不处理 `Pose.SITTING`**，坐姿 = 骑乘坐姿（`state.isPassenger == true` 时腿前伸弯曲）——僵尸坐船同款。
-- 渲染结果由 `extractRenderState` 设置的 state 驱动，`setupAnim` 消费 state。**排查"模型不动/动画不生效"先确认这两处日志**。
+- **覆写 `extractRenderState` 用泛型签名 `(T,S,float)`**（javap 确认编译器会生成 bridge 链，运行时正确分派到覆写）。javap
+  显示的 `(Mob, HumanoidRenderState)` / `(Entity, EntityRenderState)` 是编译器 bridge，**不可覆写**（会擦除冲突）。
+- **主模型动画入口**：26.2 `HumanoidModel.setupAnim` **不处理 `Pose.SITTING`**，坐姿 = 骑乘坐姿（
+  `state.isPassenger == true` 时腿前伸弯曲）——僵尸坐船同款。
+- 渲染结果由 `extractRenderState` 设置的 state 驱动，`setupAnim` 消费 state。**排查"模型不动/动画不生效"
+  先确认这两处日志**。
 
 ### 二、本次修复的 bug 根因清单
 
 1. **坐姿不生效 → `setOrderedToSit` 不设置坐姿标志**
-   26.2 `TamableAnimal.setOrderedToSit` 反编译只做 `this.orderedToSit = sit`（**普通字段，非 SynchedEntityData**），**不调 `setInSittingPose()`**（后者才写 `DATA_FLAGS` 同步到客户端）。→ 客户端 `isOrderedToSit()/isInSittingPose()` 恒 false → `sitting=false` → 坐姿永远不触发。
-   **修复**：女仆覆写 `setOrderedToSit`，同时调 `setInSittingPose(sit)`。
+   26.2 `TamableAnimal.setOrderedToSit` 反编译只做 `this.orderedToSit = sit`（**普通字段，非 SynchedEntityData**），**不调
+   `setInSittingPose()`**（后者才写 `DATA_FLAGS` 同步到客户端）。→ 客户端 `isOrderedToSit()/isInSittingPose()` 恒 false →
+   `sitting=false` → 坐姿永远不触发。 **修复**：女仆覆写 `setOrderedToSit`，同时调 `setInSittingPose(sit)`。
 
 2. **拾取物品复制 bug → `equipItemIfPossible` 返回值语义反了**
-   26.2 `Mob.pickUpItem` 用 `remaining = equipItemIfPossible(stack.copy())`，`remaining 非空 = 取走这么多`。误写成返回"没放进背包的剩余"（`SimpleContainer.addItem` 返回值）→ 方向反了：物品放进背包但地上 ItemEntity 没被消耗，每 tick 重复拾取 → 捡一把剑复制满背包。
-   **修复**：返回"成功取走的量"（`stack.getCount() - addItem 剩余`）。
+   26.2 `Mob.pickUpItem` 用 `remaining = equipItemIfPossible(stack.copy())`，`remaining 非空 = 取走这么多`
+   。误写成返回"没放进背包的剩余"（`SimpleContainer.addItem` 返回值）→ 方向反了：物品放进背包但地上 ItemEntity 没被消耗，每
+   tick 重复拾取 → 捡一把剑复制满背包。 **修复**：返回"成功取走的量"（`stack.getCount() - addItem 剩余`）。
 
 3. **女仆"穿任何物品" → 拾取 `addItem` 会进盔甲槽**
    `SimpleContainer.addItem` 遍历全部 41 格找空位，背包区(0-35)满时物品会落进盔甲槽(36-40) → 女仆"穿上"任何捡到的东西。
    **修复**：拾取单独实现"只放 0-35"（先同类堆叠再找空槽）。
 
 4. **盔甲"一瞬间显示然后消失" → 盔甲槽 index 映射错乱（真凶）**
-   GUI `MaidArmorSlot` 用了原版玩家背包 index（`39=HEAD/38=CHEST/37=LEGS/36=FEET`），而同步校验 `syncSlot` 用的是 `36=HEAD/37=CHEST/38=LEGS/39=FEET` → **两套 index 对不上**：放对胸甲槽（写 maidInventory 38），`syncSlot(LEGS,38)` 把 38 当腿部校验 → `isEquippableInSlot(胸甲, LEGS)=false` → 移除（先显示后消失）。
-   **修复**：统一为 `36=HEAD/37=CHEST/38=LEGS/39=FEET/40=OFFHAND`，GUI 与校验一致。
+   GUI `MaidArmorSlot` 用了原版玩家背包 index（`39=HEAD/38=CHEST/37=LEGS/36=FEET`），而同步校验 `syncSlot` 用的是
+   `36=HEAD/37=CHEST/38=LEGS/39=FEET` → **两套 index 对不上**：放对胸甲槽（写 maidInventory 38），`syncSlot(LEGS,38)` 把 38
+   当腿部校验 → `isEquippableInSlot(胸甲, LEGS)=false` → 移除（先显示后消失）。 **修复**：统一为
+   `36=HEAD/37=CHEST/38=LEGS/39=FEET/40=OFFHAND`，GUI 与校验一致。
 
 5. **穿盔甲崩溃 → `HumanoidArmorLayer` 泛型/模型类型错误**
-   直接传 `ModelLayers.PLAYER_ARMOR`（类型 `ArmorModelSet<ModelLayerLocation>`）给 `HumanoidArmorLayer`（需要 `ArmorModelSet<A extends HumanoidModel>`）→ 裸类型绕过编译检查，运行时 `ClassCastException: ModelLayerLocation cannot be cast to HumanoidModel`。
-   **修复**：`ArmorModelSet.bake(PLAYER_ARMOR, context.getModelSet(), HumanoidModel::new)` 先把 layer location 集合 bake 成 HumanoidModel 集合。
+   直接传 `ModelLayers.PLAYER_ARMOR`（类型 `ArmorModelSet<ModelLayerLocation>`）给 `HumanoidArmorLayer`（需要
+   `ArmorModelSet<A extends HumanoidModel>`）→ 裸类型绕过编译检查，运行时
+   `ClassCastException: ModelLayerLocation cannot be cast to HumanoidModel`。 **修复**：
+   `ArmorModelSet.bake(PLAYER_ARMOR, context.getModelSet(), HumanoidModel::new)` 先把 layer location 集合 bake 成
+   HumanoidModel 集合。
 
 6. **死亡掉物后重召唤又恢复 → 存档没删**
-   女仆死亡掉光物品，但 `config/smartmaid/maids/*.dat` 还在 → 重召唤 `load` 恢复死亡前背包。
-   **修复**：`dropAllDeathLoot` 里调 `MaidDataManager.delete`（死亡清零）；正常进出游戏仍持久化。
+   女仆死亡掉光物品，但 `config/smartmaid/maids/*.dat` 还在 → 重召唤 `load` 恢复死亡前背包。 **修复**：`dropAllDeathLoot`
+   里调 `MaidDataManager.delete`（死亡清零）；正常进出游戏仍持久化。
 
 7. **Java 源码被 PowerShell 写坏（BOM/乱码）**
-   `Set-Content -Encoding utf8` 给 Java 源码加 BOM（`\ufeff`）+ 破坏中文 → javac 报"非法字符"，注释吞代码。
-   **修复**：改 Java 源码一律用 write 工具；若文件被污染，用 Python 二进制去 BOM、重新写。
+   `Set-Content -Encoding utf8` 给 Java 源码加 BOM（`\ufeff`）+ 破坏中文 → javac 报"非法字符"，注释吞代码。 **修复**：改 Java
+   源码一律用 write 工具；若文件被污染，用 Python 二进制去 BOM、重新写。
 
 ### 三、经验沉淀
 
-- **先确认"代码真的生效了"再排查逻辑**：构建显示 `UP-TO-DATE` 不代表没编译（时间戳/缓存），用 `javap` 查编译产物或 jar 内 class 是否有新字符串/方法，用 Python 按字节搜（避开控制台编码）。
+- **先确认"代码真的生效了"再排查逻辑**：构建显示 `UP-TO-DATE` 不代表没编译（时间戳/缓存），用 `javap` 查编译产物或 jar 内
+  class 是否有新字符串/方法，用 Python 按字节搜（避开控制台编码）。
 - **判断渲染问题**：`extractRenderState` / `setupAnim` 是否被调用、`state` 值对不对，先看这两处 debug 日志，再决定动哪一层。
-- **26.2 语义变化**：`equipItemIfPossible` 返回"取走量"、`setOrderedToSit` 不同步客户端、`HumanoidModel` 不处理 SITTING——**别照搬 1.20 的常识，先反编译确认**。
+- **26.2 语义变化**：`equipItemIfPossible` 返回"取走量"、`setOrderedToSit` 不同步客户端、`HumanoidModel` 不处理 SITTING——
+  **别照搬 1.20 的常识，先反编译确认**。
 
 ---
 
@@ -250,27 +299,32 @@ submit: submitNodeCollector.submitModel(model, state, ...)  // 主模型
 
 ### 背景
 
-女仆坐姿/动作难看的根因是**自己硬编码姿势数值**。用户要求"延用别人做好的动作"——最终选定 **Emotecraft**（动作库，含 11 个现成动作 JSON）+ **Player Animation Library**（PAL，26.2 动画引擎，`HumanoidAnimationController` 不依赖 Avatar）。
+女仆坐姿/动作难看的根因是**自己硬编码姿势数值**。用户要求"延用别人做好的动作"——最终选定 **Emotecraft**（动作库，含 11 个现成动作
+JSON）+ **Player Animation Library**（PAL，26.2 动画引擎，`HumanoidAnimationController` 不依赖 Avatar）。
 
 ### 关键设计决策
 
 - **路线 B**：依赖 PAL 库（jar-in-jar 打包），直接用 `HumanoidAnimationController` 播放 Emotecraft JSON 动作，不自建插值算法。
-- PAL 的 `HumanoidAnimationController` 构造只需 `(AnimationStateHandler, BONE_POSITIONS, MochaEngine工厂)`，**不依赖 Avatar 实体**，女仆（TamableAnimal）可直接用。
+- PAL 的 `HumanoidAnimationController` 构造只需 `(AnimationStateHandler, BONE_POSITIONS, MochaEngine工厂)`，**不依赖
+  Avatar 实体**，女仆（TamableAnimal）可直接用。
 - Emotecraft JSON 由 PAL `UniversalAnimLoader.loadAnimations(InputStream)` 解析（自动把 `rightArm` 归一化为 `right_arm`）。
 - `MochaEngine.create(c)` 一行创建表达式引擎（PAL 构造器强制要，不能传 null）。
 
 ### 踩坑记录
 
-1. **PAL 打包 → loom include 报错**：`include files(...)` 报"not a module component"。
-   **修复**：用 `flatDir { dirs 'libs' }` 仓库 + `implementation/include "player_animation_library:player_animation_library:1.2.6"`（jar 改名成 `name-version.jar`）。
-2. **MochaEngine 编译找不到**：它在 PAL 内嵌 jar `META-INF/jars/mochafloats-5.0.0.jar`，编译 classpath 看不到。
-   **修复**：把 mochafloats 也放 libs，`implementation "mochafloats:mochafloats:5.0.0"`（编译用，运行由 PAL jar-in-jar 提供）。
-3. **动作"未找到"**：`UniversalAnimLoader` 返回 Map 的 key 是动作内部名（Component 翻译键 `{translate:...}`），不是文件名。用 `ANIMATIONS.get("clap")` 查不到。
-   **修复**：按文件名 `ANIMATIONS.put(name, anim)`（取 map 第一个值）。
-4. **动作触发但无效果/手臂消失**：PAL 控制器需要两步驱动——**每游戏 tick `tick(data)` 推进时间 + 渲染帧 `setupAnim(data)`/`process(data)` 计算骨骼值**（写入内部 activeBones），之后 `get3DTransform(bone)` 才读得到。漏了 `process` 会导致骨骼值全空 → 手臂被覆盖成消失姿态。
-   **修复**：`MaidAnimManager.tick`（实体 aiStep 客户端每 tick）+ `processOnce`（渲染帧 setupAnim）+ `apply`（get3DTransform → translatePartToBone）。
-5. **动画不播放**：动画 handler 返回 `PlayState.STOP` 会让 `process` 直接进停止分支、不计算骨骼。
-   **修复**：handler 返回 `PlayState.CONTINUE`。
+1. **PAL 打包 → loom include 报错**：`include files(...)` 报"not a module component"。 **修复**：用
+   `flatDir { dirs 'libs' }` 仓库 + `implementation/include "player_animation_library:player_animation_library:1.2.6"`
+   （jar 改名成 `name-version.jar`）。
+2. **MochaEngine 编译找不到**：它在 PAL 内嵌 jar `META-INF/jars/mochafloats-5.0.0.jar`，编译 classpath 看不到。 **修复**：把
+   mochafloats 也放 libs，`implementation "mochafloats:mochafloats:5.0.0"`（编译用，运行由 PAL jar-in-jar 提供）。
+3. **动作"未找到"**：`UniversalAnimLoader` 返回 Map 的 key 是动作内部名（Component 翻译键 `{translate:...}`），不是文件名。用
+   `ANIMATIONS.get("clap")` 查不到。 **修复**：按文件名 `ANIMATIONS.put(name, anim)`（取 map 第一个值）。
+4. **动作触发但无效果/手臂消失**：PAL 控制器需要两步驱动——**每游戏 tick `tick(data)` 推进时间 + 渲染帧 `setupAnim(data)`/
+   `process(data)` 计算骨骼值**（写入内部 activeBones），之后 `get3DTransform(bone)` 才读得到。漏了 `process`
+   会导致骨骼值全空 → 手臂被覆盖成消失姿态。 **修复**：`MaidAnimManager.tick`（实体 aiStep 客户端每 tick）+ `processOnce`
+   （渲染帧 setupAnim）+ `apply`（get3DTransform → translatePartToBone）。
+5. **动画不播放**：动画 handler 返回 `PlayState.STOP` 会让 `process` 直接进停止分支、不计算骨骼。 **修复**：handler 返回
+   `PlayState.CONTINUE`。
 
 ### 架构
 
@@ -284,7 +338,8 @@ libs/                           Player Animation Library + mocha（jar-in-jar）
 
 ### 经验沉淀
 
-- **PAL（Player Animation Library）是"骨架绑定 Avatar + 通用控制器"双层设计**：`PlayerAnimationController` 绑定 Avatar，但 `HumanoidAnimationController` 是通用的，任何 HumanoidModel 实体都能用——这正是"女仆=玩家"的落地。
+- **PAL（Player Animation Library）是"骨架绑定 Avatar + 通用控制器"双层设计**：`PlayerAnimationController` 绑定 Avatar，但
+  `HumanoidAnimationController` 是通用的，任何 HumanoidModel 实体都能用——这正是"女仆=玩家"的落地。
 - **动画库的控制器需要显式驱动**：`tick`（推进）+ `setupAnim/process`（计算骨骼）+ `get3DTransform`（读取）三步缺一不可，不能只调其中一个。
 - **jar-in-jar 打包**：第三方 mod 库用 flatDir + `include`，内嵌依赖（mocha）额外放 libs 供编译。
 
@@ -305,8 +360,11 @@ libs/                           Player Animation Library + mocha（jar-in-jar）
 ### 问题 2：Brigadier `word()` 不允许冒号/逗号（"参数后应有空格分隔"）
 
 - **现象**：`/maidtasks transfer inv:5 mainhand` 报"参数后应有空格分隔，但此处已到文本结尾"，光标在参数尾。
-- **根因**：`StringReader.isAllowedInUnquotedString` 只放行字母数字 `. - _`，**冒号 `:` 和逗号 `,` 都会让 `word()` 提前截断**，接着发现非空格字符 → 报"期望空格"。
-- **解决**：**槽位语法改用纯数字/单词**（`0-40` / `mainhand` / `chest`…），物品用 `IdentifierArgument`，坐标用 `BlockPosArgument`——全部 MC 原生、无冒号、tab 可补全。**通用规则：命令参数别用需要 `:`/`,` 的自定义格式，要么原生类型，要么换语法。**
+- **根因**：`StringReader.isAllowedInUnquotedString` 只放行字母数字 `. - _`，**冒号 `:` 和逗号 `,` 都会让 `word()`
+  提前截断**，接着发现非空格字符 → 报"期望空格"。
+- **解决**：**槽位语法改用纯数字/单词**（`0-40` / `mainhand` / `chest`…），物品用 `IdentifierArgument`，坐标用
+  `BlockPosArgument`——全部 MC 原生、无冒号、tab 可补全。**通用规则：命令参数别用需要 `:`/`,`
+  的自定义格式，要么原生类型，要么换语法。**
 
 ### 问题 3：中文输入法的全角冒号 `：` 解析失败
 
@@ -320,24 +378,30 @@ libs/                           Player Animation Library + mocha（jar-in-jar）
 - **根因 1**：transfer 是"移动"语义，目标被占就失败放回，无反馈 → 用户觉得没执行。
 - **根因 2**：chestopen 女仆本就站在箱子旁（<2.5 格），1 tick 瞬完成，只转了下头；`levelEvent(1005)` 只播音效不触发开箱动画。
 - **解决**：
-  - transfer 升级为**移动+交换+掉落**语义：目标满/被占 → 交换（仅女仆槽）；非装备塞盔甲槽 → 掉落；容器满 → 放回源+提示。
-  - chestopen 智能定位（4 格内找最近容器）+ 女仆实现 `ContainerUser` 调 `ChestBlockEntity.startOpen(maid)` 触发**真实开箱动画**（openCount 机制）。
+    - transfer 升级为**移动+交换+掉落**语义：目标满/被占 → 交换（仅女仆槽）；非装备塞盔甲槽 → 掉落；容器满 → 放回源+提示。
+    - chestopen 智能定位（4 格内找最近容器）+ 女仆实现 `ContainerUser` 调 `ChestBlockEntity.startOpen(maid)` 触发
+      **真实开箱动画**（openCount 机制）。
 
 ### 问题 5：存箱子"满"/"空"误报——chestopen 记录的不是箱子位置
 
 - **现象**：箱子有位置显示"满"，有东西取显示"空"。
-- **根因**：`chestopen ~ ~ ~` 的 `~ ~ ~` 是**玩家所在格**，不是箱子格 → 后续 chestput/chesttake 在该位置 `getBlockEntity` 拿不到容器 → insert 返回原栈（当"满"）、extract 返回空（当"空"）。
+- **根因**：`chestopen ~ ~ ~` 的 `~ ~ ~` 是**玩家所在格**，不是箱子格 → 后续 chestput/chesttake 在该位置 `getBlockEntity`
+  拿不到容器 → insert 返回原栈（当"满"）、extract 返回空（当"空"）。
 - **解决**：`chestopen` 在提示位置周围 4 格**智能定位最近的 Container 方块**，记录实际箱子位置；命令层再校验容器存在，找不到明确提示。
 
 ### 问题 6：`ContainerUser` 接口实现细节
 
-- 26.2 中 `ChestBlockEntity.startOpen(ContainerUser)` 用 `ContainerUser`（空接口 + `getContainerInteractionRange()` / `hasContainerOpen(...)` / `getLivingEntity()`），**`Mob` 不实现它**，`LivingEntity` 也不实现。
-- **解决**：让 `SmartMaidEntity implements ContainerUser`，实现三个方法（范围 5.0、hasContainerOpen 恒 false、getLivingEntity 返回 this）。女仆即可触发真实开箱动画。
+- 26.2 中 `ChestBlockEntity.startOpen(ContainerUser)` 用 `ContainerUser`（空接口 + `getContainerInteractionRange()` /
+  `hasContainerOpen(...)` / `getLivingEntity()`），**`Mob` 不实现它**，`LivingEntity` 也不实现。
+- **解决**：让 `SmartMaidEntity implements ContainerUser`，实现三个方法（范围 5.0、hasContainerOpen 恒 false、getLivingEntity
+  返回 this）。女仆即可触发真实开箱动画。
 
 ### 问题 7：`insert` 契约——不得修改传入栈
 
-- **坑**：`ItemSlot.insert` 若直接 `stack.shrink()` 修改传入参数，调用方用 `left.getCount() == extracted.getCount()` 判断"是否完全放入"会失效（两者是同一引用，都变了）。
-- **解决**：约定 **insert 用副本操作**（`stack.copy()`），返回剩余新栈；调用方据此准确区分 完全放入 / 部分堆叠 / 完全放不下（走交换/放回/掉落）。
+- **坑**：`ItemSlot.insert` 若直接 `stack.shrink()` 修改传入参数，调用方用 `left.getCount() == extracted.getCount()`
+  判断"是否完全放入"会失效（两者是同一引用，都变了）。
+- **解决**：约定 **insert 用副本操作**（`stack.copy()`），返回剩余新栈；调用方据此准确区分 完全放入 / 部分堆叠 /
+  完全放不下（走交换/放回/掉落）。
 
 ### 问题 8：HMCL 内存不足导致启动 OOM（非代码问题）
 
@@ -348,50 +412,62 @@ libs/                           Player Animation Library + mocha（jar-in-jar）
 
 ### 经验沉淀
 
-- **命令参数优先级**：MC 原生类型（word 数字/单词、IdentifierArgument、BlockPosArgument、ResourceArgument）→ 永远先于自定义 ArgumentType。
+- **命令参数优先级**：MC 原生类型（word 数字/单词、IdentifierArgument、BlockPosArgument、ResourceArgument）→ 永远先于自定义
+  ArgumentType。
 - **槽位/物品的"位置"语义**：相对坐标 `~` 指执行者所在格，实体定位容器要"搜索附近"，不能假定 `~` 就是目标方块。
-- **开箱/开盖动画**：由方块实体 `openCount` 机制驱动（`startOpen/stopOpen`），`levelEvent` 只播音效；非 Player 实体需实现 `ContainerUser`。
+- **开箱/开盖动画**：由方块实体 `openCount` 机制驱动（`startOpen/stopOpen`），`levelEvent` 只播音效；非 Player 实体需实现
+  `ContainerUser`。
 
 ### 问题 9：HMCL token 过期导致 quickPlay 不生效（端到端自动化的死结）
 
-- **现象**：用 `run_e2e_test.py --quick-play "新的世界 (11)"` 启动游戏后，进程 19:52:10 启动、19:52:23 走到主菜单，最后只剩 `Failed to fetch user properties / 401`，没有任何 `Setting user: <玩家名>` 后的世界加载活动；4 个遥测窗口都是上次的，没有这轮新数据。
-- **根因**：`hmcl.json` 里 本机微软账号的 `accessToken` 过期（JWT.exp = 2025-08-14，距今超 1 年），HMCL 启动游戏时不会自动刷新 token，过期的 token 让游戏拒绝进入 `--quickPlaySingleplayer` 路径（虽然不会强制退出，但 world loading 永远到不了）。`run_e2e_test.py` timeout 后 taskkill 掉了一直待在主菜单的进程。
+- **现象**：用 `run_e2e_test.py --quick-play "新的世界 (11)"` 启动游戏后，进程 19:52:10 启动、19:52:23 走到主菜单，最后只剩
+  `Failed to fetch user properties / 401`，没有任何 `Setting user: <玩家名>` 后的世界加载活动；4 个遥测窗口都是上次的，没有这轮新数据。
+- **根因**：`hmcl.json` 里 本机微软账号的 `accessToken` 过期（JWT.exp = 2025-08-14，距今超 1 年），HMCL 启动游戏时不会自动刷新
+  token，过期的 token 让游戏拒绝进入 `--quickPlaySingleplayer` 路径（虽然不会强制退出，但 world loading 永远到不了）。
+  `run_e2e_test.py` timeout 后 taskkill 掉了一直待在主菜单的进程。
 - **尝试过的解法**：
-  1. 试 Microsoft OAuth2 refresh_token endpoint 用 `00000000402b2508` / `000000004C8C68AB` / Azure 等 7+ 个 client_id → 全部 `400 invalid_grant` 或 `client does not exist`，因为 HMCL 用的 client_id 没公开文档，不知道是哪个（实际上也无法查）。
-  2. 用 `python launch_game.py --dry-run` → 确认参数正确附加到 `--width 854 --height 480` 之后。
+    1. 试 Microsoft OAuth2 refresh_token endpoint 用 `00000000402b2508` / `000000004C8C68AB` / Azure 等 7+ 个
+       client_id → 全部 `400 invalid_grant` 或 `client does not exist`，因为 HMCL 用的 client_id 没公开文档，不知道是哪个（实际上也无法查）。
+    2. 用 `python launch_game.py --dry-run` → 确认参数正确附加到 `--width 854 --height 480` 之后。
 - **最终解**：必须用户在 GUI 里启动一次 HMCL，自动刷新 token；之后 `--launch <version>` 才带有效凭证，quickPlay 才会进世界。
 - **教训**：
-  - **死结模式**：自动化联调依赖外部系统的 CLI/数据契约时，凭证是关键薄弱点；**先在 `run_e2e_test.py` 里加 `--check-token`，过期就早退出并提示**，不要让 `latest.log` 被无效凭证塞满再失败。
-  - **事件注册的时机**：`MaidWsClient` 注册在 `ServerLifecycleEvents.SERVER_STARTED`，**主菜单阶段没有 server，WS 永远不连**——token 失效时，模组根本不知道自己被挡住了，因为服务端 tick 没起来。
-  - **游戏卡主菜单时 what to look for**：日志停在 `Indigo renderer`/`LWJGL 3.4.1` + `Backend library`，**没有任何 `Preparing spawn area` / `Loading level`** = 卡主菜单 = token 问题。
+    - **死结模式**：自动化联调依赖外部系统的 CLI/数据契约时，凭证是关键薄弱点；**先在 `run_e2e_test.py` 里加
+      `--check-token`，过期就早退出并提示**，不要让 `latest.log` 被无效凭证塞满再失败。
+    - **事件注册的时机**：`MaidWsClient` 注册在 `ServerLifecycleEvents.SERVER_STARTED`，**主菜单阶段没有 server，WS
+      永远不连**——token 失效时，模组根本不知道自己被挡住了，因为服务端 tick 没起来。
+    - **游戏卡主菜单时 what to look for**：日志停在 `Indigo renderer`/`LWJGL 3.4.1` + `Backend library`，**没有任何
+      `Preparing spawn area` / `Loading level`** = 卡主菜单 = token 问题。
 
 ---
 
 ## 2026-09-10：M5 / M-P1 真机端到端联调复盘（重要）
 
-M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过真机验证；本节记录这场真机联调全过程踩到的小坑与最终修复，与第九题的"假死结→真通"后续。
+M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff
+全部通过真机验证；本节记录这场真机联调全过程踩到的小坑与最终修复，并补充第九个问题从误判受阻到实际跑通的后续。
 
 ### 〇、本日真机联调时间线
 
-| 阶段 | 时间 | 内容 | 结果 |
-|---|---|---|---|
-| 1. 代码与联调 | 上午 | P0/P1/P2 全部代码就绪（SmartMaid + 桌宠）；端到端测试脚本就位 | 单元 + 契约 + 模拟客户端全过 |
-| 2. 部署 + 第一次 e2e | 下午 | HMCL 启动游戏进世界 → 14 条 AutoTest 全过（5s 内执行完） | ✅ 游戏内脚本全过 |
-| 3. 读日志发现遥测未出 | — | `latest.log` 搜 `[SmartMaid-Debug] Telemetry`，没有 400 tick 后的写盘 | ❌ 第一个真机坑 |
-| 4. 修首窗 100 tick 即落盘 | 17:30 | `MaidTelemetryWriter` 首窗阈值 400 → 100 tick（5s） | 部署 |
-| 5. 读日志发现 WS 通但无 `damage` 高亮 | — | `unknown msg type: pong` / Monitor 刷屏淹没关键日志 | ❌ 第二组小坑 |
-| 6. 加 pong case + 桌宠回 ping.t + Monitor 100 tick + verbose=false | 17:55 | 重新构建部署 | — |
-| 7. 跑通 → 发现遥测真出 | 18:25 | 4 个窗口、含 skeleton/zombie 受伤，但桌宠渲染出"伤害 玩家:?"（攻击者解析错误） | 气泡污染名字 |
-| 8. 修 `baseName()` + 重跑 | 18:45 | — | ✅ |
-| 9. 用户提"这完全可以自动化" → 写 launch_game / run_e2e_test | 19:00 | 撞 HMCL token 过期（第九题） | ❌ 撞死结 |
-| 10. 加 `--check-token` 早退 + 用户 GUI 登一次 | 19:45 | — | — |
-| 11. 第三次真机 e2e（最终通过） | 20:00 | 14 AutoTest + 4 遥测窗口 + WS 全闭环 + P2 降 83.1% | ✅ 100% |
+| 阶段                                                               | 时间  | 内容                                                                           | 结果                         |
+|--------------------------------------------------------------------|-------|--------------------------------------------------------------------------------|------------------------------|
+| 1. 代码与联调                                                      | 上午  | P0/P1/P2 全部代码就绪（SmartMaid + 桌宠）；端到端测试脚本就位                  | 单元 + 契约 + 模拟客户端全过 |
+| 2. 部署 + 第一次 e2e                                               | 下午  | HMCL 启动游戏进世界 → 14 条 AutoTest 全过（5s 内执行完）                       | ✅ 游戏内脚本全过            |
+| 3. 读日志发现遥测未出                                              | —     | `latest.log` 搜 `[SmartMaid-Debug] Telemetry`，没有 400 tick 后的写盘          | ❌ 第一个真机坑              |
+| 4. 修首窗 100 tick 即落盘                                          | 17:30 | `MaidTelemetryWriter` 首窗阈值 400 → 100 tick（5s）                            | 部署                         |
+| 5. 读日志发现 WS 通但无 `damage` 高亮                              | —     | `unknown msg type: pong` / Monitor 刷屏淹没关键日志                            | ❌ 第二组小坑                |
+| 6. 加 pong case + 桌宠回 ping.t + Monitor 100 tick + verbose=false | 17:55 | 重新构建部署                                                                   | —                            |
+| 7. 跑通 → 发现遥测真出                                             | 18:25 | 4 个窗口、含 skeleton/zombie 受伤，但桌宠渲染出"伤害 玩家:?"（攻击者解析错误） | 气泡污染名字                 |
+| 8. 修 `baseName()` + 重跑                                          | 18:45 | —                                                                              | ✅                           |
+| 9. 用户提"这完全可以自动化" → 写 launch_game / run_e2e_test        | 19:00 | 撞 HMCL token 过期（第九题）                                                   | ❌ 撞死结                    |
+| 10. 加 `--check-token` 早退 + 用户 GUI 登一次                      | 19:45 | —                                                                              | —                            |
+| 11. 第三次真机 e2e（最终通过）                                     | 20:00 | 14 AutoTest + 4 遥测窗口 + WS 全闭环 + P2 降 83.1%                             | ✅ 100%                      |
 
 ### 问题 1：首窗 400 tick 太迟——e2e 看不到事件
 
 - **现象**：自动化测试 5 秒（≈100 tick）就结束，第一个 400 tick（20s）窗口还没到，永远看不到第一份 `deskpet/maid/*.jsonl`。
-- **根因**：`MaidTelemetryWriter.flushWindow` 只在 `tick - lastFlushTick >= windowTicks(400)` 触发，没有考虑"这是游戏的第一个窗口"——首窗必须立即落才能在 e2e 看到。
-- **解决**：维护 `firstWindow` boolean，首窗满 100 tick 即落（"启动期窗口"），后续按 400 tick 节奏。同时把空窗口也写入 `importance: LOW`（让 e2e 能确认"模组真的在跑"）。
+- **根因**：`MaidTelemetryWriter.flushWindow` 只在 `tick - lastFlushTick >= windowTicks(400)`
+  触发，没有考虑"这是游戏的第一个窗口"——首窗必须立即落才能在 e2e 看到。
+- **解决**：维护 `firstWindow` boolean，首窗满 100 tick 即落（"启动期窗口"），后续按 400 tick 节奏。同时把空窗口也写入
+  `importance: LOW`（让 e2e 能确认"模组真的在跑"）。
 - **教训**：**任何"按时间窗口聚合"的输出，都要考虑"用户第一次想看的时刻"**——开发期的瞬时验证不能强求等一个完整窗口。
 
 ### 问题 2：`unknown msg type: pong`
@@ -402,65 +478,90 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 
 ### 问题 3：MaidMonitor 每 tick 刷屏
 
-- **现象**：`MaidMonitor` 每 tick 打 `Blah blah 地形图 …` 一长串，把同 tick 内关键的 `[SmartMaid-Debug] …` 全部冲走。AutoTest 已过但日志搜不到关键事件。
+- **现象**：`MaidMonitor` 每 tick 打 `Blah blah 地形图 …` 一长串，把同 tick 内关键的 `[SmartMaid-Debug] …` 全部冲走。AutoTest
+  已过但日志搜不到关键事件。
 - **根因**：移动调试对开发期太重，每 tick 输出地形图片段。
-- **解决**：① 间隔改 100 tick（5s）；② 新增 `verbose()` 门控——默认 `false`，需要深排查才手动开。同步修 `MaidDebug.log` 调用点全部加 `verbose()` 检查。
-- **教训**：**调试日志的反噬**——开发期为了"看到更多"开了高频日志，结果真出问题时刻意看到的关键日志被冲走。必须分层（默认开 vs verbose 开）且默认低频。
+- **解决**：① 间隔改 100 tick（5s）；② 新增 `verbose()` 门控——默认 `false`，需要深排查才手动开。同步修 `MaidDebug.log` 调用点全部加
+  `verbose()` 检查。
+- **教训**：**调试日志的反噬**——开发期为了"看到更多"开了高频日志，结果真出问题时刻意看到的关键日志被冲走。必须分层（默认开
+  vs verbose 开）且默认低频。
 
 ### 问题 4：女仆名字渲染出气泡文案（getName 污染）
 
 - **现象**：测试日志里 `getName()` 偶尔返回类似"女仆受到 minecraft:zombie 攻击！"（气泡文本），不是"女仆"。
-- **根因**：早先实现的 `showBubble` 思路是"把气泡文案塞进 `customName`"，但同时又设置了 `customName`（持久化）→ 读 `getName()` 会拿气泡文案。
-- **解决**：① 抽出 `baseName()` 返回真正的"女仆"，`getName()` 仍走原版；② `showBubble` 改用独立字段 `DataComponent` 暂存气泡文案（不进入名字），仅客户端 `extractRenderState` 渲染头顶。
+- **根因**：早先实现的 `showBubble` 思路是"把气泡文案塞进 `customName`"，但同时又设置了 `customName`（持久化）→ 读
+  `getName()` 会拿气泡文案。
+- **解决**：① 抽出 `baseName()` 返回真正的"女仆"，`getName()` 仍走原版；② `showBubble` 改用独立字段 `DataComponent`
+  暂存气泡文案（不进入名字），仅客户端 `extractRenderState` 渲染头顶。
 - **教训**：**覆写 `getName` 之前必须确认它在你之前被谁写过**——`customName` 同时被气泡和持久化占用时，要有清晰的主名/气泡分离。
 
 ### 问题 5：`damage` 事件 `target:"?"` 攻击者类型解析遗漏（已修复 ✅）
 
-- **现象**：真机 e2e 4 个窗口里有 8 条 damage 事件，但 `target` 字段多数写 `?`（如 `{"type":"damage","player":"女仆","target":"?","detail":"剩余生命 18.0"}`）——AI 看不懂。
-- **根因**：HurtEvent 投递时序——`LivingEntity.hurt` 内部已经把 `lastHurtByPlayer` / `lastHurtByEntity` 重置回 `null`，再走 `EntitySense.captureHurt` 时拿不到攻击者。fallback 写 `?`。
+- **现象**：真机 e2e 4 个窗口里有 8 条 damage 事件，但 `target` 字段多数写 `?`（如
+  `{"type":"damage","player":"女仆","target":"?","detail":"剩余生命 18.0"}`）——AI 看不懂。
+- **根因**：HurtEvent 投递时序——`LivingEntity.hurt` 内部已经把 `lastHurtByPlayer` / `lastHurtByEntity` 重置回 `null`，再走
+  `EntitySense.captureHurt` 时拿不到攻击者。fallback 写 `?`。
 - **推荐修法（B 方案 ~30 min）**：
-  1. `MaidEntity` 维护最近攻击者缓存，`actuallyHurt` / `hurt` 钩子里抓一次（MC API：`LivingEntity.lastHurtByPlayer` / `lastHurtByEntity` 在受伤流程最早期仍然有效）；
-  2. 类型映射表（Player→玩家名 / Projectile→射手实体类型 / LivingEntity→`minecraft:<type>`）；
-  3. fallback 写 `unknown` 而非 `?`，事件重要性降为 NORMAL。
-- **教训**：**事件采样的时序错位**——MC 事件链里很多字段是"瞬时快照"，frame 外的字段（如 `lastHurtByEntity`）在事件回调进入时早已被消费方清掉。要么在触发点（hurt 方法的最早处）缓存，要么用 net/minecraft/world/entity/Entity 直接反向查 `EntitiesAttackableByMob`。
+    1. `MaidEntity` 维护最近攻击者缓存，`actuallyHurt` / `hurt` 钩子里抓一次（MC API：`LivingEntity.lastHurtByPlayer` /
+       `lastHurtByEntity` 在受伤流程最早期仍然有效）；
+    2. 类型映射表（Player→玩家名 / Projectile→射手实体类型 / LivingEntity→`minecraft:<type>`）；
+    3. fallback 写 `unknown` 而非 `?`，事件重要性降为 NORMAL。
+- **教训**：**事件采样的时序错位**——MC 事件链里很多字段是"瞬时快照"，frame 外的字段（如 `lastHurtByEntity`
+  ）在事件回调进入时早已被消费方清掉。要么在触发点（hurt 方法的最早处）缓存，要么用 net/minecraft/world/entity/Entity 直接反向查
+  `EntitiesAttackableByMob`。
 
 ### 修复记录（B 方案落地）
 
-- **26.2 API 关键发现**：`LivingEntity.hurt(DamageSource, float)` 已改名 **`hurtServer(ServerLevel, DamageSource, float)`**（public 可覆写，原方法不存在）；`getLastHurtByMob()` 基于 `EntityReference`，攻击者被消费后解析为 null。
-- **`SmartMaidEntity`**：覆写 `hurtServer`，在受伤流程最早阶段从 `DamageSource.getEntity()`（间接攻击者，优先）→ `getDirectEntity()` 抓取并缓存攻击者；新增 `getRecentAttacker()`（100 tick 新鲜度）。命名特意避开 26.2 `Attackable.getLastAttacker()` 接口（返回 `LivingEntity`）冲突。
-- **`PerceptionModule`**：受伤事件改读缓存攻击者，`attackerLabel()` 类型映射表——Player→玩家名 / Projectile→射手（递归映射）/ 其他→`EntityType.toShortString()`（短名，如 `pillager`）/ 无→`unknown`。
-- **`MaidTelemetryWriter`**：`target` 默认 `?` → `unknown`；攻击者未知（环境伤害/解析失败）时窗口重要性 CRITICAL → NORMAL，避免误报"被谁打了"。
+- **26.2 API 关键发现**：`LivingEntity.hurt(DamageSource, float)` 已改名
+  **`hurtServer(ServerLevel, DamageSource, float)`**（public 可覆写，原方法不存在）；`getLastHurtByMob()` 基于
+  `EntityReference`，攻击者被消费后解析为 null。
+- **`SmartMaidEntity`**：覆写 `hurtServer`，在受伤流程最早阶段从 `DamageSource.getEntity()`（间接攻击者，优先）→
+  `getDirectEntity()` 抓取并缓存攻击者；新增 `getRecentAttacker()`（100 tick 新鲜度）。命名特意避开 26.2
+  `Attackable.getLastAttacker()` 接口（返回 `LivingEntity`）冲突。
+- **`PerceptionModule`**：受伤事件改读缓存攻击者，`attackerLabel()` 类型映射表——Player→玩家名 / Projectile→射手（递归映射）/
+  其他→`EntityType.toShortString()`（短名，如 `pillager`）/ 无→`unknown`。
+- **`MaidTelemetryWriter`**：`target` 默认 `?` → `unknown`；攻击者未知（环境伤害/解析失败）时窗口重要性 CRITICAL →
+  NORMAL，避免误报"被谁打了"。
 - 效果：真机 `{"target":"pillager"}` 替代 `{"target":"?"}`；玩家射箭显示玩家名。
 
 ### 问题 6：HMCL `--quickPlaySingleplayer` 凭证死结的"假死结→真通"后续
 
-- 复盘：第九题判定"token 过期无法自动化"是当时结论。后尝试路径：
-  1. `--check-token` 在 `run_e2e_test.py` 加早退——已实施；
-  2. 用户用 `我是启动器.exe` 在 GUI 启动一次游戏，让 HMCL 自动把新 `accessToken` 写到 `hmcl.json`；
-  3. 之后再跑 `--quick-play`，游戏**正常进世界**，进 e2e 自动测试。
+- 复盘：第九个问题中对“token 过期，无法自动化”的判断是当时的结论。后尝试路径：
+    1. `--check-token` 在 `run_e2e_test.py` 加早退——已实施；
+    2. 用户用 `我是启动器.exe` 在 GUI 启动一次游戏，让 HMCL 自动把新 `accessToken` 写到 `hmcl.json`；
+    3. 之后再跑 `--quick-play`，游戏**正常进世界**，进 e2e 自动测试。
 - 这印证了"自动化外部依赖要在边界处守门"的原则：先把守卫加了 + 提供了人工恢复路径（一次 GUI 登录），后续才能无人值守。
 - **教训**：
-  1. **"死结"判定要先穷尽系统自带恢复路径**——HMCL 不是"不刷新 token"，而是只通过 GUI 自带的登录路径刷新（启动器 = 官方维护的 OAuth 客户端）。CLI 调用走的是另一条路。
-  2. **"凭证在文件系统里""能人工让它有效"是"半死结"**——加个 GUI 一次性恢复 + 持久化 = 后续所有轮次都跑通。
+    1. **"死结"判定要先穷尽系统自带恢复路径**——HMCL 不是"不刷新 token"，而是只通过 GUI 自带的登录路径刷新（启动器 = 官方维护的
+       OAuth 客户端）。CLI 调用走的是另一条路。
+    2. **"凭证在文件系统里""能人工让它有效"是"半死结"**——加个 GUI 一次性恢复 + 持久化 = 后续所有轮次都跑通。
 
 ### 问题 7：`run_e2e_test.py` 子进程被 bash 回收
 
-- **现象**：用 `cmd /c start` / `nohup &` 启游戏后立刻退出 bash 调用 → Python 进程退出时把游戏 child 也带走了；但如果主调用不退出又会撞 timeout。
+- **现象**：用 `cmd /c start` / `nohup &` 启游戏后立刻退出 bash 调用 → Python 进程退出时把游戏 child 也带走了；但如果主调用不退出又会撞
+  timeout。
 - **根因**：Python `subprocess.Popen` 默认 `start_new_session=False`（POSIX）/ 共享 job object（Windows）。
-- **解决**：用 `subprocess.Popen(..., creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP, close_fds=True)`（仅 Windows），游戏脱离当前 job，独立运行；脚本主进程 sleep 轮询直到游戏退出 / timeout。
+- **解决**：用
+  `subprocess.Popen(..., creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP, close_fds=True)`
+  （仅 Windows），游戏脱离当前 job，独立运行；脚本主进程 sleep 轮询直到游戏退出 / timeout。
 - **教训**：**长生命周期的 child 必须 DETACHED**——任何"先启动再等结果"的脚本模式，child 脱离了父 job/会话才能稳定。
 
 ### 问题 8：e2e 脚本必须同一前台 Python 调用跑完
 
 - **现象**：把 e2e 拆成"启动游戏 → 等游戏 → 读日志" 多个 bash 调用，因游戏写在第一个 bash 的子进程组里、第一个调用结束后游戏被回收。
-- **解决**：整个 e2e 写入**同一个 `python tools/run_e2e_test.py …`** 调用里，child DETACHED 启动游戏后脚本继续 sleep 轮询，`present_files` 报告。
-- **教训**：**长跑脚本不要试图"分阶段"**——你的 120s 看似够，但游戏加载+进世界+ AutoTest 14 条+4 窗口+WS 全闭环，realistic 是 3~5min，单次调用 5min 是合理上限（撞 timeout 再说）。
+- **解决**：整个 e2e 写入**同一个 `python tools/run_e2e_test.py …`** 调用里，child DETACHED 启动游戏后脚本继续 sleep 轮询，
+  `present_files` 报告。
+- **教训**：**长跑脚本不要试图"分阶段"**——你的 120s 看似够，但游戏加载+进世界+ AutoTest 14 条+4 窗口+WS 全闭环，realistic 是
+  3~5min，单次调用 5min 是合理上限（撞 timeout 再说）。
 
 ### 经验沉淀
 
-- **真机联调五件套**：① 临时把窗口尺寸压小到 854×480（CI 友好）；② `--quick-play` 直接进世界；③ `autotest.json` 写代码层测试；④ `--check-token` 守门；⑤ `run_e2e_test.py` 一键串联。任意一环缺失都会回到"手动跑游戏贴日志"的低效循环。
-- **mod 自动化测试的两条独立路径**：代码层（`MaidAutoTest`）和真机层（`run_e2e_test.py`）。前者测**逻辑**，后者测**集成**——例如 WS 心跳、感知事件、桌宠渲染三者只有在真机层才能一起验。
-- **协议设计的"沉默"**：pong/heartbeat/ack 一类消息必须**显式识别但显式忽略**，否则会被当成"未知消息"刷日志。让协议 parser 输出"已识别"vs"未识别"两类结果，调试时一眼能看出协议版本/客户端兼容问题。
+- **真机联调五件套**：① 临时把窗口尺寸压小到 854×480（CI 友好）；② `--quick-play` 直接进世界；③ `autotest.json` 写代码层测试；④
+  `--check-token` 守门；⑤ `run_e2e_test.py` 一键串联。任意一环缺失都会回到"手动跑游戏贴日志"的低效循环。
+- **mod 自动化测试的两条独立路径**：代码层（`MaidAutoTest`）和真机层（`run_e2e_test.py`）。前者测**逻辑**，后者测**集成**——例如
+  WS 心跳、感知事件、桌宠渲染三者只有在真机层才能一起验。
+- **协议设计的"沉默"**：pong/heartbeat/ack 一类消息必须**显式识别但显式忽略**，否则会被当成"未知消息"刷日志。让协议 parser
+  输出"已识别"vs"未识别"两类结果，调试时一眼能看出协议版本/客户端兼容问题。
 
 ---
 
@@ -485,7 +586,8 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 - **现象**：桌宠连续发 `chestopen` → `chestput`，第二条回执报「女仆还没打开箱子（或箱子不在了），先 chestopen」。
 - **根因**：`chestopen` 回执 `state=running` 只说明**任务已入队**；真正把容器记为「已打开」
   （`maid.setOpenedContainer(target)`）是在 `ChestOpenTask.tick()` 里，女仆得先走到箱子旁（若干 tick）。
-- **解决**：调用方发完 `chestopen` 后**轮询 `status` 直到当前任务不再是 `chestopen`**（桌宠侧 `MaidLink.wait_task_done`，超时 4s）。
+- **解决**：调用方发完 `chestopen` 后**轮询 `status` 直到当前任务不再是 `chestopen`**（桌宠侧 `MaidLink.wait_task_done`，超时
+  4s）。
   模组侧不改（异步任务本身没错）。
 - **教训**：**「受理」与「完成」必须能被调用方区分**。协议里 `command_result.state` 已有
   `running/done/failed/cancelled`，但调用方往往只判断 `ok`；有前置依赖的指令组合，必须等 `done`。
@@ -495,12 +597,12 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 - **现象**：需要「把头盔戴到头部」「丢掉背包里的铁锭」「（用指定方块）在那边放一个」，
   但模组这几个指令的语义是「对**主手**做动作」，且不接受目标槽位/目标物品参数。
 - **决策**：**不改模组**，由调用方用已有的 `transfer` 组合补齐：
-  | 自然语言 | 组合方案 |
-  |---|---|
-  | 把头盔戴上 | `transfer(from=inv:<头盔格>, to=head)` |
-  | 丢掉背包里的铁锭 | `transfer(from=inv:<铁锭格>, to=world:<女仆坐标>)` |
-  | 在那边放个方块 | 先确保主手是目标方块（必要时先 `transfer` 到 mainhand），再 `place` |
-  | 丢出/穿上到具体槽位 | 同上，全部落到 `transfer` |
+  | 自然语言            | 组合方案                                                            |
+  |---------------------|---------------------------------------------------------------------|
+  | 把头盔戴上          | `transfer(from=inv:<头盔格>, to=head)`                              |
+  | 丢掉背包里的铁锭    | `transfer(from=inv:<铁锭格>, to=world:<女仆坐标>)`                  |
+  | 在那边放个方块      | 先确保主手是目标方块（必要时先 `transfer` 到 mainhand），再 `place` |
+  | 丢出/穿上到具体槽位 | 同上，全部落到 `transfer`                                           |
 - **理由**：`transfer` 已经是正交能力（`MaidSlot`/`WorldSlot`/`ContainerSlot`），
   再给 `equip`/`drop` 加 slot/item 参数会造成**同一个能力两套入口**，语义更乱。
   这也符合「**能力层正交、指令层薄**」的既有设计。
@@ -520,8 +622,8 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 ### 问题 5：`item_index` 取名踩了两个坑
 
 - **坑 1：`I18n` 是客户端类**。物品中文名只能走客户端语言资源；**专用服务端没有**。
-  → `ItemIndexPayload.build()` 用 `try/catch(Throwable)` 兜住，拿不到就返回 `null`，
-  **不下发该消息**；调用方（桌宠）自动降级为「认得出名字但执行不了」，**不会误执行**。
+  → `ItemIndexPayload.build()` 用 `try/catch(Throwable)` 兜住，拿不到就返回 `null`， **不下发该消息**
+  ；调用方（桌宠）自动降级为「认得出名字但执行不了」，**不会误执行**。
 - **坑 2：未翻译时会返回 key 本身**（`I18n.get("item.minecraft.x")` 拿到 `item.minecraft.x`）。
   → 判定 `name.equals(descId)` 就跳过，避免把一堆 key 当物品名发出去。
 - 附带：按名字排序输出（避免每次下发顺序抖动，便于比对/缓存）；上限 4096 条 + 名字长度 ≤16（防极端整合包撑爆单条 WS 消息）。
@@ -533,8 +635,8 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 - **候选配方**：优先用物品自带的 `DataComponents.RECIPES`（此时**产物必然是该物品**，无需校验）；
   兜底全量扫描时，用一个「给每个 ingredient 填第一个候选项的 3×3 假网格」`matches` + `assemble` 验证产物
   （`Recipe` 在 26.2 没有 `getResultItem`，只能这样)。
-- **tag 类配方**（「任意木板×3」）：`Ingredient.items()` 列出候选 id（上限 16 个）→ 背包现有量按
-  **所有候选项匹配总和**统计，而不是只认第一个候选——否则「有云杉木板但没橡木木板」会被误判为缺料。
+- **tag 类配方**（「任意木板×3」）：`Ingredient.items()` 列出候选 id（上限 16 个）→ 背包现有量按 **所有候选项匹配总和**
+  统计，而不是只认第一个候选——否则「有云杉木板但没橡木木板」会被误判为缺料。
 - **多产出配方**（如 1 木 → 4 木板）：返回 `out_per_craft`，`need` 按 `ceil(count / out_per_craft)` 折算，
   避免「要 4 个木板却说缺 4 个原木」。
 - **教训**：**干跑查询必须和真执行走同一条配方解析路径**，否则会出现「预检说够、真做却失败」的假阳性。
@@ -612,9 +714,9 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 - **根因**：`PerceptionModule` 有 `READY_TICKS=40` 约束（未到完整 tick 前 `current()` 返回 null），
   女仆刚召唤/桌宠刚重连时 WS 首帧全量未到 → 桌宠 `inventory_slots()` 拿空 → 反查失败。
 - **修复**（双层）：
-  1. 模组：`PerceptionModule.snapshotNow()` 强制所有通道立即采样 + `MaidWsClient` 首次注册通道时
-     `pushFullSnapshot`（重置 diff、立即发 `full=true` 全量）——女仆一出现桌宠就有完整背包。
-  2. 桌宠：`_inventory_ready()` 感知未就绪时提示「感知尚未就绪」而非误导性的「背包里没有」。
+    1. 模组：`PerceptionModule.snapshotNow()` 强制所有通道立即采样 + `MaidWsClient` 首次注册通道时
+       `pushFullSnapshot`（重置 diff、立即发 `full=true` 全量）——女仆一出现桌宠就有完整背包。
+    2. 桌宠：`_inventory_ready()` 感知未就绪时提示「感知尚未就绪」而非误导性的「背包里没有」。
 - **教训**：任何「按状态反查」的逻辑都要考虑**感知首帧窗口期**；WS 首帧全量的时序是
   「连接 → 握手 → 感知就绪」三阶段，外部调用方不能假定拿到时感知一定就绪。
 
@@ -664,11 +766,11 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 
 - **现象**：日志里 `StraightNav 降级 -> ...` 正常触发（createPath 里的 setTarget 生效），
   但之后**没有任何**降级日志（挖/搭/移动/到达全无），女仆站住不动。
-- **排查**：逐层怀疑（navigation.tick 没调？isActive false？），最后通读文件发现——
-  **`MaidGroundPathNavigation` 里根本没有 `tick()` 覆写**！某次用 write 重写整个文件（加 reachesTarget 那轮）时，
+- **排查**：逐层怀疑（navigation.tick 没调？isActive false？），最后通读文件发现—— **`MaidGroundPathNavigation` 里根本没有
+  `tick()` 覆写**！某次用 write 重写整个文件（加 reachesTarget 那轮）时，
   把之前写好的 `tick()` 覆写弄丢了。原版 `PathNavigation.tick()` 被调用（path=null 啥也不做）→ 直线模式从不驱动。
 - **修复**：加回 `tick()` 覆写（active 时调 straightNav.tick）。
-- **教训**：**用 write 整体重写文件时，必须对照旧文件核对所有覆写方法是否保留**。这种"整文件重写丢方法"的 bug
+- **教训**：**用 write 整体重写文件时，必须对照旧文件核对所有覆写方法是否保留**。这种“重写整个文件时丢失方法”的 bug
   日志完全看不出来（降级触发正常，只是驱动层没了），极易浪费大量排查时间。
 
 ### 问题 2：卡在 1 格台阶/沟里出不来 —— MoveControl 跳跃判定条件苛刻
@@ -740,8 +842,8 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 
 ## 2026-09-16：挖掘工具切换 / 挥动动画 / 挖掘速度 / 部署验证（重要，含检讨）
 
-给寻路降级/挖矿加"自动换最优工具 + 玩家一致挖掘"时连踩多个坑，
-**最严重的是"改了代码但没打包部署，用户一直测旧 jar"，导致对着不存在的 bug 反编译几个小时**。
+给寻路降级/挖矿加"自动换最优工具 + 玩家一致挖掘"时连踩多个坑， **最严重的是"改了代码但没打包部署，用户一直测旧 jar"
+，导致对着不存在的 bug 反编译几个小时**。
 
 ### 问题 1（最严重）：改了代码只 compileJava 没 build，用户测试的一直是旧 jar
 
@@ -754,19 +856,21 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
   `equipBestTool` / `Render 客户端主手` 诊断行。
 - **解决**：`gradlew build` 打包 → 备份旧 jar（`.bak_YYYYMMDD`）→ copy 新 jar 到 mods → 立即生效。
 - **教训**：
-  1. **排查"改了没效果"第一步永远是确认部署的 jar 是否含新代码**——对比 `build/libs` 与 mods 目录 jar 的时间戳，
-     或用 python 搜 jar 内 class 里的新字符串（如 `equipBestTool`）。
-  2. 本文件 2026-09-07 已写"先确认代码真的生效了再排查逻辑"，这次又犯——对着服务端同步链反复验证，
-     而用户那边根本没运行到新代码。**开发流程必须闭环：改码 → compileJava → `build` 打包 → 部署 → 真机测**。
-  3. 新增可观测日志（`equipBestTool` / `Render 客户端主手`）是为了定位"哪一环断了"，但前提是用户跑的是含这些日志的 jar。
+    1. **排查"改了没效果"第一步永远是确认部署的 jar 是否含新代码**——对比 `build/libs` 与 mods 目录 jar 的时间戳，
+       或用 python 搜 jar 内 class 里的新字符串（如 `equipBestTool`）。
+    2. 本文件 2026-09-07 已写"先确认代码真的生效了再排查逻辑"，这次又犯——对着服务端同步链反复验证，
+       而用户那边根本没运行到新代码。**开发流程必须闭环：改码 → compileJava → `build` 打包 → 部署 → 真机测**。
+    3. 新增可观测日志（`equipBestTool` / `Render 客户端主手`）是为了定位"哪一环断了"，但前提是用户跑的是含这些日志的 jar。
 
 ### 问题 2：女仆挖掘/攻击没有挥动动画（26.2 `updateSwingTime` 只在 Monster/Player 调用）
 
 - **现象**：服务端每 tick 调 `swing()` 广播 `ClientboundAnimatePacket`，客户端却手臂完全不动。
 - **排查**：反编译确认 swing 广播逻辑正常（客户端会 `setSwinging(true)`）；全 jar 搜 `updateSwingTime` 引用，
-  只有 `Monster`/`RemotePlayer`/`Player`/`Mannequin`/`LivingEntity`（仅定义）——**`Mob`/`Animal`/`TamableAnimal` 都不调用**。
+  只有 `Monster`/`RemotePlayer`/`Player`/`Mannequin`/`LivingEntity`（仅定义）——**`Mob`/`Animal`/`TamableAnimal`
+  都不调用**。
 - **根因**：26.2 中推进挥动动画的是 `LivingEntity.updateSwingTime()`（维护 `swinging/swingTime/attackAnim`，
-  渲染层 `HumanoidModel.setupAnim` 靠 `state.attackTime` 摆动手臂），它**只在 `Monster`/`Player` 子类的 `aiStep` 开头被调用**。
+  渲染层 `HumanoidModel.setupAnim` 靠 `state.attackTime` 摆动手臂），它**只在 `Monster`/`Player` 子类的 `aiStep`
+  开头被调用**。
   女仆继承 `TamableAnimal → Animal → Mob`（非 Monster/Player）→ `attackAnim` 恒 0 → 挥动动画永远不显示。
   "服务端广播了动画包" ≠ "客户端动画被推进"。
 - **解决**：`SmartMaidEntity` 客户端 `aiStep` 手动复制原版 `updateSwingTime` 逻辑推进
@@ -853,8 +957,8 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 ### 问题 5：后退很慢 —— STRAFE 的 `zza` 取**原始** `forward` 值
 
 - **现象**：真机反馈「女仆后退得很慢」。
-- **根因**：STRAFE 分支 `setSpeed(speedModifier × MOVEMENT_SPEED)`，但 `setZza(strafeForwards)` 用的是
-  **原始 forward**；而 `Entity.getInputVector` 对长度 <1 的向量**不归一化**，会再按 speed 缩放 →
+- **根因**：STRAFE 分支 `setSpeed(speedModifier × MOVEMENT_SPEED)`，但 `setZza(strafeForwards)` 用的是 **原始 forward**；而
+  `Entity.getInputVector` 对长度 <1 的向量**不归一化**，会再按 speed 缩放 →
   我按距离误差给的 `forward = error*0.5`（常是小负数）→ 实际后退只有满速的 ~1/4。
 - **解决**：后退用满幅 `forward = -1`（前进仍缓动）。
 - **教训**：**strafe 的 `forward` 是方向幅度**（不是纯比例），后退必须给满幅。
@@ -953,16 +1057,17 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
   净映射为 `world_y = 1.501 - model_y`：脚底（model y=24px=1.5）→ 0，髋（12px=0.75）→ **0.75 格**。
   → **下沉量 = 髋高 = 0.75 格**，与支撑面高度无关（脚底永远在被站立的表面上）。
 - **修复**：
-  1. `SmartMaidRenderer#setupRotations` 覆写，坐下时 `poseStack.translate(0, -0.75, 0)`。
-     ⚠️ **位置选择是关键**：`LivingEntityRenderer.submit` 的顺序是
-     `scale(state.scale)` → **`setupRotations`** → `scale(-1,-1,1)` → `scale(state)` → `translate(0,-1.501,0)` → `submitModel`。
-     只有 `setupRotations` 里 **Y 轴还是世界的"上"**（翻转之前），平移方向不会撞上"模型 y 向下"的约定；
-     写在 `scale()`/模型里都要反推符号。
-  2. `SmartMaidModel.setupAnim`：坐下时把双腿 `xRot` 摆平到 **-π/2**（原版骑乘姿势带约 9° 下倾，
-     不摆平的话脚会往支撑面里插 0.12 格）。
-  3. 名字标签（`EntityRenderState.nameTagAttachment`）同步下沉同样的量，否则坐姿时头顶与名字空出一大截。
-  4. 顺手修 `state.isPassenger = state.sitting` 的旧写法——它会**覆盖真实骑乘状态**；
-     改成只在坐下时置 true（女仆真的坐船时保持原版骑乘）。
+    1. `SmartMaidRenderer#setupRotations` 覆写，坐下时 `poseStack.translate(0, -0.75, 0)`。
+       ⚠️ **位置选择是关键**：`LivingEntityRenderer.submit` 的顺序是
+       `scale(state.scale)` → **`setupRotations`** → `scale(-1,-1,1)` → `scale(state)` → `translate(0,-1.501,0)` →
+       `submitModel`。
+       只有 `setupRotations` 里 **Y 轴还是世界的"上"**（翻转之前），平移方向不会撞上"模型 y 向下"的约定；
+       写在 `scale()`/模型里都要反推符号。
+    2. `SmartMaidModel.setupAnim`：坐下时把双腿 `xRot` 摆平到 **-π/2**（原版骑乘姿势带约 9° 下倾，
+       不摆平的话脚会往支撑面里插 0.12 格）。
+    3. 名字标签（`EntityRenderState.nameTagAttachment`）同步下沉同样的量，否则坐姿时头顶与名字空出一大截。
+    4. 顺手修 `state.isPassenger = state.sitting` 的旧写法——它会**覆盖真实骑乘状态**；
+       改成只在坐下时置 true（女仆真的坐船时保持原版骑乘）。
 - **支撑面坐标**：`SmartMaidEntity#snapToSupportForSit()` 从脚下向下最多 3 格找
   `getCollisionShape().max(Y) + pos.y` 的最近顶面（且不高于当前脚下），坐下瞬间把 y 吸附过去——
   地面 / **半砖顶 0.5** / 台阶顶 1.0 / 地毯都成立；脚下 3 格内无支撑面就不动，交给重力。
@@ -971,29 +1076,29 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 
 - **现象**：坐下后女仆还能走动。
 - **根因**：**没有任何一处统一拦住坐下时的移动**。逐条查出的漏点：
-  - `AiAwareRandomStrollGoal.canUse()` 只查 `isAiBusy()`，不查坐姿 → 坐下后照样触发随机散步
-    （且没覆写 `canContinueToUse`，坐下瞬间正在散步也不会停）；
-  - `MaidGroundPathNavigation.tick()` 的直线降级分支（`straightNav`）不查坐姿 → 降级期间坐下继续被驱动；
-  - `MaidActionExecutor.tick()`（跳跃执行器）不查坐姿；
-  - `applyTeleportFallback()`：主人走远 >32 格会把坐着的女仆**传送**过去；
-  - 残余路径 / `MoveControl` 操作 / 击退 / 水流推挤造成的滑动。
+    - `AiAwareRandomStrollGoal.canUse()` 只查 `isAiBusy()`，不查坐姿 → 坐下后照样触发随机散步
+      （且没覆写 `canContinueToUse`，坐下瞬间正在散步也不会停）；
+    - `MaidGroundPathNavigation.tick()` 的直线降级分支（`straightNav`）不查坐姿 → 降级期间坐下继续被驱动；
+    - `MaidActionExecutor.tick()`（跳跃执行器）不查坐姿；
+    - `applyTeleportFallback()`：主人走远 >32 格会把坐着的女仆**传送**过去；
+    - 残余路径 / `MoveControl` 操作 / 击退 / 水流推挤造成的滑动。
 - **修复（服务端逐层拦住）**：
-  - `setOrderedToSit` 收敛为**唯一入口**：姿态 + 落地吸附 + 清目标 + `applySitLock()`；
-    `mobInteract` / `/maidtasks sit` / `/maidai sit` / GUI 网络包里的重复逻辑全部删掉
-    （原来 GUI 那条入口连 `setPose` 都没有 → 现在统一）。
-  - `applySitLock()`（每 tick，坐下时）：`navigation.stop()` + `moveControl.setWait()` +
-    `setXxa/setZza(0)` + 清水平速度（**保留 y**，让重力正常压在地面/半砖上）。
-    只清水平分量是刻意的：击退、水流、残余路径都是水平位移。
-  - `AiAwareRandomStrollGoal`：`canUse` + `canContinueToUse` 都加坐姿判断。
-  - `MaidGroundPathNavigation`：`tick()` 坐下时清直线降级并 `stop()`，两个 `createPath()` 坐下直接返回 `null`
-    （不产生任何新路径，也顺带堵住降级激活）。
-  - `MaidStraightNav.tick()` / `MaidActionExecutor.tick()`：坐下直接结束/空转。
-  - `applyTeleportFallback()`：坐下直接返回（"坐下 = 原地待命/看家"，主子走远也留在原地）。
+    - `setOrderedToSit` 收敛为**唯一入口**：姿态 + 落地吸附 + 清目标 + `applySitLock()`；
+      `mobInteract` / `/maidtasks sit` / `/maidai sit` / GUI 网络包里的重复逻辑全部删掉
+      （原来 GUI 那条入口连 `setPose` 都没有 → 现在统一）。
+    - `applySitLock()`（每 tick，坐下时）：`navigation.stop()` + `moveControl.setWait()` +
+      `setXxa/setZza(0)` + 清水平速度（**保留 y**，让重力正常压在地面/半砖上）。
+      只清水平分量是刻意的：击退、水流、残余路径都是水平位移。
+    - `AiAwareRandomStrollGoal`：`canUse` + `canContinueToUse` 都加坐姿判断。
+    - `MaidGroundPathNavigation`：`tick()` 坐下时清直线降级并 `stop()`，两个 `createPath()` 坐下直接返回 `null`
+      （不产生任何新路径，也顺带堵住降级激活）。
+    - `MaidStraightNav.tick()` / `MaidActionExecutor.tick()`：坐下直接结束/空转。
+    - `applyTeleportFallback()`：坐下直接返回（"坐下 = 原地待命/看家"，主子走远也留在原地）。
 - **教训**：
-  1. **"坐下不动"必须逐层拦**：Goal 层（散步/跟随/战斗）、导航层（原版 + 直线降级）、执行器层（跳跃）、
-     速度层（残余速度/击退/水流）、兜底层（传送）——只堵一处就会从别处漏出来。
-  2. **渲染用的位姿平移，先看清 `submit` 里的调用顺序**再决定挂哪个钩子；错一个阶段符号就反了。
-  3. **模型几何常量（髋高 12px = 0.75 格）可以从反编译里直接读出来**，比"调参试出来"可靠。
+    1. **"坐下不动"必须逐层拦**：Goal 层（散步/跟随/战斗）、导航层（原版 + 直线降级）、执行器层（跳跃）、
+       速度层（残余速度/击退/水流）、兜底层（传送）——只堵一处就会从别处漏出来。
+    2. **渲染用的位姿平移，先看清 `submit` 里的调用顺序**再决定挂哪个钩子；错一个阶段符号就反了。
+    3. **模型几何常量（髋高 12px = 0.75 格）可以从反编译里直接读出来**，比"调参试出来"可靠。
 
 ---
 
@@ -1004,25 +1109,28 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 ### 问题 1：盾牌"总是挡不住箭"——原版 `blockDelayTicks` 5 tick 前摇（根因）
 
 - **现象**：女仆打骷髅频繁中箭，盾在副手却从不生效。
-- **诊断手段**：加三类日志——`CombatShield`（每 10t 打印箭矢实体：位置/速度/距女仆/射手/预测命中 tick + 女仆朝向/举盾状态）、`Combat block`（举盾/收盾的方向 yaw/headRot 与时间 tick/holdTicks）、`Combat hit-by-arrow`（中箭时箭矢实体/射手/方向夹角 `facingErr`/`blockingBefore`/`usingTicks`）。
-- **日志结论**：5 次中箭全部 `blockingBefore=false`、`isBlocking=false`、`usingTicks=0~2`；方向无问题（`facingErr` 均在 -30°~+40°）。即**女仆确实举盾了，但原版判定"举盾中"还没成立**。
+- **诊断手段**：加三类日志——`CombatShield`（每 10t 打印箭矢实体：位置/速度/距女仆/射手/预测命中 tick + 女仆朝向/举盾状态）、
+  `Combat block`（举盾/收盾的方向 yaw/headRot 与时间 tick/holdTicks）、`Combat hit-by-arrow`（中箭时箭矢实体/射手/方向夹角
+  `facingErr`/`blockingBefore`/`usingTicks`）。
+- **日志结论**：5 次中箭全部 `blockingBefore=false`、`isBlocking=false`、`usingTicks=0~2`；方向无问题（`facingErr` 均在 -30°~
+  +40°）。即**女仆确实举盾了，但原版判定"举盾中"还没成立**。
 - **根因（反编译确认）**：`LivingEntity.getItemBlockingWith()` 要求
   `useDuration - useItemRemaining >= BlocksAttacks.blockDelayTicks()`（盾 = 0.25s = 5 tick）才返回盾 →
   `isBlocking()` 为 true。这是给"玩家按住右键常驻举盾"设计的平衡（防瞬发格挡）；而骷髅贴脸射箭
   （女仆 3 格近战，箭 1~2 tick 就命中），威胁检测到→举盾→5 tick 延迟还没过，箭已中身。
 - **修复**：覆写 `SmartMaidEntity.getItemBlockingWith()`——只要 `isUsingItem()` 且手上物品含
   `BLOCKS_ATTACKS` 即认作举盾，**去掉 5 tick 前摇当场生效**（`isBlocking()` 与 `applyItemBlocking`
-  共用此方法，一处覆写全链路生效）。角度判定（`resolveBlockedDamage` 的 ~100° 扇形）保留，只挡正面。
-  **用户拍板：女仆是 PVE 高手、反应极快，不受原版玩家平衡性前摇限制**。
+  共用此方法，一处覆写全链路生效）。角度判定（`resolveBlockedDamage` 的 ~100° 扇形）保留，只挡正面。 **用户拍板：女仆是 PVE
+  高手、反应极快，不受原版玩家平衡性前摇限制**。
 - **验证**：修复后 14 次中箭全部 `blockingBefore=true`、`isBlocking=true`；盾挡箭 = **100% 完全挡下**
   （原版盾挡箭矢非穿透直接弹开不掉血，不是按比例减免——**设计常识纠正**）。日志 `dmg` 是格挡前的原始值，
   不能凭它判断"漏箭"；要看实际扣血需打 `amount - applyItemBlocking(...)`。
 - **教训**：
-  1. **玩家式机制的"平衡前摇"对 AI 是硬门槛**：玩家靠"常驻按住"绕过前摇，AI"检测到再起手"永远来不及——
-     检测驱动的反应型动作，要检查原版是否有 `blockDelayTicks` 这类生效延迟，有就该覆写掉。
-  2. **诊断日志要打"判定前状态"**（`blockingBefore`）+ **带时间/方向**（tick、facingErr），
-     才能区分"没举盾 / 举了但原版不认 / 方向不对"三种情况。
-  3. **`hurtServer` 入口的 `amount` 是格挡前原始伤害**：不要拿它判断"是否被挡下"，挡下后实际扣血是 0。
+    1. **玩家式机制的"平衡前摇"对 AI 是硬门槛**：玩家靠"常驻按住"绕过前摇，AI"检测到再起手"永远来不及——
+       检测驱动的反应型动作，要检查原版是否有 `blockDelayTicks` 这类生效延迟，有就该覆写掉。
+    2. **诊断日志要打"判定前状态"**（`blockingBefore`）+ **带时间/方向**（tick、facingErr），
+       才能区分"没举盾 / 举了但原版不认 / 方向不对"三种情况。
+    3. **`hurtServer` 入口的 `amount` 是格挡前原始伤害**：不要拿它判断"是否被挡下"，挡下后实际扣血是 0。
 
 ### 问题 2：近战死区上限 3.3 导致"够不着打不到"
 
@@ -1052,10 +1160,11 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
   也 `required=True`、`taxonomy` mine 策略 `abs_pos`（长任务必须绝对坐标），AI 只能反问坐标。
 - **设计决策（用户拍板）**：**女仆应该自己检测周围的矿物**。`mine` 不给 `pos` 时以女仆脚下为中心自动探测。
 - **修复（模组+桌宠双侧）**：
-  - 模组 `MaidAIBridge.mine`：pos 可选，缺省 `maid.blockPosition()`；`/maidtasks mine` 加无参重载（`ownerMaidPos`）。
-  - 探测范围：**水平 12 格 / 垂直 8 格**（`MineTask.Y_RANGE=8`）——用户说"8 格太小 12 合理，y 轴可以小一些 8 格"。
-  - 桌宠 `mod_contract.mine.pos` 改可选 + range 默认 12；`taxonomy.mine` `abs_pos→pos`；`router` mine 无 pos 时不发 pos 参数；
-    prompt 说明"挖矿不用给坐标，女仆自动找"。
+    - 模组 `MaidAIBridge.mine`：pos 可选，缺省 `maid.blockPosition()`；`/maidtasks mine` 加无参重载（`ownerMaidPos`）。
+    - 探测范围：**水平 12 格 / 垂直 8 格**（`MineTask.Y_RANGE=8`）——用户说"8 格太小 12 合理，y 轴可以小一些 8 格"。
+    - 桌宠 `mod_contract.mine.pos` 改可选 + range 默认 12；`taxonomy.mine` `abs_pos→pos`；`router` mine 无 pos 时不发 pos
+      参数；
+      prompt 说明"挖矿不用给坐标，女仆自动找"。
 - **教训**：**"女仆=玩家"意味着很多指令的定位语义该是"自己找/自己判断"，不是等用户喂坐标**；
   指令的可选参数设计要贴合「AI 能说人话指挥」——坐标类长任务默认"以自己为中心自动找"更自然。
 
@@ -1081,9 +1190,9 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
   ② **游戏事件线**（`game_handler._handle_game_windows`，`deskpet/` 窗口事件→AI 互动播报→`_on_game_ready` speak 到女仆）。
   玩家对话女仆后 12~14 秒，游戏事件线也调 AI 生成"嗯，是我刚说的"这类回复并 speak 到女仆，观感="一条消息多条回复"。
 - **修复（双层静默）**：
-  - `maid_handler.recently_in_chat()`：记录最近对话时间，窗口 **6s → 120s**（对话后 2 分钟内算"正对话"）；
-  - `game_handler._handle_game_windows`：女仆在线且 `recently_in_chat()` → 事件线**整体静默**（不调 AI/不播报/清累积）；
-  - `modes._on_game_ready`：对话期间不 `speak` 到女仆（只显示桌宠气泡）。
+    - `maid_handler.recently_in_chat()`：记录最近对话时间，窗口 **6s → 120s**（对话后 2 分钟内算"正对话"）；
+    - `game_handler._handle_game_windows`：女仆在线且 `recently_in_chat()` → 事件线**整体静默**（不调 AI/不播报/清累积）；
+    - `modes._on_game_ready`：对话期间不 `speak` 到女仆（只显示桌宠气泡）。
 - **教训**：**"玩家在跟 X 说话"是一个需要全局广播的状态**——所有可能插嘴的链路（游戏事件/AI 决策/播报）
   都要先问"现在是不是玩家正在跟对象对话"。只有一层抑制挡不住，要"事件源不生成 + 出口不 emit"双层。
 - **顺带**：感知事件气泡默认关（`MAID_EVENT_BUBBLE=False`），"只播 AI 聊天"——发现敌人/被打/任务启停不再刷气泡。
@@ -1103,9 +1212,9 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 - **根因**：`parse_ai_output`/`strip_action_tags` 只剥半角动作标签 `[`/`{`，**不剥全角 `【指令】`**；
   千问流式 `_run_stream` 不接 DSL（已知缺口），增量直接进气泡 + `_maybe_stream_speak` 逐句朗读——**指令在剥离前就被读了**。
 - **修复（显示+语音双层兜底）**：
-  - `ai/client._DSL_RE`：`parse_ai_output`/`strip_action_tags` 同时剥 `【…】`；
-  - `chat._on_delta`/`_maybe_stream_speak`/`_on_reply`：流式朗读入队前剥离；
-  - `bubble._show_ai_bubble`：最底层统一气泡+语音入口兜底剥离（防任何上游漏网）。
+    - `ai/client._DSL_RE`：`parse_ai_output`/`strip_action_tags` 同时剥 `【…】`；
+    - `chat._on_delta`/`_maybe_stream_speak`/`_on_reply`：流式朗读入队前剥离；
+    - `bubble._show_ai_bubble`：最底层统一气泡+语音入口兜底剥离（防任何上游漏网）。
 - **教训**：**流式输出必须"先剥离再入队"**——增量朗读在剥离逻辑之前就会读出来；
   显示和语音要各设一道兜底，因为上游剥离点（DSL 闭环）不是所有后端都走（千问流式已知缺口）。
 
@@ -1222,20 +1331,21 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 
 - **现象**：Mixin 核验工具把"26.3 已删除的类"判成"存在"，漏报了真正会崩的那条。
 - **根因**：`<.minecraft>/libraries` 里躺着 **NeoForge 21.1.51 的 `client-1.21.1-srg.jar`**（HMCL 装的），
-  它含 26.3 已删的 `ItemInHandRenderer` → 整目录建索引把"已删"判成"存在"。
+  它含 26.3 已删的 `ItemInHandRenderer` → 若把整个目录纳入索引，就会误将已删除的类判定为仍然存在。
 - **修复**：**类存在性只信目标版本自己那个 jar**。
 - **教训**：**"某类存在吗"这个问题，答案取决于问的是哪个版本**；索引范围要在工具里写死并注释原因。
 
 ### 坑 5：26.3 **GLFW → SDL**，键盘与鼠标的键值编码**整套都变了**
 
-- **现象 ①**：`Shift + E` 打不开背包 —— 完全没反应，无报错。
-  **现象 ②**：主菜单**能**打开，但**里面点哪都没反应**（极易误判成"二级页打不开"）。
+- **现象 ①**：`Shift + E` 打不开背包 —— 完全没反应，无报错。 **现象 ②**：主菜单**能**打开，但**里面点哪都没反应**
+  （极易误判成"二级页打不开"）。
 - **根因**：26.3 换用 SDL，**键值不是同一套编码**：
   `KEY_E` 69→**8**、`KEY_LSHIFT/RSHIFT` 340/344→**225/229**、**鼠标左键 0→1**（右键 1→3，中键 2→2）。
   工程用 `GLFW.GLFW_KEY_E`（=69）当 scancode 读 → 实际绑到无关键；
   `mouseClicked` 里 `if (event.button() != 0) return;` → **26.3 左键是 1，所有左键被当非左键丢掉**。
 - **证据（字节码级）**：`26.3.jar` 引用 `org/lwjgl/glfw/GLFW` 的类 = **0**，引用 `org/lwjgl/sdl/SDL` = **27**；
-  vanilla `Options` 给 `key.forward` 用 `bipush 26`（`SDL_SCANCODE_W`）；`SDLEventHandler` 直接把 `SDL_MouseButtonEvent.button()` 塞进 `MouseButtonInfo`。
+  vanilla `Options` 给 `key.forward` 用 `bipush 26`（`SDL_SCANCODE_W`）；`SDLEventHandler` 直接把
+  `SDL_MouseButtonEvent.button()` 塞进 `MouseButtonInfo`。
 - **修复**：键盘统一用 **`InputConstants.KEY_*`**（两版**同名**、值各自正确 → **不需要 compat 分支**）；
   鼠标左键走 `MaidCompat.isPrimaryMouseButton(int)`。`Type`（`KEYSYM`→`KEYBOARD`）与 `isKeyDown` 的 `Window` 参数才需要版本分支。
 - **教训**：**"换了底层库"这类变更不会报错，只会"没反应"**。判断依据要看 jar 里到底引了谁，不要看文档。
@@ -1251,7 +1361,8 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 
 - **现象**：自研打包路径产出的 jar 启动报"需要 player_animation_library，但没有安装"——而它其实就躺在包里。
 - **根因**：`src/main/resources/fabric.mod.json` **不含 `jars` 数组**，那是 Loom 打包时按 `include` 配置**注入**的。
-- **修复**：打包逻辑改成解析 JSON、按 `--include-jar` 自动注入 `jars`；并**拿真实 Loom 产物的 `fabric.mod.json` 逐字段对照**（修完零差异）。
+- **修复**：打包逻辑改成解析 JSON、按 `--include-jar` 自动注入 `jars`；并**拿真实 Loom 产物的 `fabric.mod.json`
+  逐字段对照**（修完零差异）。
 - **教训**：**自研打包路径必须与官方产物的元数据逐字段比对**——这类缺失静态三层全查不出，只有真机加载才暴露。
 
 ### 坑 8：第三方库元数据的**版本上界**决定了失败发生在"启动"还是"用到时"
@@ -1260,13 +1371,15 @@ M5 双向链路（感知下行 + 指令上行）+ M-P1 增量 diff 全部通过�
 - **根因**：PAL 元数据写的是 `minecraft: ">=26.2"`（**无上界**），Loader 照单放行；
   而它的 `mixins.json` 是 `required=true` + `injectors.defaultRequire=1` → 注入失败**直接致命**。
 - **修复**：换官方 **1.2.7+mc.26.3**（`minecraft: ">=26.3"`、`fabricloader: ">=0.19.5"`，本机正好对上）。
-  连带发现 1.2.7 把内嵌 mocha 的包名从 `team.unnamed.mocha` 换成 `org.redlance.mocha`（`MochaEngine` → `MolangInterpreter`，纯改名），
+  连带发现 1.2.7 把内嵌 mocha 的包名从 `team.unnamed.mocha` 换成 `org.redlance.mocha`（`MochaEngine` →
+  `MolangInterpreter`，纯改名），
   已加 `compat/MaidAnimCompat.createEngine(...)` 隔离。
 - **教训**：**第三方二进制是版本兼容的硬天花板**；引入前先看它的版本上界与 Mixin 是否 required，
   并**静态核验它的 Mixin 目标与注入点**（`check_mixin_targets.py`）。
 
 ### 方法学总结（本轮最该继承的）
 
-1. **多版本差异以编译器枚举为准**，人工挑类 diff 只能用来预判和解释（本轮人工 diff 漏了 `isKeyDown` 签名与 `FuelValues` 整类删除）。
+1. **多版本差异以编译器枚举为准**，人工挑类 diff 只能用来预判和解释（本轮人工 diff 漏了 `isKeyDown` 签名与 `FuelValues`
+   整类删除）。
 2. **改完必须双向验证**：新版本通过 + **老版本不回归**（本轮 26.2/26.3 各 0 真实错误）。
 3. **接管器的"未验证项"要逐条标出来**，别用"整体通过"盖住分支盲区（如"有女仆的路径"在自动化里根本没走到）。

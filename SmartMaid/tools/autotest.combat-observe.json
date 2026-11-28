@@ -1,0 +1,28 @@
+[
+  { "__comment": "C1 战斗观测：负对照（无目标，engaged 必须为 0）/ 正对照（僵尸，engaged>=1）/ W5 约束（石墙+16 石料，攻击牛期间 dig/place 必须为 0）。" },
+  { "id": "c1.place", "place": [82.5, 66.0, 90.5] },
+  { "id": "c1.clear", "run": "fill 76 66 84 90 70 98 minecraft:air" },
+  { "id": "c1.floor", "run": "fill 76 64 84 90 65 98 minecraft:stone" },
+  { "id": "c1.kill-zombies", "run": "kill @e[type=minecraft:zombie]" },
+
+  { "id": "c1.neg.record", "run": "maidtasks stop", "source": "player", "recordCombat": 40 },
+  { "id": "c1.neg.check", "check": { "combat": { "minSamples": 30, "engagedSamplesMax": 0 } } },
+
+  { "id": "c1.pos.zombie", "run": "summon minecraft:zombie 86 66 90" },
+  { "id": "c1.pos.wait", "wait": 2 },
+  { "id": "c1.pos.record", "run": "maidtasks stop", "source": "player", "recordCombat": 80 },
+  { "id": "c1.pos.check", "check": { "combat": { "minSamples": 60, "engagedSamplesMin": 1 } } },
+
+  { "id": "c1.w5.kill-zombies", "run": "kill @e[type=minecraft:zombie]" },
+  { "id": "c1.w5.clear", "run": "fill 78 66 86 88 69 94 minecraft:air" },
+  { "id": "c1.w5.wall", "run": "fill 84 66 93 84 67 95 minecraft:stone" },
+  { "id": "c1.w5.marker", "run": "setblock 84 66 92 minecraft:stone" },
+  { "id": "c1.w5.clear-inv", "clearInv": true },
+  { "id": "c1.w5.give", "give": { "minecraft:stone": 16 } },
+  { "id": "c1.w5.cow", "run": "summon minecraft:cow 86 66 90" },
+  { "id": "c1.w5.attack", "run": "maidtasks attack 60 cow", "source": "player", "expectResult": 1, "expectTask": "attack", "recordCombat": 80 },
+  { "id": "c1.w5.combat-check", "check": { "combat": { "minSamples": 60, "digAttemptsMax": 0, "placeAttemptsMax": 0 } } },
+  { "id": "c1.w5.wall-check", "check": { "block": { "at": "lastRun", "is": "minecraft:stone" } } },
+  { "id": "c1.w5.stone-check", "check": { "inv": { "item": "minecraft:stone", "is": 16 } } },
+  { "id": "c1.w5.stop", "run": "maidtasks stop", "source": "player", "expectResult": 1 }
+]

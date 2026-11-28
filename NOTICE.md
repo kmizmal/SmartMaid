@@ -1,8 +1,10 @@
 # NOTICE — SmartMaid 第三方组件与素材来源声明
 
-本文件说明 SmartMaid 仓库中各部分内容的来源与适用许可。除下列特别标注的
-文件/目录外，本仓库的全部内容（Java 源码、构建脚本、文档、GUI 贴图、表情
-以外的资源）由 oyxdsg 原创编写，按仓库根目录 `LICENSE`（MIT）分发。
+本文件说明 SmartMaid 仓库各部分的来源与适用许可。`cb9dcaba7538ab018b01a339cd360e2f695b57aa`
+及之前的 oyxdsg 上游 MIT 部分保留原 [MIT 许可与版权声明](LICENSE-MIT-upstream.txt)。自 2026 年 11 月 21 日起，
+kmizmal 维护部分按 [GNU GPL 第 3 版](LICENSE)（`GPL-3.0-only`）分发。
+根目录 LICENSE 为 GPLv3 完整正文（与 GPL-3.0.txt 一致）；上游 MIT 原文单独保存在 LICENSE-MIT-upstream.txt。
+下列第三方内容继续适用原许可，不因新增 GPLv3 声明而变更。
 
 ---
 
@@ -13,9 +15,9 @@
 - **上游许可**：代码部分 MIT，Copyright (c) 2019-2025 tartaric_acid
   （原文见上游仓库 `LICENSE-MIT`）
 - **改编文件**：
-  - `SmartMaid/src/main/java/com/oyxdsg/smartmaid/entity/ai/MaidMoveControl.java`
+  - `SmartMaid/src/main/kotlin/com/oyxdsg/smartmaid/entity/ai/MaidMoveControl.kt`
     （改编自上游 `MaidMoveControl`：移动控制逻辑重构为执行器模式，
-    并加入直线导航降级；约 31 行与上游相同）
+    并加入直线导航降级；迁移前 Java 版记录约 31 行与上游相同）
 - **适用许可**：MIT（与上游一致）。依 MIT 条款保留上述版权与许可声明。
 
 > 说明：SmartMaid 未打包、未引用 TouhouLittleMaid 的任何美术/模型素材，
@@ -26,7 +28,7 @@
 
 - **上游项目**：Emotecraft (emotes) by KosmX
   https://github.com/KosmX/emotes
-- **上游许可**：GPL-3.0（整仓库，含内置表情资产模块 emotesAssets）
+- **上游许可**：GPL-3.0（适用于整个上游仓库，含内置表情资产模块 emotesAssets）
 - **涉及文件**：`SmartMaid/src/main/resources/assets/smartmaid/emotes/`
   下 11 个 JSON 文件（backflip / clap / club_penguin_dance / crying /
   here / kazotsky_kick / palm / point / roblox_potion_dance / twerk /
