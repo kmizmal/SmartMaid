@@ -7,20 +7,17 @@ import com.google.gson.JsonParser
 import com.oyxdsg.smartmaid.SmartMaid
 import com.oyxdsg.smartmaid.entity.SmartMaidEntity
 import com.oyxdsg.smartmaid.entity.ai.MaidDebug
-import com.oyxdsg.smartmaid.entity.ai.bridge.MaidWsClient.OUTBOX
 import com.oyxdsg.smartmaid.entity.ai.perception.MaidPerception
 import com.oyxdsg.smartmaid.entity.ai.perception.PerceptionDiff
 import net.minecraft.network.chat.Component
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.entity.Entity
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.WebSocket
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.CompletionStage
-import java.util.concurrent.ConcurrentLinkedQueue
 import kotlin.math.max
 import kotlin.math.min
 
@@ -73,7 +70,10 @@ object MaidWsClient {
     private val HTTP: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(3))
         .build()
-    private val OUTBOX: Queue<String> = ConcurrentLinkedQueue()
+    private val SESSION = MaidWsSession<SmartMaidEntity>({ it.uuid }) { maid ->
+        val srv = server
+        srv != null && maid.level().server === srv && maid.isAlive && !maid.isRemoved
+    }
 
     /** 每女仆的通道状态（增量 diff 基线 + 上报节流） */
     private val CHANNELS: MutableMap<SmartMaidEntity, Channel> = WeakHashMap()
@@ -81,11 +81,8 @@ object MaidWsClient {
     @Volatile
     private var socket: WebSocket? = null
 
-    @Volatile
-    private var open = false
-
-    @Volatile
-    private var handshaken = false
+    private val open: Boolean get() = SESSION.open
+    private val handshaken: Boolean get() = SESSION.handshaken
     // Connection attempts and world access are confined to the owning server thread.
     private var pending: Listener? = null
     private var wsConfig = BridgeConfig.WsConfig()
@@ -129,6 +126,7 @@ object MaidWsClient {
         server = null
         wsConfig = BridgeConfig.WsConfig()
         CHANNELS.clear()
+        SESSION.endWorld()
         SmartMaid.LOGGER.info("女仆 WebSocket 已停止")
     }
 
@@ -169,9 +167,10 @@ object MaidWsClient {
     /** 女仆侧注册（由 [SmartMaidEntity.aiStep] 调用），并把事件订阅挂到感知模块 */
     @JvmStatic
     fun onMaidTick(maid: SmartMaidEntity) {
-        if (maid.level().isClientSide || !handshaken) {
-            return
-        }
+        val srv = server ?: return
+        if (maid.level().isClientSide || maid.level().server !== srv || !maid.isAlive || maid.isRemoved) return
+        SESSION.observe(maid)
+        if (!handshaken) return
         val first = !CHANNELS.containsKey(maid)
         var channel = CHANNELS[maid]
         if (channel == null) {
@@ -207,12 +206,14 @@ object MaidWsClient {
     /** 玩家在聊天栏对女仆说的话 → 上行给桌宠 AI（服务端线程调用）。 */
     @JvmStatic
     fun sendChat(maid: SmartMaidEntity?, text: String?): Boolean {
-        if (maid == null || text.isNullOrBlank() || !handshaken || !refreshConfig()) return false
-        val out = JsonObject()
-        out.addProperty("type", "chat")
-        out.addProperty("maid", maid.getUUID().toString())
-        out.addProperty("text", text)
-        return enqueue(out)
+        if (maid == null || text.isNullOrBlank()) return false
+        return SESSION.queueChat(::refreshConfig, { socket != null }) {
+            val out = JsonObject()
+            out.addProperty("type", "chat")
+            out.addProperty("maid", maid.getUUID().toString())
+            out.addProperty("text", text)
+            GSON.toJson(out)
+        }
     }
 
     /**
@@ -220,6 +221,11 @@ object MaidWsClient {
      */
     @JvmStatic
     fun notifyPresence(maid: SmartMaidEntity?, online: Boolean) {
+        val srv = server ?: return
+        if (maid != null) {
+            if (maid.level().server !== srv) return
+            if (online) SESSION.observe(maid) else SESSION.forget(maid)
+        }
         // The hello roster covers the period before the socket opens. Preserve transitions
         // after hello, but do not send them until the peer acknowledges the handshake.
         if (!open) return
@@ -280,14 +286,14 @@ object MaidWsClient {
     }
 
     private fun enqueue(message: JsonObject): Boolean =
-        OUTBOX.size < 512 && OUTBOX.offer(GSON.toJson(message))
+        SESSION.enqueue(GSON.toJson(message))
 
     private fun drainOutbox() {
         val ws = socket ?: return
         val srv = server ?: return
         repeat(MAX_SEND_PER_TICK) {
             if (sending?.toCompletableFuture()?.isDone == false) return
-            val text = OUTBOX.poll() ?: return
+            val text = SESSION.pollOutgoing() ?: return
             if (!send(srv, ws, text)) return
         }
     }
@@ -354,12 +360,11 @@ object MaidWsClient {
         }
         pending = null
         socket = ws
-        open = true
-        handshaken = false
+        SESSION.markOpened()
         handshakeDeadline = System.currentTimeMillis() + HANDSHAKE_TIMEOUT_MS
         lastPingAt = 0
         pongLogged = false
-        OUTBOX.clear()
+        seedRoster(srv)
         val hello = JsonObject()
         hello.addProperty("type", "hello")
         hello.addProperty("mod", SmartMaid.MOD_ID)
@@ -379,15 +384,13 @@ object MaidWsClient {
     private fun handleDisconnect(reason: String) {
         val ws = socket
         socket = null
-        open = false
-        handshaken = false
+        SESSION.disconnect()
         sending = null
         val attempt = pending
         pending = null
         attempt?.cancel()
         nextAttemptAt = System.currentTimeMillis() + backoffMs
         backoffMs = min(backoffMs * 2, MAX_BACKOFF_MS)
-        OUTBOX.clear()
         CHANNELS.values.forEach { it.diff.reset(); it.lastPerceptionAt = 0 }
         if (ws != null) {
             MaidDebug.log("桌宠 WebSocket 断开（$reason），稍后重连")
@@ -419,8 +422,7 @@ object MaidWsClient {
                     handleDisconnect("hello_ack rejected")
                     return
                 }
-                if (handshaken) return
-                handshaken = true
+                if (!SESSION.acknowledge()) return
                 backoffMs = INITIAL_BACKOFF_MS
                 // No pre-auth snapshots are generated; preserve presence changes since hello.
                 CHANNELS.values.forEach { it.diff.reset(); it.lastPerceptionAt = 0 }
@@ -570,15 +572,7 @@ object MaidWsClient {
         if (!uuidText.isBlank()) {
             try {
                 val uuid = UUID.fromString(uuidText)
-                val srv = server
-                if (srv != null) {
-                    for (level in srv.allLevels) {
-                        val entity: Entity? = level.getEntity(uuid)
-                        if (entity is SmartMaidEntity) {
-                            return entity
-                        }
-                    }
-                }
+                return alive.firstOrNull { it.uuid == uuid }
             } catch (e: IllegalArgumentException) {
                 MaidDebug.log("桌宠给的 maid id 不是合法 UUID: " + uuidText)
             }
@@ -593,15 +587,12 @@ object MaidWsClient {
         return alive[0]
     }
 
-    private fun aliveMaids(): List<SmartMaidEntity> {
-        val list = ArrayList<SmartMaidEntity>()
-        for (maid in CHANNELS.keys) {
-            if (maid.isAlive && !maid.isRemoved) {
-                list.add(maid)
-            }
-        }
-        return list
+    private fun seedRoster(srv: MinecraftServer) {
+        SESSION.seed(srv.allLevels.asSequence().flatMap { it.allEntities.asSequence() }
+            .filterIsInstance<SmartMaidEntity>())
     }
+
+    private fun aliveMaids(): List<SmartMaidEntity> = SESSION.members()
 
     // ---------- 工具 ----------
 

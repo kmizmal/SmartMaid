@@ -3,6 +3,7 @@ package com.oyxdsg.smartmaid.data
 import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
+import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
@@ -17,19 +18,62 @@ object MaidDataFiles {
 
     internal fun hasData(file: Path): Boolean = Files.isRegularFile(file) && Files.size(file) > 0L
 
-    internal fun recoverySource(dir: Path, legacyDir: Path, owner: UUID): Path? {
+    internal fun selectedSnapshotId(dir: Path, owner: UUID): UUID? {
         val index = selection(dir, owner)
-        if (!Files.notExists(index)) {
-            val maidId = try {
-                UUID.fromString(Files.readString(index).trim())
-            } catch (e: IllegalArgumentException) {
-                throw IOException("Invalid maid snapshot selection", e)
-            }
-            val previous = dataFile(dir, owner, maidId)
-            if (!hasData(previous)) throw IOException("Missing selected maid snapshot: $previous")
-            return previous
+        if (Files.notExists(index)) return null
+        val maidId = try {
+            UUID.fromString(Files.readString(index).trim())
+        } catch (e: IllegalArgumentException) {
+            throw IOException("Invalid maid snapshot selection", e)
         }
-        return legacySource(dir, legacyDir, owner)
+        val selected = dataFile(dir, owner, maidId)
+        if (!hasData(selected)) throw IOException("Missing selected maid snapshot: $selected")
+        return maidId
+    }
+
+    internal fun recoverySource(dir: Path, legacyDir: Path, owner: UUID): Path? =
+        selectedSnapshotId(dir, owner)?.let { dataFile(dir, owner, it) } ?: legacySource(dir, legacyDir, owner)
+
+    internal fun pruneSupersededSnapshots(
+        dir: Path, owner: UUID, selected: UUID, previous: UUID?, protected: Set<UUID>
+    ): List<Path> = pruneSupersededSnapshots(dir, owner, selected, previous, protected) { Files.deleteIfExists(it) }
+
+    internal fun pruneSupersededSnapshots(
+        dir: Path, owner: UUID, selected: UUID, previous: UUID?, protected: Set<UUID>, delete: (Path) -> Unit
+    ): List<Path> {
+        if (selectedSnapshotId(dir, owner) != selected ||
+            !Files.isRegularFile(dataFile(dir, owner, selected), NOFOLLOW_LINKS)
+        ) return emptyList()
+
+        val failed = mutableListOf<Path>()
+        Files.newDirectoryStream(dir, "$owner-*.dat").use { entries ->
+            for (entry in entries) {
+                val maidId = snapshotId(entry, owner) ?: continue
+                if (maidId == selected || maidId == previous || maidId in protected ||
+                    !Files.isRegularFile(entry, NOFOLLOW_LINKS)
+                ) continue
+                try {
+                    delete(entry)
+                } catch (_: IOException) {
+                    failed.add(entry)
+                } catch (_: SecurityException) {
+                    failed.add(entry)
+                }
+            }
+        }
+        return failed
+    }
+
+    private fun snapshotId(file: Path, owner: UUID): UUID? {
+        val name = file.fileName.toString()
+        val rawId = name.removePrefix("$owner-").removeSuffix(".dat")
+        if (rawId.length != 36) return null
+        val id = try {
+            UUID.fromString(rawId)
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        return id.takeIf { name == "$owner-$id.dat" }
     }
 
     private fun legacySource(dir: Path, legacyDir: Path, owner: UUID): Path? =

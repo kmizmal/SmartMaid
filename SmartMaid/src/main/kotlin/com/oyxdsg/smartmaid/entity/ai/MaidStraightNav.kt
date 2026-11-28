@@ -207,8 +207,8 @@ class MaidStraightNav {
             }
             return fail(maid, "搭路无方块")
         }
-        // 5) 小落差/平地/坡 → 直线走
-        moveTo(maid, t.x.toDouble(), from.y.toDouble(), t.z.toDouble())
+        // 5) 小落差/平地/坡 → 只推进到本轮已检查的下一格
+        moveTo(maid, ahead.x.toDouble(), from.y.toDouble(), ahead.z.toDouble())
         return false
     }
 

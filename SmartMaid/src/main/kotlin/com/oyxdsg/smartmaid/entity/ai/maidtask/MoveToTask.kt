@@ -34,7 +34,7 @@ class MoveToTask(
             MaidDebug.log("Move 到达 $target")
             return
         }
-        if ((maid.navigation as? MaidGroundPathNavigation)?.blockedByWideGap == true) {
+        if ((maid.navigation as? MaidGroundPathNavigation)?.isBlockedByWideGap(target) == true) {
             maid.navigation.stop()
             done = true
             stoppedForGap = true
@@ -44,6 +44,14 @@ class MoveToTask(
         if (maid.navigation.isDone || maid.tickCount % 20 == 0) {
             MaidActions.navigateTo(maid, target, speed)
         }
+    }
+
+    override fun forceStop(maid: SmartMaidEntity?) {
+        val nav = maid?.navigation ?: return
+        if (nav is MaidGroundPathNavigation) {
+            nav.stopWithFallback()
+            nav.clearGapBlock()
+        } else nav.stop()
     }
 
     override fun isDone(): Boolean = done

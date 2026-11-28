@@ -25,14 +25,16 @@ object MaidDataManager {
     // Only the server thread touches this set; weak references do not retain old worlds.
     private val summoned = Collections.newSetFromMap(WeakHashMap<SmartMaidEntity, Boolean>())
 
+    private fun activeOwnedMaids(server: MinecraftServer, owner: UUID): Sequence<SmartMaidEntity> = sequence {
+        yieldAll(summoned.asSequence().filter { it.level().server === server })
+        for (level in server.allLevels) {
+            yieldAll(level.allEntities.asSequence().filterIsInstance<SmartMaidEntity>())
+        }
+    }.filter { !it.isRemoved && it.ownerReference?.uuid == owner }
+
     @JvmStatic
-    fun findOwnedMaid(server: MinecraftServer, owner: UUID, exclude: SmartMaidEntity? = null): SmartMaidEntity? {
-        fun matches(maid: SmartMaidEntity): Boolean =
-            maid !== exclude && !maid.isRemoved && maid.ownerReference?.uuid == owner
-        return summoned.firstOrNull { it.level().server === server && matches(it) }
-            ?: server.allLevels.asSequence().flatMap { it.allEntities.asSequence() }
-                .filterIsInstance<SmartMaidEntity>().firstOrNull(::matches)
-    }
+    fun findOwnedMaid(server: MinecraftServer, owner: UUID, exclude: SmartMaidEntity? = null): SmartMaidEntity? =
+        activeOwnedMaids(server, owner).firstOrNull { it !== exclude }
 
     @JvmStatic
     fun hasOwnedMaid(server: MinecraftServer, owner: UUID): Boolean = findOwnedMaid(server, owner) != null
@@ -40,11 +42,29 @@ object MaidDataManager {
     /** Called only after the new entity has been inserted successfully. */
     fun registerSummoned(maid: SmartMaidEntity) {
         val owner = requireNotNull(maid.ownerReference).uuid
-        val dir = dirFor(requireNotNull(maid.level().server))
+        val server = requireNotNull(maid.level().server)
+        val dir = dirFor(server)
         val file = MaidDataFiles.dataFile(dir, owner, maid.uuid)
         if (!MaidDataFiles.hasData(file)) writeSnapshot(maid, file)
+        // An unreadable predecessor prevents cleanup, not the existing selection/registration step.
+        val previous = try {
+            Result.success(MaidDataFiles.selectedSnapshotId(dir, owner))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
         MaidDataFiles.selectSnapshot(dir, owner, maid.uuid)
         summoned.add(maid)
+
+        // Retention is best effort after commit: a cleanup failure must not discard the new maid.
+        try {
+            val previousId = previous.getOrThrow()
+            val protected = activeOwnedMaids(server, owner).map { it.uuid }.toSet()
+            for (failed in MaidDataFiles.pruneSupersededSnapshots(dir, owner, maid.uuid, previousId, protected)) {
+                SmartMaid.LOGGER.warn("无法清理旧女仆快照 {}", failed)
+            }
+        } catch (e: Exception) {
+            SmartMaid.LOGGER.warn("跳过玩家 {} 的旧女仆快照清理", owner, e)
+        }
     }
 
     @JvmStatic
