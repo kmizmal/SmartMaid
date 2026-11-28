@@ -1,8 +1,10 @@
-# Kotlin migration — N1/N2/N3 本机复核完成，待合并决定
+# Kotlin migration — 当前状态与历史记录
 
-## 当前状态（2026-11-26，N1/N2/N3 本机复核完成）
+## 当前状态（2026-11-28）
 
-下一阶段见 [开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)：N1/N2 已按计划完成本机验证，N3 已完成合并材料复核，P3 已在独立分支完成基线、定位修复与正式轨迹断言（4 格边界仍为未支持限制）；详细证据与限制见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)、[N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md) 与 [P3 标定记录](../docs/superpowers/handoffs/2026-11-26-p3-jump-calibration-baseline.md)。
+最新验收见 [2026-11-28 可用性验收报告](../docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)：26.2/26.3 双版本各 15 suites / 61 tests / 0 failures/errors/skips；Task 2 的存档迁移、最新快照优先和复制失败只读回退均有独立 26.2 实机证据。Task 3 仍因缺少私有非 OP 第二角色 **BLOCKED**，Task 4 未启用。历史 N1/N2、N3、P3 证据见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)、[N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md)、[P3 标定记录](../docs/superpowers/handoffs/2026-11-26-p3-jump-calibration-baseline.md)。
+
+## 历史里程碑（2026-11-26 当时）
 
 - N1：`SmartMaid/tools/autotest.n1-commands.json` 在 26.2 真机世界 `SmartMaid-N1-20261126-F` 执行，`AutoTest 汇总: PASS=41 FAIL=0`；覆盖真实玩家命令源、transfer/chest/equip/store/look/break/place/use/attack/mine/farm 及拒绝路径。证据见临时目录 `C:\Users\zmal\AppData\Local\Temp\SmartMaid-N1-20261126-150236\runClient-N1-F-final-PASS.log`。
 - N2：`SmartMaid/tools/clienttest.inventory-live.json` 在 26.2 真机世界 `SmartMaid-N2-20261126-D` 执行，`clienttest.report.json` 为 37/37 PASS、0 FAIL/ERROR；真实 `MaidInventoryScreen`/`MaidInventoryMenu maidId=147`、装备同步、shift-click 数量守恒和关开重进均通过。证据见 `clienttest.report.N2-D-PASS.json` 和 `runClient-N2-D-final-PASS.log`。
@@ -14,7 +16,7 @@
 - 修复后 26.2、26.3 clean build 均成功（50 秒 / 37 秒），各 **7 suites / 37 tests / 0 failures/errors/skips**；新增 1 个 suite、4 项测试，原 33 项保留。XML 已分版本归档。
 - 修复后 26.2 静态总门 A/B/C 全通过，PAL 0 fatal / 0 warning，依赖成员检查通过。
 - R3 已由 `ae65347` 独立修复：限定 16 个文件规范行尾，保留 Markdown 硬换行语义；全分支 `git diff --check main...HEAD` 退出 0。模块新增忽略 `.kotlin/`；生产 Java=0、Kotlin=131，Java 测试文件本轮前 7 个，新增 `SlotsTest` 后 8 个。
-- 证据：`.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/command-fix-20261124/`；详细红绿测试、命令、范围与限制见 [修复复核记录](../docs/superpowers/handoffs/2026-11-24-kotlin-migration-risk-review.md)。
+- 证据：`.superpowers/sdd/2026-11-23-fabric-loom-gameplay-validation/command-fix-20261124/`；详细红绿测试、命令、范围与限制见 2026-11-24 修复复核记录（已清理，Git 历史可追溯）。
 - 本轮未进游戏执行命令，解析测试不替代世界操作/权限/真实容器运行验证；此前 T4 记录保留为修复前的独立证据。26.3 专用世界/输入按用户决定仍不补做，桌宠 N/A。已确认的三项问题已修复，最终合并仍由负责人结合验证范围决定；不自动推送或合并。
 - 根目录 LICENSE 已替换为 GPLv3 完整正文，与 GPL-3.0.txt 一致；上游 MIT 原文保存在 LICENSE-MIT-upstream.txt，二者及 NOTICE 随 jar 打包，构建和包内字节核对通过。
 - 用户设计文档保持原有修改，未纳入提交。现有 Kotlin/弃用警告未扩展清理。
@@ -32,11 +34,11 @@
 - GUI 覆盖菜单链路与入口调用；报告 nearestMaid=-1，invokeOpenInventory=false，未断言真实女仆容器打开，也不替代实体按键验证。26.3 专用世界/输入按用户决定不补做，保持未验证；桌宠 N/A。
 - 活动代码/运行配置调用仍为 0；IDEA workspace.xml 的两个 beforePath 为删除文件的 changelist 元数据，不是调用。历史和退役文本保留。用户设计文档 SHA-256 保持 `90982E0DB300D408ADD8EA61637CB64CABB74F394987C82504F41FAB0AFAE1A1`。
 - IDEA MCP 终端可用，已完成构建和客户端测试；先前 Work shell 的 localhost 限制记录保留为历史，不再作为本轮阻断。没有修改系统权限、依赖或 JVM 配置。
-- T4 / M4 本轮技术检查通过；合并建议维持“暂缓/修复后合并”，待项目负责人结合未验证范围作决定。不自动提交、推送或合并；工作树仅含交接时已有的预期改动。完整证据与范围见 [T4 退役记录](../docs/superpowers/handoffs/2026-11-24-launcher-retirement-report.md)。
+- T4 / M4 本轮技术检查通过；合并建议维持“暂缓/修复后合并”，待项目负责人结合未验证范围作决定。不自动提交、推送或合并；工作树仅含交接时已有的预期改动。完整证据与范围见 2026-11-24 T4 退役记录（已清理，Git 历史可追溯）。
 
 ## 历史验证记录（以下保留原时间线，以顶部当前状态为准）
 
-Checked on 2026-11-23 during execution of `docs/superpowers/plans/2026-11-23-kotlin-migration-merge-fixes.md`.
+Checked on 2026-11-23 during execution of the Kotlin migration merge-fixes plan (removed during docs cleanup; see Git history).
 This document records the current working-tree state and the commands actually run in this checkout.
 Task 5 static checks completed on 2026-11-23. The migration is not marked as unconditional merge-ready: the static gate is green, but full AutoTest/gameplay E2E could not start because this machine has no HMCL launch log or installed 26.2 game directory.
 
@@ -123,7 +125,7 @@ The migration keeps the public Java-facing contracts, payload formats, serializa
 
 ## 2026-11-24 Loom 玩法验收（实际运行，仍为“修复后合并”）
 
-使用 `SmartMaid/run` 作为游戏目录、Windows `gradlew.bat --offline --no-daemon --console=plain runClient` 启动；未使用 HMCL/token。详细证据与路径见 `docs/superpowers/handoffs/2026-11-24-loom-gameplay-acceptance-report.md`。
+使用 `SmartMaid/run` 作为游戏目录、Windows `gradlew.bat --offline --no-daemon --console=plain runClient` 启动；未使用 HMCL/token。详细证据与路径见 2026-11-24 Loom 玩法验收报告（已清理，Git 历史可追溯）。
 
 - T1 进入专用世界并正常保存退出：通过。
 - T2-A 基础 AutoTest（修复前）：**FAIL，PASS=5 FAIL=1**。`c3` 期望铁锭 `craft_check=false`，实际 `craftable=true`，`craft_plan` 为 9 个铁粒；执行 `craft` 后库存仍为 1 个铁锭。独立探针确认这是 `CraftExecutor` 递归自举/材料计数误报；对照 `main` 的 Java 与当前 Kotlin，相关 `resolveMissing`/`resolveItem` 逻辑一致，判定为迁移前既有问题，不是 Kotlin 迁移回归，需单独产品决策。该问题已于同日修复，见下方“CraftExecutor 循环自举/材料计数修复”。

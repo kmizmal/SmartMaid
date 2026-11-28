@@ -1,6 +1,6 @@
 # SmartMaid 测试体系
 
-更新：2026-11-26。当前 Kotlin 构建/测试入口与 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 一致；完整运行和归档步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，N1/N2 本机证据见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)，N3 复核见 [N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md)，后续工作见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。
+更新：2026-11-28。当前 Kotlin 构建/测试入口与 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 一致；完整运行和归档步骤见 [Loom 测试操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)，最新可用性验收见 [2026-11-28 可用性验收报告](../docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)，N1/N2 本机证据见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)，N3 复核见 [N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md)。
 
 ## 0 当前执行入口
 
@@ -29,7 +29,7 @@ git diff --cached --check
 git diff --check main...HEAD
 ```
 
-- 当前双版本各 **8 suites / 40 tests / 0 failures/errors/skips**（2026-11-26）；新增 `SlotsTest` 2 项，`MaidTaskCommandTest` 增加 1 项权限/回调用例。6 suites / 33 tests 是新增命令 suite 前的历史基线。
+- 当前双版本各 **15 suites / 61 tests / 0 failures/errors/skips**（2026-11-28）；此前 8 suites / 40 tests、7 suites / 37 tests 和 6 suites / 33 tests 均为历史基线，新增测试须说明计数变化。6 suites / 33 tests 是新增命令 suite 前的历史基线。
 - 双版本 clean build 的完整命令、版本参数及 XML 归档顺序见操作卡。Kotlin 发布包使用 Wrapper；旧纯 javac 的 `compile_check.py --package` 不是当前 Kotlin 编译/打包入口。
 - `SMARTMAID_MC_DIR` 已指向真实 `run`，clienttest 不传 `--series`。静态工具的 `--series 26.2` 是版本选择，需要保留；不能直接把它改为 26.3 就声称完成了该版本的所有静态验证。
 - AutoTest 在单机集成服务器执行：按轮部署至 `run/config/smartmaid/autotest.json`，确认入场和本轮断言后正常退出，不能用旧 done 文件签收。

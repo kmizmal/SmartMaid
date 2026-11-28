@@ -24,4 +24,4 @@
 
 ## 接口与历史示例
 
-[DESIGN_AI_INTERFACE.md](DESIGN_AI_INTERFACE.md) 保留为独立接口手册；其中启动说明以当前操作卡为准。历史 [原子协议 v4 全文](../docs/archive/design/DESIGN_ATOMIC_PROTOCOL.md) 保留语言示例、设计原因与用户决策，使用示例前核对当前实现，不将其旧 Java 清单或外部环境当作现状。
+[DESIGN_AI_INTERFACE.md](DESIGN_AI_INTERFACE.md) 保留为独立接口手册；其中启动说明以当前操作卡为准。历史原子协议 v4 全文（已由 Git 历史留存）保留语言示例、设计原因与用户决策，使用示例前核对当前实现，不将其旧 Java 清单或外部环境当作现状。

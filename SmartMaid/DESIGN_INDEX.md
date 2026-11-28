@@ -1,6 +1,6 @@
 # 设计文档索引
 
-更新：2026-11-24。当前实现说明与历史设计分开维护；下一步开发只从 [下一阶段计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md) 接续，验证结果以 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 为准。
+更新：2026-11-28。当前实现说明与历史设计分开维护；验证结果以 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 和 [2026-11-28 可用性验收报告](../docs/superpowers/handoffs/2026-11-28-usability-validation-report.md) 为准，后续战斗与移动安全见 [阶段计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。
 
 | 文档 | 当前用途 | 状态 |
 | --- | --- | --- |

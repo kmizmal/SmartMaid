@@ -30,6 +30,6 @@
 
 ## 后续与历史
 
-[下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md) 安排 26.2 命令执行/权限与真实容器回归，随后独立推进 P3。
+26.2 命令执行/权限与真实容器回归已完成，证据见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)；后续战斗与移动安全见 [阶段计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。
 
-[旧调研与适配实验全文](../docs/archive/design/DESIGN_MULTIVERSION.md) 保留当时 API 差异、失败和决策；其中“待评审 / 未开工 / Gradle 未实跑”、旧版本表和纯 javac 命令均不作为当前行动指令。
+旧调研与适配实验全文已由 Git 历史留存，包含当时 API 差异、失败和决策；其中“待评审 / 未开工 / Gradle 未实跑”、旧版本表和纯 javac 命令均不作为当前行动指令。

@@ -39,7 +39,7 @@ Copy-Item -LiteralPath '.\config\smartmaid\autotest.json' -Destination (Join-Pat
 
 在客户端进入本轮专用世界；允许使用 Loom 参数 `"--args=--username T4Tester --quickPlaySingleplayer <专用世界文件夹名>"` 自动进入已准备的世界。用相同用户名保持测试玩家身份稳定。检查 `run/logs/latest.log` 中每个断言 ID、`AutoTest 汇总: PASS=6 FAIL=0` 和 `AutoTest: 执行完成`；确认输入改名为 `autotest.done.json`。正常保存退出后，归档 `latest.log`、done 文件及控制台输出。
 
-B/C 套件分别使用 `tools/autotest.modpack-compat.json`（21 个断言）和 `tools/autotest.queue-full.json`（30 个断言），一次只部署一套。需要恢复测试时按 [验收报告中的侧车设计](2026-11-24-loom-gameplay-acceptance-report.md) 检查重新召唤后的库存/队列，UUID 与坐标不跨重启保持。
+B/C 套件分别使用 `tools/autotest.modpack-compat.json`（21 个断言）和 `tools/autotest.queue-full.json`（30 个断言），一次只部署一套。需要恢复测试时按当前 `tools/autotest.*.json` 侧车配置检查重新召唤后的库存/队列，UUID 与坐标不跨重启保持。
 
 ## 3. GUI 与错误通道
 
@@ -76,8 +76,8 @@ git diff --cached --check
 git diff --check main...HEAD
 ```
 
-当前基线为双版本各 7 suites / 37 tests / 0 failures/errors/skips（原 33 项加命令 suite 的 4 项；新增测试须说明计数变化）；静态 A/B/C 通过、PAL 0 fatal/0 warning、209 个依赖成员匹配。这里 `verify_all.py --series` 是静态工具的版本选择，与客户端 gameDir 规则不同。构建成功不等于 26.3 游戏输入已经验证。当前范围与门禁结果见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md) 和 [T4 退役记录](2026-11-24-launcher-retirement-report.md)；不自动合并。
+当前基线为双版本各 **15 suites / 61 tests / 0 failures/errors/skips**（2026-11-28；此前 7 suites / 37 tests 已过时，新增测试须说明计数变化）；静态 A/B/C 通过、PAL 0 fatal/0 warning、209 个依赖成员匹配。这里 `verify_all.py --series` 是静态工具的版本选择，与客户端 gameDir 规则不同。构建成功不等于 26.3 游戏输入已经验证。当前范围与门禁结果见 [迁移状态](../../../SmartMaid/KOTLIN_MIGRATION_STATUS.md) 和 [2026-11-28 可用性验收报告](2026-11-28-usability-validation-report.md)；不自动合并。
 
 ## 6. 接续开发
 
-当前证据见迁移状态顶部；命令执行、权限、真实容器与 P3 跳跃标定的后续工作见 [下一阶段开发计划](../plans/2026-11-24-next-stage-development.md)。本操作卡提供运行方法，不代表后续套件已经实现或通过。
+当前证据见迁移状态顶部；命令执行、权限、真实容器与 P3 跳跃标定已完成，后续战斗与移动安全工作见 [战斗与移动安全阶段计划](../plans/2026-11-27-post-p3-team-plan.md)。本操作卡提供运行方法，不代表后续套件已经实现或通过。

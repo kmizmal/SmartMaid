@@ -8,7 +8,7 @@
 
 **M5 双向链路与感知增量的历史验收（2026-09-10）**见 `HANDOVER.md`、`DEVELOPMENT_ISSUES.md`；当时的一键 E2E 入口已退役，当前使用 Loom 操作卡。
 
-当前设计导航见 [设计索引](DESIGN_INDEX.md)；当前代码/验证范围见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)；后续任务见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。双版本构建通过不代表 26.3 游戏输入已验证。
+当前设计导航见 [设计索引](DESIGN_INDEX.md)；当前代码/验证范围见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)；最新验收见 [2026-11-28 可用性验收报告](../docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)，后续战斗阶段见 [计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。双版本构建通过不代表 26.3 游戏输入已验证。
 
 **玩家绑定设置 + 游戏内女仆菜单 + 聊天栏对话 + 桌宠隐退已落地（2026-09-19）**——见 `HANDOVER.md` §2026-09-19 节。
 

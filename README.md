@@ -32,7 +32,7 @@ gradlew.bat build
 /summonmaid
 ```
 
-开发验收以 [当前迁移状态](SmartMaid/KOTLIN_MIGRATION_STATUS.md) 和 [Loom 操作卡](docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 为准；下一阶段见 [开发计划](docs/superpowers/plans/2026-11-24-next-stage-development.md)。26.3 已完成独立构建/测试，游戏输入验证范围见状态文档。
+开发验收以 [当前迁移状态](SmartMaid/KOTLIN_MIGRATION_STATUS.md) 和 [Loom 操作卡](docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 为准；最新验收见 [2026-11-28 可用性验收报告](docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)，后续战斗阶段见 [计划](docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)。26.3 已完成独立构建/测试，游戏输入验证范围见状态文档。
 
 ## 目录
 

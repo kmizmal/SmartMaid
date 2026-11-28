@@ -2,7 +2,7 @@
 
 更新：2026-11-24（北京时间）。核对基线：`feature/kotlin-migration`，HEAD `658e390` 及当前工作树；默认 Minecraft 26.2。本文替代 2026-09-16 的待实施方案，描述当前 Kotlin 实现、保留决策及待修项，不代表本轮完成了代码修复或游戏验收。
 
-玩法规则与原始需求对照见 [女仆战斗系统](../女仆战斗系统.md)；本文维护源码导航和开发验证，避免两份文档重复维护实现细节。项目排期以 [下一阶段计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md) 为准，迁移验证范围以 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 为准。
+玩法规则与原始需求对照见 [女仆战斗系统](../女仆战斗系统.md)；本文维护源码导航和开发验证，避免两份文档重复维护实现细节。项目后续排期见 [战斗与移动安全阶段计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md)，迁移验证范围以 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 为准。
 
 ## 1. 决策来源与修订
 

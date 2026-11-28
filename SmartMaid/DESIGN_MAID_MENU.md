@@ -21,10 +21,10 @@
 
 ## 验证与待办
 
-既有 gui-chain 29 项通过只证明其覆盖的菜单链路。该套件使用 maidId=-1，未证明真实女仆容器成功打开或物品同步正确。真实容器、快速移动及库存恢复的后续测试见 [下一阶段 N2](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。
+既有 gui-chain 29 项通过只证明其覆盖的菜单链路。该套件使用 maidId=-1，未证明真实女仆容器成功打开或物品同步正确。真实容器、快速移动及库存恢复的后续测试见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md)。
 
-当前测试和构建结果见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)，执行方法见 [Loom 操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)。不要把历史菜单方案的“N1”与下一阶段计划的“N1 命令回归”混为一项。
+当前测试和构建结果见 [迁移状态](KOTLIN_MIGRATION_STATUS.md)，执行方法见 [Loom 操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md)。不要把历史菜单方案的“N1”与已完成的命令执行/权限回归（N1）混为一项。
 
 ## 历史决策
 
-原始 [菜单规划](../docs/archive/design/DESIGN_MAID_MENU.md) 与 [菜单 N1 实施稿](../docs/archive/design/DESIGN_MAID_MENU_N1.md) 已归档，保留用户决策和当时修订，不再作为当前开工指令。
+原始菜单规划与菜单 N1 实施稿已由 Git 历史留存，不再作为当前开工指令。

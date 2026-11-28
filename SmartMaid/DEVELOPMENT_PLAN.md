@@ -4,15 +4,16 @@
 
 当前迁移基线与验证以 [迁移状态](KOTLIN_MIGRATION_STATUS.md) 为准。旧一键 E2E 已退役，当前入口为 Wrapper / Loom、AutoTest 和 clienttest；[操作卡](../docs/superpowers/handoffs/2026-11-24-loom-test-runbook.md) 是执行入口。
 
-| 优先级 | 下一项工作 | 状态与交付 |
+| 优先级 | 工作 | 状态与交付 |
 | --- | --- | --- |
-| 1 | 26.2 /maidtasks 执行与权限回归 | 尚未执行；现有 4 项命令测试只验证注册、解析和越界拒绝 |
-| 2 | 真实女仆背包容器套件 | 尚未实现；既有 gui-chain 使用 maidId=-1，不能代表真实容器验证 |
-| 3 | 合并材料复核 | 双版本各 37 项测试与静态门禁通过；结合新增运行证据及明确的未验证范围，由负责人决定是否合并 |
-| 4 | P3 跳跃实测标定 | 独立后续开发任务，先测量和定位，再决定是否改表或执行器 |
+| 已完成 | 26.2 /maidtasks 执行与权限回归 | 2026-11-26 完成，见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md) |
+| 已完成 | 真实女仆背包容器套件 | 37/37 PASS，见 [N1/N2 验证报告](../docs/superpowers/handoffs/2026-11-26-n1-n2-validation-report.md) |
+| 已完成 | 合并材料复核 | 见 [N3 复核报告](../docs/superpowers/handoffs/2026-11-26-n3-merge-material-review.md) |
+| 已完成 | P3 跳跃实测标定 | 见 [P3 标定记录](../docs/superpowers/handoffs/2026-11-26-p3-jump-calibration-baseline.md) |
+| 待分派 | 战斗决策与移动安全（COMBAT-01～05） | 见 [战斗与移动安全阶段计划](../docs/superpowers/plans/2026-11-27-post-p3-team-plan.md) |
 | 以后 | M6 完整桌宠联调、P5 模型 | 单独排期；本阶段桌宠 N/A，不顺带扩展 |
 
-任务拆分、实施文件、可观察断言、前置条件与退出标准见 [下一阶段开发计划](../docs/superpowers/plans/2026-11-24-next-stage-development.md)。本轮仅编写计划，以上任务不记作已完成。26.3 仅继续构建/互操作测试，不补做其专用世界和实体输入验证。
+2026-11-28 更新：上表前四项已完成；最新可用性验收见 [2026-11-28 可用性验收报告](../docs/superpowers/handoffs/2026-11-28-usability-validation-report.md)。26.3 仅继续构建/互操作测试，不补做其专用世界和实体输入验证。
 
 ## 历史规划与实施记录
 
